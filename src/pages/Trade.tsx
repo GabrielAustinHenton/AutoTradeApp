@@ -39,7 +39,6 @@ export function Trade() {
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [notes, setNotes] = useState('');
-  const [useMarketPrice, setUseMarketPrice] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [orderStatus, setOrderStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -48,12 +47,12 @@ export function Trade() {
   const { results: searchResults, loading: searchLoading, search } = useSymbolSearch();
   const { data: chartData } = useDailyData(symbol || null);
 
-  // Auto-fill price when quote is loaded and user wants market price
+  // Clear price when switching to market order
   useEffect(() => {
-    if (quote && useMarketPrice) {
-      setPrice(quote.price.toFixed(2));
+    if (orderType === 'market') {
+      setPrice('');
     }
-  }, [quote, useMarketPrice]);
+  }, [orderType]);
 
   const handleSymbolChange = (value: string) => {
     setSymbol(value.toUpperCase());
@@ -76,7 +75,15 @@ export function Trade() {
     setSubmitting(true);
 
     const sharesNum = parseInt(shares);
-    const priceNum = parseFloat(price);
+    // For market orders, use the current quote price; for limit orders, use the entered price
+    const priceNum = orderType === 'market' ? (quote?.price || 0) : parseFloat(price);
+
+    if (orderType === 'market' && !quote) {
+      setOrderStatus({ type: 'error', message: 'Unable to get current market price. Please try again.' });
+      setSubmitting(false);
+      return;
+    }
+
     const total = sharesNum * priceNum;
 
     try {
@@ -247,41 +254,39 @@ export function Trade() {
                 </button>
               </div>
 
-              {isLiveMode && (
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Order Type</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setOrderType('market')}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        orderType === 'market'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-700 text-slate-300'
-                      }`}
-                    >
-                      Market
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOrderType('limit')}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        orderType === 'limit'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-700 text-slate-300'
-                      }`}
-                    >
-                      Limit
-                    </button>
-                  </div>
-                  {orderType === 'market' && (
-                    <p className="text-xs text-slate-500 mt-1">Executes immediately at current market price</p>
-                  )}
-                  {orderType === 'limit' && (
-                    <p className="text-xs text-slate-500 mt-1">Executes when price reaches your specified limit</p>
-                  )}
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Order Type</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOrderType('market')}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      orderType === 'market'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    Market
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderType('limit')}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      orderType === 'limit'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    Limit
+                  </button>
                 </div>
-              )}
+                {orderType === 'market' && (
+                  <p className="text-xs text-slate-500 mt-1">Executes at current market price</p>
+                )}
+                {orderType === 'limit' && (
+                  <p className="text-xs text-slate-500 mt-1">Executes when price reaches your specified limit</p>
+                )}
+              </div>
 
               <div className="relative">
                 <label className="block text-sm text-slate-400 mb-2">Symbol</label>
@@ -353,33 +358,21 @@ export function Trade() {
                 />
               </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm text-slate-400">Price per Share</label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={useMarketPrice}
-                      onChange={(e) => setUseMarketPrice(e.target.checked)}
-                      className="rounded"
-                    />
-                    <span className="text-slate-400">Use market price</span>
-                  </label>
+              {orderType === 'limit' && (
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">Limit Price</label>
+                  <input
+                    type="number"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="150.00"
+                    step="0.01"
+                    min="0.01"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
+                    required
+                  />
                 </div>
-                <input
-                  type="number"
-                  value={price}
-                  onChange={(e) => {
-                    setPrice(e.target.value);
-                    setUseMarketPrice(false);
-                  }}
-                  placeholder="150.00"
-                  step="0.01"
-                  min="0.01"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
-                  required
-                />
-              </div>
+              )}
 
               <div>
                 <label className="block text-sm text-slate-400 mb-2">
@@ -394,19 +387,27 @@ export function Trade() {
                 />
               </div>
 
-              {shares && price && (
+              {shares && (orderType === 'limit' ? price : quote) && (
                 <div className="bg-slate-700 rounded-lg p-4">
                   <div className="flex justify-between mb-2">
-                    <span className="text-slate-400">Total</span>
+                    <span className="text-slate-400">
+                      {orderType === 'market' ? 'Estimated Total' : 'Total'}
+                    </span>
                     <span className="font-semibold text-xl">
-                      ${(parseInt(shares) * parseFloat(price)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${(parseInt(shares) * (orderType === 'market' ? (quote?.price || 0) : parseFloat(price))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
+                  {orderType === 'market' && quote && (
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-slate-400">Market price</span>
+                      <span>${quote.price.toFixed(2)}</span>
+                    </div>
+                  )}
                   {tradeType === 'buy' && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-400">Cash after trade</span>
-                      <span className={activeCashBalance - parseInt(shares) * parseFloat(price) < 0 ? 'text-red-400' : ''}>
-                        ${(activeCashBalance - parseInt(shares) * parseFloat(price)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <span className={activeCashBalance - parseInt(shares) * (orderType === 'market' ? (quote?.price || 0) : parseFloat(price)) < 0 ? 'text-red-400' : ''}>
+                        ${(activeCashBalance - parseInt(shares) * (orderType === 'market' ? (quote?.price || 0) : parseFloat(price))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   )}
@@ -515,7 +516,7 @@ export function Trade() {
                       onClick={() => {
                         setSymbol(position.symbol);
                         setShares(position.shares.toString());
-                        setUseMarketPrice(true);
+                        setOrderType('market');
                         setTradeType('sell');
                       }}
                       className="text-sm text-red-400 hover:text-red-300"
