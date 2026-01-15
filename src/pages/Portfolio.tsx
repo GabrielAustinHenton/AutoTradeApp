@@ -28,7 +28,11 @@ export function Portfolio() {
     for (const position of paperPortfolio.positions) {
       try {
         const quote = await getQuote(position.symbol);
-        prices.set(position.symbol, quote.price);
+        if (quote && quote.price) {
+          prices.set(position.symbol, quote.price);
+        } else {
+          console.warn(`No quote data returned for ${position.symbol}`);
+        }
         // Small delay to avoid rate limiting
         await new Promise((r) => setTimeout(r, 300));
       } catch (err) {

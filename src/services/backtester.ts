@@ -15,7 +15,7 @@ interface Position {
   entryDate: Date;
 }
 
-interface EquityPoint {
+export interface EquityPoint {
   date: Date;
   equity: number;
 }
@@ -178,7 +178,7 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
   };
 }
 
-function calculateMetrics(
+export function calculateMetrics(
   trades: BacktestTrade[],
   initialCapital: number,
   finalCapital: number,
