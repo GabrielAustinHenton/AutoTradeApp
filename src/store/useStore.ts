@@ -1,0 +1,503 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type {
+  Position,
+  Trade,
+  JournalEntry,
+  TradingRule,
+  PortfolioSummary,
+  CandlestickPattern,
+  Alert,
+  TradingMode,
+  PaperPortfolio,
+  AutoTradeConfig,
+  AutoTradeExecution,
+  BacktestResult,
+} from '../types';
+import { ibkr, type IBKRConfig } from '../services/ibkr';
+
+// Default candlestick pattern rules
+const createPatternRule = (
+  pattern: CandlestickPattern,
+  type: 'buy' | 'sell',
+  name: string,
+  symbol: string = 'AAPL'
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name,
+  symbol,
+  enabled: true,
+  type,
+  ruleType: 'pattern',
+  pattern,
+  action: { type: 'market', shares: 10 },
+  createdAt: new Date(),
+  autoTrade: false,
+  cooldownMinutes: 5,
+});
+
+// Default auto-trade configuration
+const defaultAutoTradeConfig: AutoTradeConfig = {
+  enabled: false,
+  maxTradesPerDay: 10,
+  maxPositionSize: 100,
+  tradingHoursOnly: true,
+};
+
+// Default paper portfolio
+const defaultPaperPortfolio: PaperPortfolio = {
+  cashBalance: 10000,
+  positions: [],
+  trades: [],
+  startingBalance: 10000,
+  createdAt: new Date(),
+};
+
+const defaultPatternRules: TradingRule[] = [
+  createPatternRule('hammer', 'buy', 'Hammer - Buy Signal'),
+  createPatternRule('evening_star', 'sell', 'Evening Star - Sell Signal'),
+  createPatternRule('bullish_engulfing', 'sell', 'Bullish Engulfing - Sell Signal'),
+  createPatternRule('shooting_star', 'sell', 'Shooting Star - Sell Signal'),
+  createPatternRule('gravestone_doji', 'sell', 'Gravestone Doji - Sell Signal'),
+  createPatternRule('bearish_engulfing', 'buy', 'Bearish Engulfing - Buy Signal'),
+  createPatternRule('inverted_hammer', 'buy', 'Inverted Hammer - Buy Signal'),
+  createPatternRule('bullish_breakout', 'buy', 'Bullish Breakout - Buy Signal'),
+  createPatternRule('bearish_breakout', 'sell', 'Bearish Breakout - Sell Signal'),
+];
+
+interface AppState {
+  // Portfolio
+  positions: Position[];
+  portfolioSummary: PortfolioSummary;
+  cashBalance: number;
+
+  // Watchlist
+  watchlist: string[];
+
+  // Trading
+  trades: Trade[];
+  tradingRules: TradingRule[];
+
+  // Journal
+  journalEntries: JournalEntry[];
+
+  // Alerts
+  alerts: Alert[];
+  alertsEnabled: boolean;
+  soundEnabled: boolean;
+
+  // IBKR
+  ibkrConnected: boolean;
+  ibkrAccountId: string;
+
+  // Trading Mode & Paper Trading
+  tradingMode: TradingMode;
+  paperPortfolio: PaperPortfolio;
+
+  // Auto-Trading
+  autoTradeConfig: AutoTradeConfig;
+  autoTradeExecutions: AutoTradeExecution[];
+
+  // Backtesting
+  backtestResults: BacktestResult[];
+
+  // Actions - Portfolio
+  addPosition: (position: Position) => void;
+  updatePosition: (id: string, updates: Partial<Position>) => void;
+  removePosition: (id: string) => void;
+  setCashBalance: (amount: number) => void;
+  updatePositionPrices: (prices: Map<string, number>) => void;
+
+  // Actions - Watchlist
+  addToWatchlist: (symbol: string) => void;
+  removeFromWatchlist: (symbol: string) => void;
+
+  // Actions - Trades
+  addTrade: (trade: Trade) => void;
+  removeTrade: (id: string) => void;
+
+  // Actions - Trading Rules
+  addTradingRule: (rule: TradingRule) => void;
+  updateTradingRule: (id: string, updates: Partial<TradingRule>) => void;
+  removeTradingRule: (id: string) => void;
+  toggleTradingRule: (id: string) => void;
+
+  // Actions - Journal
+  addJournalEntry: (entry: JournalEntry) => void;
+  updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => void;
+  removeJournalEntry: (id: string) => void;
+
+  // Actions - Alerts
+  addAlert: (alert: Alert) => void;
+  markAlertRead: (id: string) => void;
+  dismissAlert: (id: string) => void;
+  clearAllAlerts: () => void;
+  toggleAlerts: () => void;
+  toggleSound: () => void;
+
+  // Actions - IBKR
+  connectIBKR: (config: IBKRConfig) => void;
+  disconnectIBKR: () => void;
+  syncFromIBKR: () => Promise<void>;
+
+  // Actions - Trading Mode
+  setTradingMode: (mode: TradingMode) => void;
+  resetPaperPortfolio: (initialBalance?: number) => void;
+  addPaperTrade: (trade: Trade) => void;
+  updatePaperPosition: (symbol: string, shares: number, avgCost: number, currentPrice: number) => void;
+  updatePaperPositionPrices: (prices: Map<string, number>) => void;
+
+  // Actions - Auto-Trading
+  updateAutoTradeConfig: (config: Partial<AutoTradeConfig>) => void;
+  addAutoTradeExecution: (execution: AutoTradeExecution) => void;
+  getTodayAutoTradeCount: () => number;
+
+  // Actions - Backtesting
+  addBacktestResult: (result: BacktestResult) => void;
+  removeBacktestResult: (id: string) => void;
+  clearBacktestResults: () => void;
+}
+
+const initialPortfolioSummary: PortfolioSummary = {
+  totalValue: 0,
+  totalCost: 0,
+  totalGain: 0,
+  totalGainPercent: 0,
+  dayChange: 0,
+  dayChangePercent: 0,
+  cashBalance: 10000,
+};
+
+export const useStore = create<AppState>()(
+  persist(
+    (set) => ({
+      // Initial state
+      positions: [],
+      portfolioSummary: initialPortfolioSummary,
+      cashBalance: 10000,
+      watchlist: ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'],
+      trades: [],
+      tradingRules: defaultPatternRules,
+      journalEntries: [],
+      alerts: [],
+      alertsEnabled: true,
+      soundEnabled: true,
+      ibkrConnected: ibkr.loadConfig() !== null,
+      ibkrAccountId: ibkr.loadConfig()?.accountId || '',
+
+      // Trading Mode & Paper Trading
+      tradingMode: 'paper',
+      paperPortfolio: defaultPaperPortfolio,
+
+      // Auto-Trading
+      autoTradeConfig: defaultAutoTradeConfig,
+      autoTradeExecutions: [],
+
+      // Backtesting
+      backtestResults: [],
+
+      // Portfolio actions
+      addPosition: (position) =>
+        set((state) => ({ positions: [...state.positions, position] })),
+
+      updatePosition: (id, updates) =>
+        set((state) => ({
+          positions: state.positions.map((p) =>
+            p.id === id ? { ...p, ...updates } : p
+          ),
+        })),
+
+      removePosition: (id) =>
+        set((state) => ({
+          positions: state.positions.filter((p) => p.id !== id),
+        })),
+
+      setCashBalance: (amount) => set({ cashBalance: amount }),
+
+      updatePositionPrices: (prices) =>
+        set((state) => ({
+          positions: state.positions.map((p) => {
+            const newPrice = prices.get(p.symbol);
+            if (newPrice === undefined) return p;
+            const totalValue = p.shares * newPrice;
+            const totalGain = totalValue - p.shares * p.avgCost;
+            const totalGainPercent = ((newPrice - p.avgCost) / p.avgCost) * 100;
+            return {
+              ...p,
+              currentPrice: newPrice,
+              totalValue,
+              totalGain,
+              totalGainPercent,
+            };
+          }),
+        })),
+
+      // Watchlist actions
+      addToWatchlist: (symbol) =>
+        set((state) => ({
+          watchlist: state.watchlist.includes(symbol)
+            ? state.watchlist
+            : [...state.watchlist, symbol],
+        })),
+
+      removeFromWatchlist: (symbol) =>
+        set((state) => ({
+          watchlist: state.watchlist.filter((s) => s !== symbol),
+        })),
+
+      // Trade actions
+      addTrade: (trade) =>
+        set((state) => ({ trades: [trade, ...state.trades] })),
+
+      removeTrade: (id) =>
+        set((state) => ({
+          trades: state.trades.filter((t) => t.id !== id),
+        })),
+
+      // Trading rule actions
+      addTradingRule: (rule) =>
+        set((state) => ({ tradingRules: [...state.tradingRules, rule] })),
+
+      updateTradingRule: (id, updates) =>
+        set((state) => ({
+          tradingRules: state.tradingRules.map((r) =>
+            r.id === id ? { ...r, ...updates } : r
+          ),
+        })),
+
+      removeTradingRule: (id) =>
+        set((state) => ({
+          tradingRules: state.tradingRules.filter((r) => r.id !== id),
+        })),
+
+      toggleTradingRule: (id) =>
+        set((state) => ({
+          tradingRules: state.tradingRules.map((r) =>
+            r.id === id ? { ...r, enabled: !r.enabled } : r
+          ),
+        })),
+
+      // Journal actions
+      addJournalEntry: (entry) =>
+        set((state) => ({ journalEntries: [entry, ...state.journalEntries] })),
+
+      updateJournalEntry: (id, updates) =>
+        set((state) => ({
+          journalEntries: state.journalEntries.map((e) =>
+            e.id === id ? { ...e, ...updates } : e
+          ),
+        })),
+
+      removeJournalEntry: (id) =>
+        set((state) => ({
+          journalEntries: state.journalEntries.filter((e) => e.id !== id),
+        })),
+
+      // Alert actions
+      addAlert: (alert) =>
+        set((state) => ({
+          alerts: [alert, ...state.alerts].slice(0, 100), // Keep last 100 alerts
+        })),
+
+      markAlertRead: (id) =>
+        set((state) => ({
+          alerts: state.alerts.map((a) =>
+            a.id === id ? { ...a, read: true } : a
+          ),
+        })),
+
+      dismissAlert: (id) =>
+        set((state) => ({
+          alerts: state.alerts.map((a) =>
+            a.id === id ? { ...a, dismissed: true } : a
+          ),
+        })),
+
+      clearAllAlerts: () => set({ alerts: [] }),
+
+      toggleAlerts: () =>
+        set((state) => ({ alertsEnabled: !state.alertsEnabled })),
+
+      toggleSound: () =>
+        set((state) => ({ soundEnabled: !state.soundEnabled })),
+
+      // IBKR actions
+      connectIBKR: (config) => {
+        ibkr.configure(config);
+        set({ ibkrConnected: true, ibkrAccountId: config.accountId });
+      },
+
+      disconnectIBKR: () => {
+        ibkr.clearConfig();
+        set({ ibkrConnected: false, ibkrAccountId: '' });
+      },
+
+      syncFromIBKR: async () => {
+        if (!ibkr.isConfigured()) return;
+
+        try {
+          // Get account summary (IBKR returns lowercase field names)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const summaryData = await ibkr.getAccountSummary() as any;
+          const cashBalance = summaryData.totalcashvalue?.amount || 0;
+          set({ cashBalance });
+
+          // Get positions
+          const ibkrPositions = await ibkr.getPositions();
+          const positions: Position[] = ibkrPositions.map((p) => ({
+            id: p.conid.toString(),
+            symbol: p.ticker || p.contractDesc,
+            name: p.fullName || p.contractDesc,
+            shares: p.position,
+            avgCost: p.avgCost,
+            currentPrice: p.mktPrice,
+            totalValue: p.mktValue,
+            totalGain: p.unrealizedPnl,
+            totalGainPercent: p.avgCost > 0 ? ((p.mktPrice - p.avgCost) / p.avgCost) * 100 : 0,
+          }));
+
+          const totalValue = summaryData.netliquidation?.amount || 0;
+          const totalCost = positions.reduce((sum, p) => sum + p.shares * p.avgCost, 0);
+
+          set({
+            positions,
+            portfolioSummary: {
+              totalValue,
+              totalCost,
+              totalGain: totalValue - totalCost,
+              totalGainPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
+              dayChange: 0, // IBKR doesn't provide this directly
+              dayChangePercent: 0,
+              cashBalance,
+            },
+          });
+        } catch (error) {
+          console.error('Failed to sync from IBKR:', error);
+          throw error;
+        }
+      },
+
+      // Trading Mode actions
+      setTradingMode: (mode) => set({ tradingMode: mode }),
+
+      resetPaperPortfolio: (initialBalance = 10000) =>
+        set({
+          paperPortfolio: {
+            cashBalance: initialBalance,
+            positions: [],
+            trades: [],
+            startingBalance: initialBalance,
+            createdAt: new Date(),
+          },
+        }),
+
+      addPaperTrade: (trade) =>
+        set((state) => ({
+          paperPortfolio: {
+            ...state.paperPortfolio,
+            trades: [trade, ...state.paperPortfolio.trades],
+          },
+        })),
+
+      updatePaperPosition: (symbol, shares, avgCost, currentPrice) =>
+        set((state) => {
+          const existingIndex = state.paperPortfolio.positions.findIndex(
+            (p) => p.symbol === symbol
+          );
+          const totalValue = shares * currentPrice;
+          const totalGain = totalValue - shares * avgCost;
+          const totalGainPercent = avgCost > 0 ? ((currentPrice - avgCost) / avgCost) * 100 : 0;
+
+          const newPosition: Position = {
+            id: existingIndex >= 0 ? state.paperPortfolio.positions[existingIndex].id : crypto.randomUUID(),
+            symbol,
+            name: symbol,
+            shares,
+            avgCost,
+            currentPrice,
+            totalValue,
+            totalGain,
+            totalGainPercent,
+          };
+
+          let newPositions: Position[];
+          if (shares === 0) {
+            // Remove position if shares are 0
+            newPositions = state.paperPortfolio.positions.filter((p) => p.symbol !== symbol);
+          } else if (existingIndex >= 0) {
+            // Update existing position
+            newPositions = state.paperPortfolio.positions.map((p) =>
+              p.symbol === symbol ? newPosition : p
+            );
+          } else {
+            // Add new position
+            newPositions = [...state.paperPortfolio.positions, newPosition];
+          }
+
+          return {
+            paperPortfolio: {
+              ...state.paperPortfolio,
+              positions: newPositions,
+            },
+          };
+        }),
+
+      updatePaperPositionPrices: (prices) =>
+        set((state) => ({
+          paperPortfolio: {
+            ...state.paperPortfolio,
+            positions: state.paperPortfolio.positions.map((p) => {
+              const newPrice = prices.get(p.symbol);
+              if (newPrice === undefined) return p;
+              const totalValue = p.shares * newPrice;
+              const totalGain = totalValue - p.shares * p.avgCost;
+              const totalGainPercent = p.avgCost > 0 ? ((newPrice - p.avgCost) / p.avgCost) * 100 : 0;
+              return {
+                ...p,
+                currentPrice: newPrice,
+                totalValue,
+                totalGain,
+                totalGainPercent,
+              };
+            }),
+          },
+        })),
+
+      // Auto-Trading actions
+      updateAutoTradeConfig: (config) =>
+        set((state) => ({
+          autoTradeConfig: { ...state.autoTradeConfig, ...config },
+        })),
+
+      addAutoTradeExecution: (execution) =>
+        set((state) => ({
+          autoTradeExecutions: [execution, ...state.autoTradeExecutions].slice(0, 500),
+        })),
+
+      getTodayAutoTradeCount: () => {
+        const state = useStore.getState();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return state.autoTradeExecutions.filter(
+          (e) => new Date(e.timestamp) >= today && e.status === 'executed'
+        ).length;
+      },
+
+      // Backtesting actions
+      addBacktestResult: (result) =>
+        set((state) => ({
+          backtestResults: [result, ...state.backtestResults].slice(0, 50),
+        })),
+
+      removeBacktestResult: (id) =>
+        set((state) => ({
+          backtestResults: state.backtestResults.filter((r) => r.id !== id),
+        })),
+
+      clearBacktestResults: () => set({ backtestResults: [] }),
+    }),
+    {
+      name: 'tradeapp-storage',
+    }
+  )
+);

@@ -1,0 +1,196 @@
+import axios from 'axios';
+
+const BASE_URL = 'https://www.alphavantage.co/query';
+
+const getApiKey = () => {
+  const key = import.meta.env.VITE_ALPHA_VANTAGE_API_KEY;
+  if (!key) {
+    console.warn('Alpha Vantage API key not set. Add VITE_ALPHA_VANTAGE_API_KEY to .env');
+  }
+  return key || 'demo';
+};
+
+export interface QuoteData {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  high: number;
+  low: number;
+  volume: number;
+  previousClose: number;
+  latestTradingDay: string;
+}
+
+export interface IntradayData {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface SearchResult {
+  symbol: string;
+  name: string;
+  type: string;
+  region: string;
+  currency: string;
+}
+
+export async function getQuote(symbol: string): Promise<QuoteData | null> {
+  try {
+    const response = await axios.get(BASE_URL, {
+      params: {
+        function: 'GLOBAL_QUOTE',
+        symbol,
+        apikey: getApiKey(),
+      },
+    });
+
+    const data = response.data['Global Quote'];
+    if (!data || Object.keys(data).length === 0) {
+      return null;
+    }
+
+    return {
+      symbol: data['01. symbol'],
+      price: parseFloat(data['05. price']),
+      change: parseFloat(data['09. change']),
+      changePercent: parseFloat(data['10. change percent']?.replace('%', '') || '0'),
+      high: parseFloat(data['03. high']),
+      low: parseFloat(data['04. low']),
+      volume: parseInt(data['06. volume']),
+      previousClose: parseFloat(data['08. previous close']),
+      latestTradingDay: data['07. latest trading day'],
+    };
+  } catch (error) {
+    console.error('Error fetching quote:', error);
+    return null;
+  }
+}
+
+export async function getMultipleQuotes(symbols: string[]): Promise<Map<string, QuoteData>> {
+  const quotes = new Map<string, QuoteData>();
+
+  // Alpha Vantage free tier has rate limits (5 calls/min, 500/day)
+  // Fetch sequentially with small delay to avoid rate limiting
+  for (const symbol of symbols) {
+    const quote = await getQuote(symbol);
+    if (quote) {
+      quotes.set(symbol, quote);
+    }
+    // Small delay between requests
+    if (symbols.indexOf(symbol) < symbols.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+  }
+
+  return quotes;
+}
+
+export async function getIntradayData(
+  symbol: string,
+  interval: '1min' | '5min' | '15min' | '30min' | '60min' = '5min'
+): Promise<IntradayData[]> {
+  try {
+    const response = await axios.get(BASE_URL, {
+      params: {
+        function: 'TIME_SERIES_INTRADAY',
+        symbol,
+        interval,
+        apikey: getApiKey(),
+      },
+    });
+
+    const timeSeries = response.data[`Time Series (${interval})`];
+    if (!timeSeries) {
+      return [];
+    }
+
+    return Object.entries(timeSeries)
+      .map(([timestamp, values]: [string, any]) => ({
+        timestamp,
+        open: parseFloat(values['1. open']),
+        high: parseFloat(values['2. high']),
+        low: parseFloat(values['3. low']),
+        close: parseFloat(values['4. close']),
+        volume: parseInt(values['5. volume']),
+      }))
+      .reverse(); // Oldest first
+  } catch (error) {
+    console.error('Error fetching intraday data:', error);
+    return [];
+  }
+}
+
+export async function getDailyData(symbol: string, outputSize: 'compact' | 'full' = 'compact'): Promise<IntradayData[]> {
+  try {
+    const response = await axios.get(BASE_URL, {
+      params: {
+        function: 'TIME_SERIES_DAILY',
+        symbol,
+        outputsize: outputSize,
+        apikey: getApiKey(),
+      },
+    });
+
+    const timeSeries = response.data['Time Series (Daily)'];
+    if (!timeSeries) {
+      // Check for API error messages
+      if (response.data['Note']) {
+        console.error('Alpha Vantage rate limit:', response.data['Note']);
+        throw new Error('API rate limit reached. Please wait a minute and try again.');
+      }
+      if (response.data['Error Message']) {
+        console.error('Alpha Vantage error:', response.data['Error Message']);
+        throw new Error(response.data['Error Message']);
+      }
+      console.warn('No daily data returned for symbol');
+      return [];
+    }
+
+    return Object.entries(timeSeries)
+      .map(([timestamp, values]: [string, any]) => ({
+        timestamp,
+        open: parseFloat(values['1. open']),
+        high: parseFloat(values['2. high']),
+        low: parseFloat(values['3. low']),
+        close: parseFloat(values['4. close']),
+        volume: parseInt(values['5. volume']),
+      }))
+      .reverse(); // Oldest first
+  } catch (error) {
+    console.error('Error fetching daily data:', error);
+    return [];
+  }
+}
+
+export async function searchSymbol(keywords: string): Promise<SearchResult[]> {
+  try {
+    const response = await axios.get(BASE_URL, {
+      params: {
+        function: 'SYMBOL_SEARCH',
+        keywords,
+        apikey: getApiKey(),
+      },
+    });
+
+    const matches = response.data.bestMatches;
+    if (!matches) {
+      return [];
+    }
+
+    return matches.map((match: any) => ({
+      symbol: match['1. symbol'],
+      name: match['2. name'],
+      type: match['3. type'],
+      region: match['4. region'],
+      currency: match['8. currency'],
+    }));
+  } catch (error) {
+    console.error('Error searching symbols:', error);
+    return [];
+  }
+}
