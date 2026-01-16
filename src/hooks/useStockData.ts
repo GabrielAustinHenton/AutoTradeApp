@@ -21,43 +21,69 @@ export function useQuote(symbol: string | null, autoRefresh = false): UseQuoteRe
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const currentSymbolRef = useRef<string | null>(null);
 
-  const fetchQuote = useCallback(async () => {
-    if (!symbol) {
-      setQuote(null);
-      return;
-    }
-
+  const fetchQuote = useCallback(async (symbolToFetch: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await getQuote(symbol);
-      if (data) {
-        setQuote(data);
-      } else {
-        setError(`No data found for ${symbol}`);
+      const data = await getQuote(symbolToFetch);
+      // Only update if this is still the current symbol (prevents race conditions)
+      if (currentSymbolRef.current === symbolToFetch) {
+        if (data) {
+          setQuote(data);
+        } else {
+          setError(`No data found for ${symbolToFetch}`);
+        }
       }
     } catch (err) {
-      setError('Failed to fetch quote');
+      if (currentSymbolRef.current === symbolToFetch) {
+        setError('Failed to fetch quote');
+      }
     } finally {
-      setLoading(false);
+      if (currentSymbolRef.current === symbolToFetch) {
+        setLoading(false);
+      }
     }
-  }, [symbol]);
+  }, []);
 
+  // Debounced fetch - wait 500ms after user stops typing
   useEffect(() => {
-    fetchQuote();
-  }, [fetchQuote]);
+    currentSymbolRef.current = symbol;
+
+    if (!symbol) {
+      setQuote(null);
+      setLoading(false);
+      return;
+    }
+
+    // Clear old quote immediately when symbol changes
+    setQuote(null);
+    setLoading(true);
+
+    const timeoutId = setTimeout(() => {
+      fetchQuote(symbol);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [symbol, fetchQuote]);
 
   // Auto-refresh every 60 seconds if enabled
   useEffect(() => {
     if (!autoRefresh || !symbol) return;
 
-    const interval = setInterval(fetchQuote, 60000);
+    const interval = setInterval(() => fetchQuote(symbol), 60000);
     return () => clearInterval(interval);
   }, [autoRefresh, symbol, fetchQuote]);
 
-  return { quote, loading, error, refetch: fetchQuote };
+  const refetch = useCallback(() => {
+    if (symbol) {
+      fetchQuote(symbol);
+    }
+  }, [symbol, fetchQuote]);
+
+  return { quote, loading, error, refetch };
 }
 
 interface UseMultipleQuotesResult {

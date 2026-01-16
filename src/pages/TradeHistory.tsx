@@ -2,20 +2,24 @@ import { useState, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 
 export function TradeHistory() {
-  const { trades, removeTrade } = useStore();
+  const { trades, removeTrade, tradingMode, paperPortfolio } = useStore();
+  const [activeTab, setActiveTab] = useState<'paper' | 'live'>(tradingMode);
   const [filterSymbol, setFilterSymbol] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'buy' | 'sell'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'symbol' | 'total'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // Get the trades for the active tab
+  const activeTrades = activeTab === 'paper' ? paperPortfolio.trades : trades;
+
   // Get unique symbols for filter dropdown
   const uniqueSymbols = useMemo(() => {
-    return [...new Set(trades.map((t) => t.symbol))].sort();
-  }, [trades]);
+    return [...new Set(activeTrades.map((t) => t.symbol))].sort();
+  }, [activeTrades]);
 
   // Filter and sort trades
   const filteredTrades = useMemo(() => {
-    let result = [...trades];
+    let result = [...activeTrades];
 
     // Filter by symbol
     if (filterSymbol) {
@@ -45,7 +49,7 @@ export function TradeHistory() {
     });
 
     return result;
-  }, [trades, filterSymbol, filterType, sortBy, sortOrder]);
+  }, [activeTrades, filterSymbol, filterType, sortBy, sortOrder]);
 
   // Calculate summary stats
   const stats = useMemo(() => {
@@ -102,7 +106,7 @@ export function TradeHistory() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `trade-history-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `${activeTab}-trade-history-${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -111,7 +115,48 @@ export function TradeHistory() {
 
   return (
     <div className="text-white">
-      <h1 className="text-3xl font-bold mb-8">Trade History</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Trade History</h1>
+
+        {/* Portfolio Tabs */}
+        <div className="flex bg-slate-800 rounded-lg p-1">
+          <button
+            onClick={() => {
+              setActiveTab('paper');
+              setFilterSymbol('');
+            }}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'paper'
+                ? 'bg-amber-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Paper Trades
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('live');
+              setFilterSymbol('');
+            }}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'live'
+                ? 'bg-emerald-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Live Trades
+          </button>
+        </div>
+      </div>
+
+      {/* Active Mode Indicator */}
+      {tradingMode === activeTab && (
+        <div className={`mb-4 px-3 py-1 rounded-full text-xs font-medium inline-block ${
+          tradingMode === 'paper' ? 'bg-amber-900 text-amber-300' : 'bg-emerald-900 text-emerald-300'
+        }`}>
+          Currently Active
+        </div>
+      )}
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
@@ -210,8 +255,10 @@ export function TradeHistory() {
       <div className="bg-slate-800 rounded-xl overflow-hidden">
         {filteredTrades.length === 0 ? (
           <div className="p-8 text-center text-slate-400">
-            {trades.length === 0
-              ? 'No trades yet. Start trading to see your history here.'
+            {activeTrades.length === 0
+              ? activeTab === 'paper'
+                ? 'No paper trades yet. Switch to paper trading mode and make some trades.'
+                : 'No live trades yet. Connect to IBKR and start trading.'
               : 'No trades match the current filters.'}
           </div>
         ) : (
@@ -274,29 +321,31 @@ export function TradeHistory() {
                       {trade.notes || '-'}
                     </td>
                     <td className="p-4">
-                      <button
-                        onClick={() => {
-                          if (confirm('Delete this trade from history?')) {
-                            removeTrade(trade.id);
-                          }
-                        }}
-                        className="text-slate-500 hover:text-red-400 transition-colors"
-                        title="Delete trade"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+                      {activeTab === 'live' && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Delete this trade from history?')) {
+                              removeTrade(trade.id);
+                            }
+                          }}
+                          className="text-slate-500 hover:text-red-400 transition-colors"
+                          title="Delete trade"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

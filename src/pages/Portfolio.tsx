@@ -17,6 +17,7 @@ export function Portfolio() {
   const [activeTab, setActiveTab] = useState<'paper' | 'live'>(tradingMode);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Fetch live prices for paper positions
   const refreshPaperPrices = useCallback(async () => {
@@ -40,16 +41,18 @@ export function Portfolio() {
 
     if (prices.size > 0) {
       updatePaperPositionPrices(prices);
+      setLastUpdated(new Date());
     }
     setIsRefreshing(false);
   }, [paperPortfolio.positions, updatePaperPositionPrices]);
 
-  // Auto-refresh paper prices when viewing paper tab
+  // Auto-refresh paper prices on mount and when switching to paper tab
   useEffect(() => {
     if (activeTab === 'paper' && paperPortfolio.positions.length > 0) {
       refreshPaperPrices();
     }
-  }, [activeTab]); // Only on tab change, not on every position update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, paperPortfolio.positions.length]); // Run on mount, tab change, and when positions are added
 
   // Determine which portfolio to display
   const isShowingPaper = activeTab === 'paper';
@@ -148,7 +151,7 @@ export function Portfolio() {
 
       {/* Refresh Prices Button */}
       {isShowingPaper && paperPortfolio.positions.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-6 flex items-center gap-4">
           <button
             onClick={refreshPaperPrices}
             disabled={isRefreshing}
@@ -157,7 +160,12 @@ export function Portfolio() {
             {isRefreshing ? 'Refreshing prices...' : 'Refresh Prices'}
           </button>
           {isRefreshing && (
-            <span className="ml-3 text-sm text-slate-400">Fetching live prices...</span>
+            <span className="text-sm text-slate-400">Fetching live prices...</span>
+          )}
+          {!isRefreshing && lastUpdated && (
+            <span className="text-sm text-slate-500">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </span>
           )}
         </div>
       )}
