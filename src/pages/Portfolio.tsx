@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import {
   PieChart,
@@ -13,11 +14,13 @@ import { getQuote } from '../services/alphaVantage';
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export function Portfolio() {
+  const location = useLocation();
   const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, updatePaperPositionPrices } = useStore();
   const [activeTab, setActiveTab] = useState<'paper' | 'live'>(tradingMode);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const hasRefreshedRef = useRef(false);
 
   // Fetch live prices for paper positions
   const refreshPaperPrices = useCallback(async () => {
@@ -46,13 +49,27 @@ export function Portfolio() {
     setIsRefreshing(false);
   }, [paperPortfolio.positions, updatePaperPositionPrices]);
 
-  // Auto-refresh paper prices on mount and when switching to paper tab
+  // Auto-refresh paper prices every time this page is navigated to
+  useEffect(() => {
+    // Reset the ref when location changes (new navigation)
+    hasRefreshedRef.current = false;
+  }, [location.key]);
+
+  useEffect(() => {
+    if (!hasRefreshedRef.current && activeTab === 'paper' && paperPortfolio.positions.length > 0) {
+      hasRefreshedRef.current = true;
+      refreshPaperPrices();
+    }
+  }, [location.key, activeTab, paperPortfolio.positions.length, refreshPaperPrices]);
+
+  // Also refresh when switching tabs
   useEffect(() => {
     if (activeTab === 'paper' && paperPortfolio.positions.length > 0) {
       refreshPaperPrices();
     }
+    // Only run when activeTab changes, not on every refreshPaperPrices change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, paperPortfolio.positions.length]); // Run on mount, tab change, and when positions are added
+  }, [activeTab]);
 
   // Determine which portfolio to display
   const isShowingPaper = activeTab === 'paper';
