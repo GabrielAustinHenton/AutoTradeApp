@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const BASE_URL = 'https://www.alphavantage.co/query';
+const FINNHUB_URL = 'https://finnhub.io/api/v1';
 
 const getApiKey = () => {
   const key = import.meta.env.VITE_ALPHA_VANTAGE_API_KEY;
@@ -8,6 +9,10 @@ const getApiKey = () => {
     console.warn('Alpha Vantage API key not set. Add VITE_ALPHA_VANTAGE_API_KEY to .env');
   }
   return key || 'demo';
+};
+
+const getFinnhubApiKey = () => {
+  return import.meta.env.VITE_FINNHUB_API_KEY || '';
 };
 
 export interface QuoteData {
@@ -39,22 +44,74 @@ export interface SearchResult {
   currency: string;
 }
 
-export async function getQuote(symbol: string): Promise<QuoteData | null> {
+// Get real-time quote from Finnhub (requires free API key from finnhub.io)
+async function getFinnhubQuote(symbol: string): Promise<QuoteData | null> {
+  const apiKey = getFinnhubApiKey();
+  if (!apiKey) {
+    return null;
+  }
+
+  try {
+    const response = await axios.get(`${FINNHUB_URL}/quote`, {
+      params: {
+        symbol,
+        token: apiKey,
+      },
+    });
+
+    const data = response.data;
+    if (!data || data.c === 0) {
+      return null;
+    }
+
+    const quote = {
+      symbol,
+      price: data.c, // Current price
+      change: data.d, // Change
+      changePercent: data.dp, // Change percent
+      high: data.h, // High
+      low: data.l, // Low
+      volume: 0, // Finnhub quote doesn't include volume
+      previousClose: data.pc, // Previous close
+      latestTradingDay: new Date().toISOString().split('T')[0],
+    };
+
+    console.log(`[Finnhub Quote] ${quote.symbol}: $${quote.price.toFixed(2)} (real-time)`);
+    return quote;
+  } catch (error) {
+    console.error('Finnhub error:', error);
+    return null;
+  }
+}
+
+// Get quote from Alpha Vantage (fallback, returns end-of-day prices)
+async function getAlphaVantageQuote(symbol: string): Promise<QuoteData | null> {
   try {
     const response = await axios.get(BASE_URL, {
       params: {
         function: 'GLOBAL_QUOTE',
         symbol,
         apikey: getApiKey(),
+        _t: Date.now(),
+      },
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       },
     });
 
     const data = response.data['Global Quote'];
     if (!data || Object.keys(data).length === 0) {
+      if (response.data['Note']) {
+        console.warn('Alpha Vantage rate limit:', response.data['Note']);
+      }
+      if (response.data['Information']) {
+        console.warn('Alpha Vantage info:', response.data['Information']);
+      }
       return null;
     }
 
-    return {
+    const quote = {
       symbol: data['01. symbol'],
       price: parseFloat(data['05. price']),
       change: parseFloat(data['09. change']),
@@ -65,10 +122,25 @@ export async function getQuote(symbol: string): Promise<QuoteData | null> {
       previousClose: parseFloat(data['08. previous close']),
       latestTradingDay: data['07. latest trading day'],
     };
+
+    console.log(`[Alpha Vantage Quote] ${quote.symbol}: $${quote.price} (trading day: ${quote.latestTradingDay})`);
+    return quote;
   } catch (error) {
-    console.error('Error fetching quote:', error);
+    console.error('Alpha Vantage error:', error);
     return null;
   }
+}
+
+// Main getQuote function - tries Finnhub first for real-time prices, falls back to Alpha Vantage
+export async function getQuote(symbol: string): Promise<QuoteData | null> {
+  // Try Finnhub first for real-time prices (if API key is configured)
+  const finnhubQuote = await getFinnhubQuote(symbol);
+  if (finnhubQuote) {
+    return finnhubQuote;
+  }
+
+  // Fall back to Alpha Vantage (note: returns end-of-day prices, not real-time during market hours)
+  return getAlphaVantageQuote(symbol);
 }
 
 export async function getMultipleQuotes(symbols: string[]): Promise<Map<string, QuoteData>> {
