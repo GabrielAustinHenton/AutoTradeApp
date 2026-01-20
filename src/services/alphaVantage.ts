@@ -16,6 +16,34 @@ const getFinnhubApiKey = () => {
   return import.meta.env.VITE_FINNHUB_API_KEY || '';
 };
 
+// Common crypto symbols - map to Finnhub's Binance format
+const CRYPTO_SYMBOLS: Record<string, string> = {
+  BTC: 'BINANCE:BTCUSDT',
+  ETH: 'BINANCE:ETHUSDT',
+  SOL: 'BINANCE:SOLUSDT',
+  XRP: 'BINANCE:XRPUSDT',
+  ADA: 'BINANCE:ADAUSDT',
+  DOGE: 'BINANCE:DOGEUSDT',
+  DOT: 'BINANCE:DOTUSDT',
+  MATIC: 'BINANCE:MATICUSDT',
+  LINK: 'BINANCE:LINKUSDT',
+  AVAX: 'BINANCE:AVAXUSDT',
+  LTC: 'BINANCE:LTCUSDT',
+  UNI: 'BINANCE:UNIUSDT',
+  ATOM: 'BINANCE:ATOMUSDT',
+  XLM: 'BINANCE:XLMUSDT',
+  ALGO: 'BINANCE:ALGOUSDT',
+};
+
+export function isCryptoSymbol(symbol: string): boolean {
+  return symbol.toUpperCase() in CRYPTO_SYMBOLS;
+}
+
+function getFinnhubSymbol(symbol: string): string {
+  const upper = symbol.toUpperCase();
+  return CRYPTO_SYMBOLS[upper] || symbol;
+}
+
 export interface QuoteData {
   symbol: string;
   price: number;
@@ -46,16 +74,20 @@ export interface SearchResult {
 }
 
 // Get real-time quote from Finnhub (requires free API key from finnhub.io)
+// Supports both stocks and crypto (ETH, BTC, etc.)
 async function getFinnhubQuote(symbol: string): Promise<QuoteData | null> {
   const apiKey = getFinnhubApiKey();
   if (!apiKey) {
     return null;
   }
 
+  const finnhubSymbol = getFinnhubSymbol(symbol);
+  const isCrypto = isCryptoSymbol(symbol);
+
   try {
     const response = await axios.get(`${FINNHUB_URL}/quote`, {
       params: {
-        symbol,
+        symbol: finnhubSymbol,
         token: apiKey,
       },
     });
@@ -66,7 +98,7 @@ async function getFinnhubQuote(symbol: string): Promise<QuoteData | null> {
     }
 
     const quote = {
-      symbol,
+      symbol: symbol.toUpperCase(), // Return original symbol, not Binance format
       price: data.c, // Current price
       change: data.d, // Change
       changePercent: data.dp, // Change percent
@@ -77,7 +109,7 @@ async function getFinnhubQuote(symbol: string): Promise<QuoteData | null> {
       latestTradingDay: new Date().toISOString().split('T')[0],
     };
 
-    logger.info('API', `Finnhub quote: ${quote.symbol} $${quote.price.toFixed(2)} (real-time)`);
+    logger.info('API', `Finnhub quote: ${quote.symbol} $${quote.price.toFixed(2)} (${isCrypto ? 'crypto' : 'real-time'})`);
     return quote;
   } catch (error) {
     logger.error('API', 'Finnhub error', error);
@@ -240,7 +272,46 @@ export async function getDailyData(symbol: string, outputSize: 'compact' | 'full
   }
 }
 
+// Crypto names for display
+const CRYPTO_NAMES: Record<string, string> = {
+  BTC: 'Bitcoin',
+  ETH: 'Ethereum',
+  SOL: 'Solana',
+  XRP: 'XRP',
+  ADA: 'Cardano',
+  DOGE: 'Dogecoin',
+  DOT: 'Polkadot',
+  MATIC: 'Polygon',
+  LINK: 'Chainlink',
+  AVAX: 'Avalanche',
+  LTC: 'Litecoin',
+  UNI: 'Uniswap',
+  ATOM: 'Cosmos',
+  XLM: 'Stellar',
+  ALGO: 'Algorand',
+};
+
 export async function searchSymbol(keywords: string): Promise<SearchResult[]> {
+  const results: SearchResult[] = [];
+  const searchTerm = keywords.toLowerCase();
+
+  // Check for matching crypto symbols first
+  for (const [symbol, name] of Object.entries(CRYPTO_NAMES)) {
+    if (
+      symbol.toLowerCase().includes(searchTerm) ||
+      name.toLowerCase().includes(searchTerm)
+    ) {
+      results.push({
+        symbol,
+        name,
+        type: 'Cryptocurrency',
+        region: 'Global',
+        currency: 'USD',
+      });
+    }
+  }
+
+  // Then search for stocks via Alpha Vantage
   try {
     const response = await axios.get(BASE_URL, {
       params: {
@@ -251,19 +322,19 @@ export async function searchSymbol(keywords: string): Promise<SearchResult[]> {
     });
 
     const matches = response.data.bestMatches;
-    if (!matches) {
-      return [];
+    if (matches) {
+      const stockResults = matches.map((match: any) => ({
+        symbol: match['1. symbol'],
+        name: match['2. name'],
+        type: match['3. type'],
+        region: match['4. region'],
+        currency: match['8. currency'],
+      }));
+      results.push(...stockResults);
     }
-
-    return matches.map((match: any) => ({
-      symbol: match['1. symbol'],
-      name: match['2. name'],
-      type: match['3. type'],
-      region: match['4. region'],
-      currency: match['8. currency'],
-    }));
   } catch (error) {
     logger.error('API', 'Error searching symbols', error);
-    return [];
   }
+
+  return results;
 }
