@@ -74,6 +74,9 @@ export interface TradingRule {
   autoTrade: boolean;
   cooldownMinutes: number;
   lastExecutedAt?: Date;
+  // Take-profit and stop-loss for auto-sell after buy
+  takeProfitPercent?: number; // Auto-sell when position gains this %
+  stopLossPercent?: number;   // Auto-sell when position loses this %
 }
 
 export interface RuleCondition {

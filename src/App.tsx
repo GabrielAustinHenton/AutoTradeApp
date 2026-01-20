@@ -12,10 +12,14 @@ import { Settings } from './pages/Settings';
 import { AlertToast } from './components/alerts/AlertToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePatternScanner } from './hooks/usePatternScanner';
+import { usePositionMonitor } from './hooks/usePositionMonitor';
 
 function AppContent() {
   // Initialize pattern scanner
   usePatternScanner();
+
+  // Initialize position monitor for take-profit/stop-loss
+  usePositionMonitor();
 
   return (
     <>

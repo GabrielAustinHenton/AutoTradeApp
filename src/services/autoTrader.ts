@@ -5,6 +5,7 @@ import type { TradingRule, AutoTradeConfig, AutoTradeExecution, Alert, TradingMo
 import { useStore } from '../store/useStore';
 import { ibkr } from './ibkr';
 import { getQuote } from './alphaVantage';
+import { registerPositionForMonitoring } from './positionMonitor';
 
 // Check if current time is within market hours (9:30 AM - 4:00 PM ET)
 export function isWithinTradingHours(): boolean {
@@ -181,6 +182,15 @@ export async function executeAutoTrade(
 
     // Update rule's last executed timestamp
     useStore.getState().updateTradingRule(rule.id, { lastExecutedAt: new Date() });
+
+    // Register position for take-profit/stop-loss monitoring if it's a buy with targets
+    if (rule.type === 'buy' && (rule.takeProfitPercent || rule.stopLossPercent)) {
+      const state = useStore.getState();
+      const position = state.paperPortfolio.positions.find((p) => p.symbol === alert.symbol);
+      if (position) {
+        registerPositionForMonitoring(position, rule);
+      }
+    }
   } catch (error) {
     execution.status = 'failed';
     execution.error = error instanceof Error ? error.message : 'Unknown error';

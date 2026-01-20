@@ -35,6 +35,8 @@ export function Rules() {
   // Auto-trade state
   const [autoTradeEnabled, setAutoTradeEnabled] = useState(false);
   const [cooldownMinutes, setCooldownMinutes] = useState('5');
+  const [takeProfitPercent, setTakeProfitPercent] = useState('');
+  const [stopLossPercent, setStopLossPercent] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +59,8 @@ export function Rules() {
         createdAt: new Date(),
         autoTrade: autoTradeEnabled,
         cooldownMinutes: parseInt(cooldownMinutes) || 5,
+        takeProfitPercent: takeProfitPercent ? parseFloat(takeProfitPercent) : undefined,
+        stopLossPercent: stopLossPercent ? parseFloat(stopLossPercent) : undefined,
       };
       addTradingRule(rule);
     } else {
@@ -78,6 +82,8 @@ export function Rules() {
         createdAt: new Date(),
         autoTrade: autoTradeEnabled,
         cooldownMinutes: parseInt(cooldownMinutes) || 5,
+        takeProfitPercent: takeProfitPercent ? parseFloat(takeProfitPercent) : undefined,
+        stopLossPercent: stopLossPercent ? parseFloat(stopLossPercent) : undefined,
       };
       addTradingRule(rule);
     }
@@ -98,6 +104,8 @@ export function Rules() {
     setActionShares('10');
     setAutoTradeEnabled(false);
     setCooldownMinutes('5');
+    setTakeProfitPercent('');
+    setStopLossPercent('');
   };
 
   const getConditionText = (condition: RuleCondition) => {
@@ -324,7 +332,7 @@ export function Rules() {
                   <p className="text-sm text-amber-400 mb-3">
                     Trades will execute automatically when this pattern is detected.
                   </p>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 mb-3">
                     <label className="text-sm text-slate-400">Cooldown:</label>
                     <input
                       type="number"
@@ -335,6 +343,48 @@ export function Rules() {
                     />
                     <span className="text-sm text-slate-400">minutes between trades</span>
                   </div>
+
+                  {/* Take Profit / Stop Loss for BUY rules */}
+                  {tradeType === 'buy' && (
+                    <div className="mt-4 p-3 bg-slate-800 rounded-lg">
+                      <h4 className="text-sm font-semibold text-slate-300 mb-3">Auto-Sell Targets (optional)</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs text-emerald-400 mb-1 block">Take Profit %</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={takeProfitPercent}
+                              onChange={(e) => setTakeProfitPercent(e.target.value)}
+                              placeholder="5"
+                              step="0.5"
+                              min="0.1"
+                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                            />
+                            <span className="text-slate-400">%</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">Auto-sell when up this %</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-red-400 mb-1 block">Stop Loss %</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={stopLossPercent}
+                              onChange={(e) => setStopLossPercent(e.target.value)}
+                              placeholder="3"
+                              step="0.5"
+                              min="0.1"
+                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                            />
+                            <span className="text-slate-400">%</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">Auto-sell when down this %</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {!autoTradeConfig.enabled && (
                     <p className="text-sm text-red-400 mt-2">
                       Note: Global auto-trading is disabled. Enable it in Settings.
@@ -403,6 +453,13 @@ export function Rules() {
                     {rule.autoTrade && (
                       <p className="text-xs text-slate-500 mt-1">
                         Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
+                        {(rule.takeProfitPercent || rule.stopLossPercent) && (
+                          <span className="ml-2">
+                            {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
+                            {rule.takeProfitPercent && rule.stopLossPercent && ' • '}
+                            {rule.stopLossPercent && <span className="text-red-400">SL: {rule.stopLossPercent}%</span>}
+                          </span>
+                        )}
                       </p>
                     )}
                   </div>
@@ -491,6 +548,13 @@ export function Rules() {
                     {rule.autoTrade && (
                       <p className="text-xs text-slate-500 mt-1">
                         Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
+                        {(rule.takeProfitPercent || rule.stopLossPercent) && (
+                          <span className="ml-2">
+                            {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
+                            {rule.takeProfitPercent && rule.stopLossPercent && ' • '}
+                            {rule.stopLossPercent && <span className="text-red-400">SL: {rule.stopLossPercent}%</span>}
+                          </span>
+                        )}
                       </p>
                     )}
                   </div>

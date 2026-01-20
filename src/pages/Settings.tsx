@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { ibkr } from '../services/ibkr';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
+import { quickSetupCryptoTrading, removeCryptoRules } from '../services/cryptoRulesSetup';
 import type { Alert } from '../types';
 
 export function Settings() {
@@ -38,6 +39,27 @@ export function Settings() {
   } | null>(null);
   const [testingAutoTrade, setTestingAutoTrade] = useState(false);
   const [autoTradeTestResult, setAutoTradeTestResult] = useState<string | null>(null);
+  const [cryptoSetupDone, setCryptoSetupDone] = useState(false);
+
+  // Check if crypto rules already exist
+  const hasCryptoRules = tradingRules.some(
+    (r) => ['ETH', 'BTC', 'SOL'].includes(r.symbol) && r.autoTrade
+  );
+
+  const handleCryptoSetup = () => {
+    quickSetupCryptoTrading({
+      takeProfitPercent: 5,
+      stopLossPercent: 3,
+      shares: 1,
+      cooldownMinutes: 15,
+    });
+    setCryptoSetupDone(true);
+  };
+
+  const handleRemoveCryptoRules = () => {
+    removeCryptoRules();
+    setCryptoSetupDone(false);
+  };
 
   // Get rules that have auto-trade enabled
   const autoTradeRules = tradingRules.filter((r) => r.autoTrade && r.enabled && r.ruleType === 'pattern');
@@ -361,6 +383,45 @@ export function Settings() {
                 }`}
               />
             </button>
+          </div>
+
+          {/* Quick Crypto Setup */}
+          <div className="p-4 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-700/50 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-medium flex items-center gap-2">
+                  Quick Crypto Trading Setup
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Auto-create rules for ETH, BTC, SOL with take-profit (5%) and stop-loss (3%)
+                </p>
+              </div>
+              {hasCryptoRules || cryptoSetupDone ? (
+                <button
+                  onClick={handleRemoveCryptoRules}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors"
+                >
+                  Remove Crypto Rules
+                </button>
+              ) : (
+                <button
+                  onClick={handleCryptoSetup}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition-colors"
+                >
+                  Setup Crypto Trading
+                </button>
+              )}
+            </div>
+            {(hasCryptoRules || cryptoSetupDone) && (
+              <p className="text-sm text-emerald-400">
+                Crypto rules active! Auto-trading will buy on bullish patterns and auto-sell at targets.
+              </p>
+            )}
+            {!hasCryptoRules && !cryptoSetupDone && (
+              <p className="text-xs text-slate-500">
+                Creates 12 rules (4 bullish patterns x 3 cryptos) with automatic profit-taking.
+              </p>
+            )}
           </div>
 
           {/* Test Auto-Trade */}

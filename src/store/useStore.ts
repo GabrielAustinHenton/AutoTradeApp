@@ -146,6 +146,7 @@ interface AppState {
   addPaperTrade: (trade: Trade) => void;
   updatePaperPosition: (symbol: string, shares: number, avgCost: number, currentPrice: number) => void;
   updatePaperPositionPrices: (prices: Map<string, number>) => void;
+  executePaperSell: (symbol: string, shares: number, price: number) => boolean;
 
   // Actions - Auto-Trading
   updateAutoTradeConfig: (config: Partial<AutoTradeConfig>) => void;
@@ -462,6 +463,52 @@ export const useStore = create<AppState>()(
             }),
           },
         })),
+
+      executePaperSell: (symbol, shares, price) => {
+        const state = useStore.getState();
+        const position = state.paperPortfolio.positions.find((p) => p.symbol === symbol);
+
+        if (!position || position.shares < shares) {
+          return false;
+        }
+
+        const total = shares * price;
+        const newShares = position.shares - shares;
+
+        // Add cash from sale
+        set((s) => ({
+          paperPortfolio: {
+            ...s.paperPortfolio,
+            cashBalance: s.paperPortfolio.cashBalance + total,
+          },
+        }));
+
+        // Update or remove position
+        if (newShares <= 0) {
+          set((s) => ({
+            paperPortfolio: {
+              ...s.paperPortfolio,
+              positions: s.paperPortfolio.positions.filter((p) => p.symbol !== symbol),
+            },
+          }));
+        } else {
+          state.updatePaperPosition(symbol, newShares, position.avgCost, price);
+        }
+
+        // Add trade record
+        state.addPaperTrade({
+          id: `trade-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          symbol,
+          type: 'sell',
+          shares,
+          price,
+          total,
+          date: new Date(),
+          notes: 'Auto-sell (take-profit/stop-loss)',
+        });
+
+        return true;
+      },
 
       // Auto-Trading actions
       updateAutoTradeConfig: (config) =>
