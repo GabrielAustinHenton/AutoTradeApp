@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { logger } from '../utils/logger';
 
 const BASE_URL = 'https://www.alphavantage.co/query';
 const FINNHUB_URL = 'https://finnhub.io/api/v1';
@@ -6,7 +7,7 @@ const FINNHUB_URL = 'https://finnhub.io/api/v1';
 const getApiKey = () => {
   const key = import.meta.env.VITE_ALPHA_VANTAGE_API_KEY;
   if (!key) {
-    console.warn('Alpha Vantage API key not set. Add VITE_ALPHA_VANTAGE_API_KEY to .env');
+    logger.warn('API', 'Alpha Vantage API key not set. Add VITE_ALPHA_VANTAGE_API_KEY to .env');
   }
   return key || 'demo';
 };
@@ -76,10 +77,10 @@ async function getFinnhubQuote(symbol: string): Promise<QuoteData | null> {
       latestTradingDay: new Date().toISOString().split('T')[0],
     };
 
-    console.log(`[Finnhub Quote] ${quote.symbol}: $${quote.price.toFixed(2)} (real-time)`);
+    logger.info('API', `Finnhub quote: ${quote.symbol} $${quote.price.toFixed(2)} (real-time)`);
     return quote;
   } catch (error) {
-    console.error('Finnhub error:', error);
+    logger.error('API', 'Finnhub error', error);
     return null;
   }
 }
@@ -103,10 +104,10 @@ async function getAlphaVantageQuote(symbol: string): Promise<QuoteData | null> {
     const data = response.data['Global Quote'];
     if (!data || Object.keys(data).length === 0) {
       if (response.data['Note']) {
-        console.warn('Alpha Vantage rate limit:', response.data['Note']);
+        logger.warn('API', 'Alpha Vantage rate limit', response.data['Note']);
       }
       if (response.data['Information']) {
-        console.warn('Alpha Vantage info:', response.data['Information']);
+        logger.warn('API', 'Alpha Vantage info', response.data['Information']);
       }
       return null;
     }
@@ -123,10 +124,10 @@ async function getAlphaVantageQuote(symbol: string): Promise<QuoteData | null> {
       latestTradingDay: data['07. latest trading day'],
     };
 
-    console.log(`[Alpha Vantage Quote] ${quote.symbol}: $${quote.price} (trading day: ${quote.latestTradingDay})`);
+    logger.info('API', `Alpha Vantage quote: ${quote.symbol} $${quote.price} (trading day: ${quote.latestTradingDay})`);
     return quote;
   } catch (error) {
-    console.error('Alpha Vantage error:', error);
+    logger.error('API', 'Alpha Vantage error', error);
     return null;
   }
 }
@@ -192,7 +193,7 @@ export async function getIntradayData(
       }))
       .reverse(); // Oldest first
   } catch (error) {
-    console.error('Error fetching intraday data:', error);
+    logger.error('API', 'Error fetching intraday data', error);
     return [];
   }
 }
@@ -212,14 +213,14 @@ export async function getDailyData(symbol: string, outputSize: 'compact' | 'full
     if (!timeSeries) {
       // Check for API error messages
       if (response.data['Note']) {
-        console.error('Alpha Vantage rate limit:', response.data['Note']);
+        logger.error('API', 'Alpha Vantage rate limit', response.data['Note']);
         throw new Error('API rate limit reached. Please wait a minute and try again.');
       }
       if (response.data['Error Message']) {
-        console.error('Alpha Vantage error:', response.data['Error Message']);
+        logger.error('API', 'Alpha Vantage error', response.data['Error Message']);
         throw new Error(response.data['Error Message']);
       }
-      console.warn('No daily data returned for symbol');
+      logger.warn('API', 'No daily data returned for symbol');
       return [];
     }
 
@@ -234,7 +235,7 @@ export async function getDailyData(symbol: string, outputSize: 'compact' | 'full
       }))
       .reverse(); // Oldest first
   } catch (error) {
-    console.error('Error fetching daily data:', error);
+    logger.error('API', 'Error fetching daily data', error);
     return [];
   }
 }
@@ -262,7 +263,7 @@ export async function searchSymbol(keywords: string): Promise<SearchResult[]> {
       currency: match['8. currency'],
     }));
   } catch (error) {
-    console.error('Error searching symbols:', error);
+    logger.error('API', 'Error searching symbols', error);
     return [];
   }
 }

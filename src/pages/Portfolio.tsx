@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import type { Position } from '../types';
 import { getQuote } from '../services/alphaVantage';
+import { exportToCSV, exportToJSON, exportToPrintableHTML } from '../utils/exportPortfolio';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -20,7 +21,20 @@ export function Portfolio() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const hasRefreshedRef = useRef(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch live prices for paper positions
   const refreshPaperPrices = useCallback(async () => {
@@ -97,13 +111,82 @@ export function Portfolio() {
     setShowResetConfirm(false);
   };
 
+  const handleExport = (format: 'csv' | 'json' | 'print') => {
+    const exportData = {
+      positions: displayPositions,
+      trades: isShowingPaper ? paperPortfolio.trades : [],
+      cashBalance: displayCash,
+      totalValue: totalPortfolioValue,
+      exportDate: new Date(),
+      portfolioType: activeTab,
+    };
+
+    switch (format) {
+      case 'csv':
+        exportToCSV(exportData);
+        break;
+      case 'json':
+        exportToJSON(exportData);
+        break;
+      case 'print':
+        exportToPrintableHTML(exportData);
+        break;
+    }
+    setShowExportMenu(false);
+  };
+
   return (
     <div className="text-white">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Portfolio</h1>
 
-        {/* Portfolio Tabs */}
-        <div className="flex bg-slate-800 rounded-lg p-1">
+        <div className="flex items-center gap-4">
+          {/* Export Dropdown */}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Export
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-slate-800 rounded-lg shadow-lg border border-slate-700 py-1 z-10">
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 text-sm flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export to CSV
+                </button>
+                <button
+                  onClick={() => handleExport('json')}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 text-sm flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Export to JSON
+                </button>
+                <button
+                  onClick={() => handleExport('print')}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 text-sm flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print Report
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Portfolio Tabs */}
+          <div className="flex bg-slate-800 rounded-lg p-1">
           <button
             onClick={() => setActiveTab('paper')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -124,6 +207,7 @@ export function Portfolio() {
           >
             Live Portfolio
           </button>
+        </div>
         </div>
       </div>
 

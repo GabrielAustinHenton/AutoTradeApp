@@ -10,6 +10,7 @@ import { Backtest } from './pages/Backtest';
 import { Journal } from './pages/Journal';
 import { Settings } from './pages/Settings';
 import { AlertToast } from './components/alerts/AlertToast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePatternScanner } from './hooks/usePatternScanner';
 
 function AppContent() {
@@ -21,15 +22,15 @@ function AppContent() {
       <AlertToast />
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="portfolio" element={<Portfolio />} />
-          <Route path="trade" element={<Trade />} />
-          <Route path="history" element={<TradeHistory />} />
-          <Route path="charts" element={<Charts />} />
-          <Route path="rules" element={<Rules />} />
-          <Route path="backtest" element={<Backtest />} />
-          <Route path="journal" element={<Journal />} />
-          <Route path="settings" element={<Settings />} />
+          <Route index element={<ErrorBoundary section="Dashboard"><Dashboard /></ErrorBoundary>} />
+          <Route path="portfolio" element={<ErrorBoundary section="Portfolio"><Portfolio /></ErrorBoundary>} />
+          <Route path="trade" element={<ErrorBoundary section="Trade"><Trade /></ErrorBoundary>} />
+          <Route path="history" element={<ErrorBoundary section="Trade History"><TradeHistory /></ErrorBoundary>} />
+          <Route path="charts" element={<ErrorBoundary section="Charts"><Charts /></ErrorBoundary>} />
+          <Route path="rules" element={<ErrorBoundary section="Rules"><Rules /></ErrorBoundary>} />
+          <Route path="backtest" element={<ErrorBoundary section="Backtest"><Backtest /></ErrorBoundary>} />
+          <Route path="journal" element={<ErrorBoundary section="Journal"><Journal /></ErrorBoundary>} />
+          <Route path="settings" element={<ErrorBoundary section="Settings"><Settings /></ErrorBoundary>} />
         </Route>
       </Routes>
     </>
