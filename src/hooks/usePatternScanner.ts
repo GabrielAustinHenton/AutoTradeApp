@@ -19,6 +19,7 @@ export function usePatternScanner() {
     addAlert,
     tradingMode,
     autoTradeConfig,
+    scanRequestTimestamp,
   } = useStore();
 
   const lastScannedRef = useRef<Map<string, string>>(new Map());
@@ -200,6 +201,14 @@ export function usePatternScanner() {
       clearInterval(interval);
     };
   }, [alertsEnabled, runScan]);
+
+  // Respond to manual scan requests
+  useEffect(() => {
+    if (scanRequestTimestamp && alertsEnabled) {
+      console.log('Manual scan requested');
+      runScan();
+    }
+  }, [scanRequestTimestamp, alertsEnabled, runScan]);
 
   return {
     runScan,

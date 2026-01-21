@@ -136,6 +136,9 @@ interface AppState {
   // Backtesting
   backtestResults: BacktestResult[];
 
+  // Pattern Scanning
+  scanRequestTimestamp: number | null;
+
   // Actions - Portfolio
   addPosition: (position: Position) => void;
   updatePosition: (id: string, updates: Partial<Position>) => void;
@@ -193,6 +196,9 @@ interface AppState {
   addBacktestResult: (result: BacktestResult) => void;
   removeBacktestResult: (id: string) => void;
   clearBacktestResults: () => void;
+
+  // Actions - Pattern Scanning
+  requestScan: () => void;
 }
 
 const initialPortfolioSummary: PortfolioSummary = {
@@ -232,6 +238,9 @@ export const useStore = create<AppState>()(
 
       // Backtesting
       backtestResults: [],
+
+      // Pattern Scanning
+      scanRequestTimestamp: null,
 
       // Portfolio actions
       addPosition: (position) =>
@@ -604,6 +613,9 @@ export const useStore = create<AppState>()(
         })),
 
       clearBacktestResults: () => set({ backtestResults: [] }),
+
+      // Pattern Scanning
+      requestScan: () => set({ scanRequestTimestamp: Date.now() }),
     }),
     {
       name: 'tradeapp-storage',

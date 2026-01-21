@@ -25,6 +25,8 @@ export function Dashboard() {
     tradingMode,
     paperPortfolio,
     autoTradeConfig,
+    requestScan,
+    alertsEnabled,
   } = useStore();
 
   // Use paper portfolio data when in paper mode
@@ -102,11 +104,20 @@ export function Dashboard() {
             </span>
           )}
         </div>
-        {quotesLoading && (
-          <span className="text-sm text-slate-400 animate-pulse">
-            Updating prices...
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {quotesLoading && (
+            <span className="text-sm text-slate-400 animate-pulse">
+              Updating prices...
+            </span>
+          )}
+          <button
+            onClick={requestScan}
+            disabled={!alertsEnabled}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+          >
+            Scan Now
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
