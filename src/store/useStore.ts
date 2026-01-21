@@ -36,12 +36,12 @@ const createPatternRule = (
   cooldownMinutes: 5,
 });
 
-// Default auto-trade configuration
+// Default auto-trade configuration - enabled for paper crypto trading
 const defaultAutoTradeConfig: AutoTradeConfig = {
-  enabled: false,
-  maxTradesPerDay: 10,
-  maxPositionSize: 100,
-  tradingHoursOnly: true,
+  enabled: true,
+  maxTradesPerDay: 20,
+  maxPositionSize: 10,
+  tradingHoursOnly: false, // Crypto trades 24/7
 };
 
 // Default paper portfolio
@@ -53,6 +53,27 @@ const defaultPaperPortfolio: PaperPortfolio = {
   createdAt: new Date(),
 };
 
+// Create crypto rule with take-profit and stop-loss
+const createCryptoRule = (
+  symbol: string,
+  pattern: CandlestickPattern,
+  patternName: string
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} ${patternName} Auto-Buy`,
+  symbol,
+  enabled: true,
+  type: 'buy',
+  ruleType: 'pattern',
+  pattern,
+  action: { type: 'market', shares: 1 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: 15,
+  takeProfitPercent: 5,
+  stopLossPercent: 3,
+});
+
 const defaultPatternRules: TradingRule[] = [
   createPatternRule('hammer', 'buy', 'Hammer - Buy Signal'),
   createPatternRule('evening_star', 'sell', 'Evening Star - Sell Signal'),
@@ -63,6 +84,19 @@ const defaultPatternRules: TradingRule[] = [
   createPatternRule('inverted_hammer', 'buy', 'Inverted Hammer - Buy Signal'),
   createPatternRule('bullish_breakout', 'buy', 'Bullish Breakout - Buy Signal'),
   createPatternRule('bearish_breakout', 'sell', 'Bearish Breakout - Sell Signal'),
+  // Crypto auto-trading rules with take-profit and stop-loss
+  createCryptoRule('ETH', 'hammer', 'Hammer'),
+  createCryptoRule('ETH', 'bullish_engulfing', 'Bullish Engulfing'),
+  createCryptoRule('ETH', 'inverted_hammer', 'Inverted Hammer'),
+  createCryptoRule('ETH', 'bullish_breakout', 'Bullish Breakout'),
+  createCryptoRule('BTC', 'hammer', 'Hammer'),
+  createCryptoRule('BTC', 'bullish_engulfing', 'Bullish Engulfing'),
+  createCryptoRule('BTC', 'inverted_hammer', 'Inverted Hammer'),
+  createCryptoRule('BTC', 'bullish_breakout', 'Bullish Breakout'),
+  createCryptoRule('SOL', 'hammer', 'Hammer'),
+  createCryptoRule('SOL', 'bullish_engulfing', 'Bullish Engulfing'),
+  createCryptoRule('SOL', 'inverted_hammer', 'Inverted Hammer'),
+  createCryptoRule('SOL', 'bullish_breakout', 'Bullish Breakout'),
 ];
 
 interface AppState {
