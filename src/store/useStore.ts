@@ -51,6 +51,7 @@ const defaultPaperPortfolio: PaperPortfolio = {
   trades: [],
   startingBalance: 10000,
   createdAt: new Date(),
+  history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
 };
 
 // Create crypto rule with take-profit and stop-loss
@@ -181,6 +182,7 @@ interface AppState {
   updatePaperPosition: (symbol: string, shares: number, avgCost: number, currentPrice: number) => void;
   updatePaperPositionPrices: (prices: Map<string, number>) => void;
   executePaperSell: (symbol: string, shares: number, price: number) => boolean;
+  recordPortfolioSnapshot: () => void;
 
   // Actions - Auto-Trading
   updateAutoTradeConfig: (config: Partial<AutoTradeConfig>) => void;
@@ -426,13 +428,16 @@ export const useStore = create<AppState>()(
           },
         }),
 
-      addPaperTrade: (trade) =>
+      addPaperTrade: (trade) => {
         set((state) => ({
           paperPortfolio: {
             ...state.paperPortfolio,
             trades: [trade, ...state.paperPortfolio.trades],
           },
-        })),
+        }));
+        // Record snapshot after trade
+        setTimeout(() => useStore.getState().recordPortfolioSnapshot(), 100);
+      },
 
       updatePaperPosition: (symbol, shares, avgCost, currentPrice) =>
         set((state) => {
@@ -542,6 +547,29 @@ export const useStore = create<AppState>()(
         });
 
         return true;
+      },
+
+      recordPortfolioSnapshot: () => {
+        const state = useStore.getState();
+        const positionsValue = state.paperPortfolio.positions.reduce(
+          (sum, p) => sum + p.totalValue,
+          0
+        );
+        const totalValue = state.paperPortfolio.cashBalance + positionsValue;
+
+        const snapshot = {
+          date: new Date(),
+          totalValue,
+          cashBalance: state.paperPortfolio.cashBalance,
+          positionsValue,
+        };
+
+        set((s) => ({
+          paperPortfolio: {
+            ...s.paperPortfolio,
+            history: [...s.paperPortfolio.history, snapshot].slice(-100), // Keep last 100 snapshots
+          },
+        }));
       },
 
       // Auto-Trading actions

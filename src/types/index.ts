@@ -128,6 +128,14 @@ export interface Alert {
 // Trading Mode
 export type TradingMode = 'live' | 'paper';
 
+// Portfolio value snapshot for tracking history
+export interface PortfolioSnapshot {
+  date: Date;
+  totalValue: number;
+  cashBalance: number;
+  positionsValue: number;
+}
+
 // Paper Trading Portfolio
 export interface PaperPortfolio {
   cashBalance: number;
@@ -135,6 +143,7 @@ export interface PaperPortfolio {
   trades: Trade[];
   startingBalance: number;
   createdAt: Date;
+  history: PortfolioSnapshot[];
 }
 
 // Auto-Trading Configuration

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { useMultipleQuotes } from '../hooks/useStockData';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
@@ -11,21 +11,29 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from 'recharts';
 
-const mockChartData = [
-  { date: 'Mon', value: 10000 },
-  { date: 'Tue', value: 10250 },
-  { date: 'Wed', value: 10180 },
-  { date: 'Thu', value: 10420 },
-  { date: 'Fri', value: 10650 },
-];
-
 export function Dashboard() {
-  const { positions, cashBalance, trades, tradingRules, updatePositionPrices } = useStore();
+  const {
+    positions,
+    cashBalance,
+    trades,
+    tradingRules,
+    updatePositionPrices,
+    tradingMode,
+    paperPortfolio,
+    autoTradeConfig,
+  } = useStore();
+
+  // Use paper portfolio data when in paper mode
+  const isPaperMode = tradingMode === 'paper';
+  const displayPositions = isPaperMode ? paperPortfolio.positions : positions;
+  const displayCash = isPaperMode ? paperPortfolio.cashBalance : cashBalance;
+  const displayTrades = isPaperMode ? paperPortfolio.trades : trades;
 
   // Get unique symbols from positions
-  const positionSymbols = positions.filter(p => p.shares > 0).map((p) => p.symbol);
+  const positionSymbols = displayPositions.filter(p => p.shares > 0).map((p) => p.symbol);
   const { quotes, loading: quotesLoading } = useMultipleQuotes(positionSymbols, true);
 
   // Update position prices when quotes change
@@ -39,18 +47,55 @@ export function Dashboard() {
     }
   }, [quotes, updatePositionPrices]);
 
-  const totalPositionValue = positions.reduce((sum, p) => sum + p.totalValue, 0);
-  const totalPortfolioValue = totalPositionValue + cashBalance;
-  const totalGain = positions.reduce((sum, p) => sum + p.totalGain, 0);
+  const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
+  const totalPortfolioValue = totalPositionValue + displayCash;
+  const totalGain = displayPositions.reduce((sum, p) => sum + p.totalGain, 0);
   const dayChange = Array.from(quotes.values()).reduce(
-    (sum, q) => sum + q.change * (positions.find((p) => p.symbol === q.symbol)?.shares || 0),
+    (sum, q) => sum + q.change * (displayPositions.find((p) => p.symbol === q.symbol)?.shares || 0),
     0
   );
+
+  // Calculate portfolio performance from history
+  const chartData = useMemo(() => {
+    if (!isPaperMode || !paperPortfolio.history || paperPortfolio.history.length === 0) {
+      return [];
+    }
+
+    // Group snapshots by date and take the last value of each day
+    const dailyData = new Map<string, number>();
+    paperPortfolio.history.forEach((snapshot) => {
+      const date = new Date(snapshot.date);
+      const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      dailyData.set(dateKey, snapshot.totalValue);
+    });
+
+    return Array.from(dailyData.entries()).map(([date, value]) => ({
+      date,
+      value,
+    }));
+  }, [isPaperMode, paperPortfolio.history]);
+
+  // Calculate P&L stats
+  const startingBalance = isPaperMode ? paperPortfolio.startingBalance : 10000;
+  const totalPnL = totalPortfolioValue - startingBalance;
+  const totalPnLPercent = (totalPnL / startingBalance) * 100;
 
   return (
     <div className="text-white">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+            isPaperMode ? 'bg-amber-900 text-amber-300' : 'bg-emerald-900 text-emerald-300'
+          }`}>
+            {isPaperMode ? 'PAPER TRADING' : 'LIVE TRADING'}
+          </span>
+          {autoTradeConfig.enabled && (
+            <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-900 text-purple-300">
+              AUTO-TRADE ON
+            </span>
+          )}
+        </div>
         {quotesLoading && (
           <span className="text-sm text-slate-400 animate-pulse">
             Updating prices...
@@ -86,39 +131,65 @@ export function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Portfolio Performance</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Portfolio Performance</h2>
+              <div className="text-right">
+                <div className={`text-lg font-semibold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {totalPnL >= 0 ? '+' : ''}${totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className={`text-sm ${totalPnLPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {totalPnLPercent >= 0 ? '+' : ''}{totalPnLPercent.toFixed(2)}% all-time
+                </div>
+              </div>
+            </div>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mockChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="date" stroke="#9ca3af" />
-                  <YAxis stroke="#9ca3af" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1e293b',
-                      border: 'none',
-                      borderRadius: '8px',
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
+                    <YAxis
+                      stroke="#9ca3af"
+                      fontSize={12}
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
+                      domain={['dataMin - 500', 'dataMax + 500']}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1e293b',
+                        border: 'none',
+                        borderRadius: '8px',
+                      }}
+                      formatter={(value: number) => [`$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 'Value']}
+                    />
+                    <ReferenceLine y={startingBalance} stroke="#64748b" strokeDasharray="5 5" />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke={totalPnL >= 0 ? '#10b981' : '#ef4444'}
+                      strokeWidth={2}
+                      dot={chartData.length < 20}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400">
+                  <div className="text-center">
+                    <p>No performance data yet</p>
+                    <p className="text-sm mt-1">Make some trades to see your portfolio chart</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="bg-slate-800 rounded-xl p-6">
             <h2 className="text-xl font-semibold mb-4">Positions</h2>
-            {positions.filter(p => p.shares > 0).length === 0 ? (
+            {displayPositions.filter(p => p.shares > 0).length === 0 ? (
               <p className="text-slate-400">No positions yet. Start trading to build your portfolio.</p>
             ) : (
               <div className="space-y-3">
-                {positions.filter(p => p.shares > 0).map((position) => {
+                {displayPositions.filter(p => p.shares > 0).map((position) => {
                   const quote = quotes.get(position.symbol);
                   const isPositive = position.totalGain >= 0;
                   const dayChangeAmount = quote ? quote.change * position.shares : 0;
@@ -159,11 +230,11 @@ export function Dashboard() {
 
           <div className="bg-slate-800 rounded-xl p-6">
             <h2 className="text-xl font-semibold mb-4">Recent Trades</h2>
-            {trades.length === 0 ? (
+            {displayTrades.length === 0 ? (
               <p className="text-slate-400">No trades yet</p>
             ) : (
               <div className="space-y-3">
-                {trades.slice(0, 5).map((trade) => (
+                {displayTrades.slice(0, 5).map((trade) => (
                   <div
                     key={trade.id}
                     className="flex justify-between items-center p-3 bg-slate-700 rounded-lg"
