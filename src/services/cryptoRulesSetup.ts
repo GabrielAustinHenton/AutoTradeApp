@@ -17,6 +17,13 @@ const BULLISH_PATTERNS: CandlestickPattern[] = [
   'bullish_breakout',
 ];
 
+// Bearish patterns for sell signals
+const BEARISH_PATTERNS: CandlestickPattern[] = [
+  'shooting_star',
+  'bearish_engulfing',
+  'evening_star',
+];
+
 interface CryptoRuleConfig {
   takeProfitPercent: number;
   stopLossPercent: number;
@@ -72,16 +79,60 @@ function createCryptoRule(
 }
 
 /**
+ * Create a crypto sell rule for bearish patterns
+ */
+function createCryptoSellRule(
+  symbol: string,
+  pattern: CandlestickPattern,
+  config: CryptoRuleConfig = DEFAULT_CONFIG
+): TradingRule {
+  const patternNames: Record<CandlestickPattern, string> = {
+    hammer: 'Hammer',
+    inverted_hammer: 'Inverted Hammer',
+    bullish_engulfing: 'Bullish Engulfing',
+    bearish_engulfing: 'Bearish Engulfing',
+    shooting_star: 'Shooting Star',
+    evening_star: 'Evening Star',
+    gravestone_doji: 'Gravestone Doji',
+    bullish_breakout: 'Bullish Breakout',
+    bearish_breakout: 'Bearish Breakout',
+  };
+
+  return {
+    id: `crypto-sell-${symbol}-${pattern}-${Date.now()}`,
+    name: `${symbol} ${patternNames[pattern]} Auto-Sell`,
+    symbol,
+    enabled: true,
+    type: 'sell',
+    ruleType: 'pattern',
+    pattern,
+    action: {
+      type: 'market',
+      percentOfPortfolio: 100,
+    },
+    createdAt: new Date(),
+    autoTrade: true,
+    cooldownMinutes: config.cooldownMinutes,
+  };
+}
+
+/**
  * Set up crypto trading rules for all supported crypto symbols
  * Creates buy rules for bullish patterns with auto take-profit/stop-loss
+ * Creates sell rules for bearish patterns
  */
 export function setupCryptoRules(config: Partial<CryptoRuleConfig> = {}): TradingRule[] {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
   const rules: TradingRule[] = [];
 
   for (const symbol of CRYPTO_SYMBOLS) {
+    // Buy rules for bullish patterns
     for (const pattern of BULLISH_PATTERNS) {
       rules.push(createCryptoRule(symbol, pattern, finalConfig));
+    }
+    // Sell rules for bearish patterns
+    for (const pattern of BEARISH_PATTERNS) {
+      rules.push(createCryptoSellRule(symbol, pattern, finalConfig));
     }
   }
 

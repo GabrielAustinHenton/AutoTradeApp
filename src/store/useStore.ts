@@ -75,6 +75,24 @@ const createCryptoRule = (
   stopLossPercent: 3,
 });
 
+const createCryptoSellRule = (
+  symbol: string,
+  pattern: CandlestickPattern,
+  patternName: string
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} ${patternName} Auto-Sell`,
+  symbol,
+  enabled: true,
+  type: 'sell',
+  ruleType: 'pattern',
+  pattern,
+  action: { type: 'market', percentOfPortfolio: 100 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: 15,
+});
+
 const defaultPatternRules: TradingRule[] = [
   createPatternRule('hammer', 'buy', 'Hammer - Buy Signal'),
   createPatternRule('evening_star', 'sell', 'Evening Star - Sell Signal'),
@@ -98,6 +116,16 @@ const defaultPatternRules: TradingRule[] = [
   createCryptoRule('SOL', 'bullish_engulfing', 'Bullish Engulfing'),
   createCryptoRule('SOL', 'inverted_hammer', 'Inverted Hammer'),
   createCryptoRule('SOL', 'bullish_breakout', 'Bullish Breakout'),
+  // Crypto auto-sell rules for bearish patterns
+  createCryptoSellRule('ETH', 'shooting_star', 'Shooting Star'),
+  createCryptoSellRule('ETH', 'bearish_engulfing', 'Bearish Engulfing'),
+  createCryptoSellRule('ETH', 'evening_star', 'Evening Star'),
+  createCryptoSellRule('BTC', 'shooting_star', 'Shooting Star'),
+  createCryptoSellRule('BTC', 'bearish_engulfing', 'Bearish Engulfing'),
+  createCryptoSellRule('BTC', 'evening_star', 'Evening Star'),
+  createCryptoSellRule('SOL', 'shooting_star', 'Shooting Star'),
+  createCryptoSellRule('SOL', 'bearish_engulfing', 'Bearish Engulfing'),
+  createCryptoSellRule('SOL', 'evening_star', 'Evening Star'),
 ];
 
 interface AppState {
