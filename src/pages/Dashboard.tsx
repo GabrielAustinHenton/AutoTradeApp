@@ -21,6 +21,7 @@ export function Dashboard() {
     trades,
     tradingRules,
     updatePositionPrices,
+    updatePaperPositionPrices,
     tradingMode,
     paperPortfolio,
     autoTradeConfig,
@@ -43,9 +44,14 @@ export function Dashboard() {
       quotes.forEach((quote, symbol) => {
         priceMap.set(symbol, quote.price);
       });
-      updatePositionPrices(priceMap);
+      // Update the correct portfolio based on mode
+      if (isPaperMode) {
+        updatePaperPositionPrices(priceMap);
+      } else {
+        updatePositionPrices(priceMap);
+      }
     }
-  }, [quotes, updatePositionPrices]);
+  }, [quotes, updatePositionPrices, updatePaperPositionPrices, isPaperMode]);
 
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
   const totalPortfolioValue = totalPositionValue + displayCash;
