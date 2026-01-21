@@ -37,6 +37,11 @@ export function Rules() {
   const [cooldownMinutes, setCooldownMinutes] = useState('5');
   const [takeProfitPercent, setTakeProfitPercent] = useState('');
   const [stopLossPercent, setStopLossPercent] = useState('');
+  const [trailingStopPercent, setTrailingStopPercent] = useState('');
+  // RSI filter state
+  const [rsiFilterEnabled, setRsiFilterEnabled] = useState(false);
+  const [rsiMin, setRsiMin] = useState('');
+  const [rsiMax, setRsiMax] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +66,13 @@ export function Rules() {
         cooldownMinutes: parseInt(cooldownMinutes) || 5,
         takeProfitPercent: takeProfitPercent ? parseFloat(takeProfitPercent) : undefined,
         stopLossPercent: stopLossPercent ? parseFloat(stopLossPercent) : undefined,
+        trailingStopPercent: trailingStopPercent ? parseFloat(trailingStopPercent) : undefined,
+        rsiFilter: rsiFilterEnabled ? {
+          enabled: true,
+          period: 14,
+          minRSI: rsiMin ? parseFloat(rsiMin) : undefined,
+          maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
+        } : undefined,
       };
       addTradingRule(rule);
     } else {
@@ -84,6 +96,13 @@ export function Rules() {
         cooldownMinutes: parseInt(cooldownMinutes) || 5,
         takeProfitPercent: takeProfitPercent ? parseFloat(takeProfitPercent) : undefined,
         stopLossPercent: stopLossPercent ? parseFloat(stopLossPercent) : undefined,
+        trailingStopPercent: trailingStopPercent ? parseFloat(trailingStopPercent) : undefined,
+        rsiFilter: rsiFilterEnabled ? {
+          enabled: true,
+          period: 14,
+          minRSI: rsiMin ? parseFloat(rsiMin) : undefined,
+          maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
+        } : undefined,
       };
       addTradingRule(rule);
     }
@@ -346,6 +365,7 @@ export function Rules() {
 
                   {/* Take Profit / Stop Loss for BUY rules */}
                   {tradeType === 'buy' && (
+                    <>
                     <div className="mt-4 p-3 bg-slate-800 rounded-lg">
                       <h4 className="text-sm font-semibold text-slate-300 mb-3">Auto-Sell Targets (optional)</h4>
                       <div className="grid grid-cols-2 gap-4">
@@ -381,8 +401,69 @@ export function Rules() {
                           </div>
                           <p className="text-xs text-slate-500 mt-1">Auto-sell when down this %</p>
                         </div>
+                        <div>
+                          <label className="text-xs text-blue-400 mb-1 block">Trailing Stop %</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={trailingStopPercent}
+                              onChange={(e) => setTrailingStopPercent(e.target.value)}
+                              placeholder="5"
+                              step="0.5"
+                              min="0.1"
+                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                            />
+                            <span className="text-slate-400">%</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">Trail this % below highest price</p>
+                        </div>
                       </div>
                     </div>
+
+                    {/* RSI Filter */}
+                    <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={rsiFilterEnabled}
+                          onChange={(e) => setRsiFilterEnabled(e.target.checked)}
+                          className="w-4 h-4 rounded"
+                        />
+                        <span className="text-sm font-medium">RSI Filter</span>
+                        <span className="text-xs text-slate-400">(only trade when RSI meets criteria)</span>
+                      </label>
+                      {rsiFilterEnabled && (
+                        <div className="mt-3 grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-xs text-emerald-400 mb-1 block">Min RSI (oversold)</label>
+                            <input
+                              type="number"
+                              value={rsiMin}
+                              onChange={(e) => setRsiMin(e.target.value)}
+                              placeholder="30"
+                              min="0"
+                              max="100"
+                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">Buy when RSI &gt;= this</p>
+                          </div>
+                          <div>
+                            <label className="text-xs text-red-400 mb-1 block">Max RSI (overbought)</label>
+                            <input
+                              type="number"
+                              value={rsiMax}
+                              onChange={(e) => setRsiMax(e.target.value)}
+                              placeholder="70"
+                              min="0"
+                              max="100"
+                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">Sell when RSI &lt;= this</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    </>
                   )}
 
                   {!autoTradeConfig.enabled && (
@@ -453,11 +534,20 @@ export function Rules() {
                     {rule.autoTrade && (
                       <p className="text-xs text-slate-500 mt-1">
                         Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent) && (
+                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled) && (
                           <span className="ml-2">
                             {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
-                            {rule.takeProfitPercent && rule.stopLossPercent && ' • '}
+                            {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
                             {rule.stopLossPercent && <span className="text-red-400">SL: {rule.stopLossPercent}%</span>}
+                            {rule.stopLossPercent && rule.trailingStopPercent && ' • '}
+                            {rule.trailingStopPercent && <span className="text-blue-400">Trail: {rule.trailingStopPercent}%</span>}
+                            {rule.rsiFilter?.enabled && (
+                              <span className="text-purple-400 ml-2">
+                                RSI: {rule.rsiFilter.minRSI !== undefined && `≥${rule.rsiFilter.minRSI}`}
+                                {rule.rsiFilter.minRSI !== undefined && rule.rsiFilter.maxRSI !== undefined && ' & '}
+                                {rule.rsiFilter.maxRSI !== undefined && `≤${rule.rsiFilter.maxRSI}`}
+                              </span>
+                            )}
                           </span>
                         )}
                       </p>
@@ -548,11 +638,20 @@ export function Rules() {
                     {rule.autoTrade && (
                       <p className="text-xs text-slate-500 mt-1">
                         Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent) && (
+                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled) && (
                           <span className="ml-2">
                             {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
-                            {rule.takeProfitPercent && rule.stopLossPercent && ' • '}
+                            {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
                             {rule.stopLossPercent && <span className="text-red-400">SL: {rule.stopLossPercent}%</span>}
+                            {rule.stopLossPercent && rule.trailingStopPercent && ' • '}
+                            {rule.trailingStopPercent && <span className="text-blue-400">Trail: {rule.trailingStopPercent}%</span>}
+                            {rule.rsiFilter?.enabled && (
+                              <span className="text-purple-400 ml-2">
+                                RSI: {rule.rsiFilter.minRSI !== undefined && `≥${rule.rsiFilter.minRSI}`}
+                                {rule.rsiFilter.minRSI !== undefined && rule.rsiFilter.maxRSI !== undefined && ' & '}
+                                {rule.rsiFilter.maxRSI !== undefined && `≤${rule.rsiFilter.maxRSI}`}
+                              </span>
+                            )}
                           </span>
                         )}
                       </p>

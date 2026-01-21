@@ -18,6 +18,7 @@ export interface Position {
   totalValue: number;
   totalGain: number;
   totalGainPercent: number;
+  highestPrice?: number; // Track highest price since purchase for trailing stop
 }
 
 export interface Trade {
@@ -77,6 +78,14 @@ export interface TradingRule {
   // Take-profit and stop-loss for auto-sell after buy
   takeProfitPercent?: number; // Auto-sell when position gains this %
   stopLossPercent?: number;   // Auto-sell when position loses this %
+  trailingStopPercent?: number; // Trailing stop - sells when price drops this % from highest
+  // RSI filter - only trigger if RSI meets condition
+  rsiFilter?: {
+    enabled: boolean;
+    period: number; // RSI period (default 14)
+    minRSI?: number; // Only trigger if RSI >= this (e.g., 30 for oversold buy)
+    maxRSI?: number; // Only trigger if RSI <= this (e.g., 70 for overbought sell)
+  };
 }
 
 export interface RuleCondition {

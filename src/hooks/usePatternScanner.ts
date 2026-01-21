@@ -3,9 +3,48 @@ import { useStore } from '../store/useStore';
 import { getIntradayData } from '../services/alphaVantage';
 import { getBinanceCandles, isCryptoSymbol } from '../services/binanceApi';
 import { detectPatterns, PATTERN_INFO, type Candle } from '../services/candlestickPatterns';
+import { calculateRSI } from '../services/technicalIndicators';
 import { playSound } from '../services/sounds';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
-import type { Alert, PriceHistory } from '../types';
+import type { Alert, PriceHistory, TradingRule } from '../types';
+
+// Cache RSI values per symbol to avoid recalculating
+const rsiCache = new Map<string, { rsi: number; timestamp: number }>();
+const RSI_CACHE_TTL = 60000; // 1 minute
+
+function getCachedRSI(symbol: string, prices: number[]): number | null {
+  const cached = rsiCache.get(symbol);
+  if (cached && Date.now() - cached.timestamp < RSI_CACHE_TTL) {
+    return cached.rsi;
+  }
+  const rsi = calculateRSI(prices, 14);
+  if (rsi !== null) {
+    rsiCache.set(symbol, { rsi, timestamp: Date.now() });
+  }
+  return rsi;
+}
+
+function checkRSIFilter(rule: TradingRule, rsi: number | null): { passed: boolean; reason?: string } {
+  if (!rule.rsiFilter?.enabled) {
+    return { passed: true };
+  }
+
+  if (rsi === null) {
+    return { passed: false, reason: 'Not enough data to calculate RSI' };
+  }
+
+  const { minRSI, maxRSI } = rule.rsiFilter;
+
+  if (minRSI !== undefined && rsi < minRSI) {
+    return { passed: false, reason: `RSI ${rsi.toFixed(1)} < min ${minRSI}` };
+  }
+
+  if (maxRSI !== undefined && rsi > maxRSI) {
+    return { passed: false, reason: `RSI ${rsi.toFixed(1)} > max ${maxRSI}` };
+  }
+
+  return { passed: true };
+}
 
 const SCAN_INTERVAL = 60000; // Scan every 60 seconds
 
@@ -25,7 +64,7 @@ export function usePatternScanner() {
   const lastScannedRef = useRef<Map<string, string>>(new Map());
   const scanningRef = useRef(false);
 
-  const scanSymbol = useCallback(async (symbol: string): Promise<Alert[]> => {
+  const scanSymbol = useCallback(async (symbol: string): Promise<{ alerts: Alert[]; rsi: number | null; prices: number[] }> => {
     const newAlerts: Alert[] = [];
 
     try {
@@ -38,7 +77,15 @@ export function usePatternScanner() {
         data = await getIntradayData(symbol, '15min');
       }
 
-      if (data.length < 3) return newAlerts;
+      if (data.length < 3) return { alerts: newAlerts, rsi: null, prices: [] };
+
+      // Extract close prices for RSI calculation
+      const closePrices = data.map(d => d.close);
+      const rsi = getCachedRSI(symbol, closePrices);
+
+      if (rsi !== null) {
+        console.log(`${symbol} RSI(14): ${rsi.toFixed(1)}`);
+      }
 
       // Convert to candle format
       const candles: Candle[] = data.slice(-10).map((d) => ({
@@ -97,11 +144,13 @@ export function usePatternScanner() {
 
         newAlerts.push(alert);
       }
+
+      return { alerts: newAlerts, rsi, prices: closePrices };
     } catch (error) {
       console.error(`Error scanning ${symbol}:`, error);
     }
 
-    return newAlerts;
+    return { alerts: [], rsi: null, prices: [] };
   }, [tradingRules]);
 
   const runScan = useCallback(async () => {
@@ -118,7 +167,7 @@ export function usePatternScanner() {
     console.log(`Starting pattern scan for ${symbolsToScan.length} symbols:`, symbolsToScan);
 
     for (const symbol of symbolsToScan) {
-      const newAlerts = await scanSymbol(symbol);
+      const { alerts: newAlerts, rsi } = await scanSymbol(symbol);
 
       for (const alert of newAlerts) {
         // Check if similar alert exists in last 5 minutes
@@ -150,9 +199,16 @@ export function usePatternScanner() {
           if (alert.ruleId) {
             const rule = tradingRules.find((r) => r.id === alert.ruleId);
             if (rule && rule.autoTrade) {
+              // Check RSI filter first
+              const rsiCheck = checkRSIFilter(rule, rsi);
+              if (!rsiCheck.passed) {
+                console.log(`Auto-trade blocked for ${alert.symbol}: RSI filter - ${rsiCheck.reason}`);
+                continue;
+              }
+
               const canExecute = canExecuteAutoTrade(rule, autoTradeConfig);
               if (canExecute.allowed) {
-                console.log(`Auto-trading: Executing ${rule.type} for ${alert.symbol}`);
+                console.log(`Auto-trading: Executing ${rule.type} for ${alert.symbol}${rsi !== null ? ` (RSI: ${rsi.toFixed(1)})` : ''}`);
                 executeAutoTrade(alert, rule, tradingMode, autoTradeConfig).then((execution) => {
                   if (execution.status === 'executed') {
                     console.log(`Auto-trade executed: ${execution.shares} shares of ${execution.symbol} at $${execution.price}`);

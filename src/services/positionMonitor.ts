@@ -17,6 +17,7 @@ interface PositionTarget {
   shares: number;
   takeProfitPrice?: number;
   stopLossPrice?: number;
+  trailingStopPercent?: number; // Trailing stop percentage from highest price
 }
 
 // Track positions with active targets
@@ -27,7 +28,7 @@ let monitorInterval: ReturnType<typeof setInterval> | null = null;
  * Calculate target prices based on rule settings
  */
 function calculateTargets(position: Position, rule: TradingRule): PositionTarget | null {
-  if (!rule.takeProfitPercent && !rule.stopLossPercent) {
+  if (!rule.takeProfitPercent && !rule.stopLossPercent && !rule.trailingStopPercent) {
     return null;
   }
 
@@ -48,6 +49,10 @@ function calculateTargets(position: Position, rule: TradingRule): PositionTarget
     target.stopLossPrice = position.avgCost * (1 - rule.stopLossPercent / 100);
   }
 
+  if (rule.trailingStopPercent) {
+    target.trailingStopPercent = rule.trailingStopPercent;
+  }
+
   return target;
 }
 
@@ -56,14 +61,24 @@ function calculateTargets(position: Position, rule: TradingRule): PositionTarget
  */
 function shouldSell(
   target: PositionTarget,
-  currentPrice: number
-): { sell: boolean; reason: 'take_profit' | 'stop_loss' | null; targetPrice: number | null } {
+  currentPrice: number,
+  highestPrice?: number
+): { sell: boolean; reason: 'take_profit' | 'stop_loss' | 'trailing_stop' | null; targetPrice: number | null } {
   // Check take-profit first (prioritize locking in gains)
   if (target.takeProfitPrice && currentPrice >= target.takeProfitPrice) {
     return { sell: true, reason: 'take_profit', targetPrice: target.takeProfitPrice };
   }
 
-  // Check stop-loss
+  // Check trailing stop (before fixed stop-loss since it's dynamic)
+  if (target.trailingStopPercent && highestPrice) {
+    const trailingStopPrice = highestPrice * (1 - target.trailingStopPercent / 100);
+    // Only trigger if we've made some profit (price above avg cost)
+    if (highestPrice > target.avgCost && currentPrice <= trailingStopPrice) {
+      return { sell: true, reason: 'trailing_stop', targetPrice: trailingStopPrice };
+    }
+  }
+
+  // Check fixed stop-loss
   if (target.stopLossPrice && currentPrice <= target.stopLossPrice) {
     return { sell: true, reason: 'stop_loss', targetPrice: target.stopLossPrice };
   }
@@ -77,7 +92,7 @@ function shouldSell(
 async function executeAutoSell(
   target: PositionTarget,
   currentPrice: number,
-  reason: 'take_profit' | 'stop_loss'
+  reason: 'take_profit' | 'stop_loss' | 'trailing_stop'
 ): Promise<boolean> {
   const store = useStore.getState();
   const { tradingMode, autoTradeConfig, paperPortfolio, addAutoTradeExecution } = store;
@@ -105,9 +120,10 @@ async function executeAutoSell(
   const profitLoss = (currentPrice - target.avgCost) * sharesToSell;
   const profitLossPercent = ((currentPrice - target.avgCost) / target.avgCost) * 100;
 
+  const reasonLabel = reason === 'take_profit' ? 'TAKE PROFIT' : reason === 'trailing_stop' ? 'TRAILING STOP' : 'STOP LOSS';
   logger.info(
     'PositionMonitor',
-    `${reason === 'take_profit' ? 'TAKE PROFIT' : 'STOP LOSS'} triggered for ${target.symbol}: ` +
+    `${reasonLabel} triggered for ${target.symbol}: ` +
       `selling ${sharesToSell} shares @ $${currentPrice.toFixed(2)} ` +
       `(${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)}, ${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(2)}%)`
   );
@@ -118,10 +134,11 @@ async function executeAutoSell(
 
   if (success) {
     // Record the auto-trade execution
+    const reasonDisplayName = reason === 'take_profit' ? 'Take Profit' : reason === 'trailing_stop' ? 'Trailing Stop' : 'Stop Loss';
     const execution: AutoTradeExecution = {
       id: `exec-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       ruleId: target.ruleId,
-      ruleName: `${target.ruleName} (${reason === 'take_profit' ? 'Take Profit' : 'Stop Loss'})`,
+      ruleName: `${target.ruleName} (${reasonDisplayName})`,
       alertId: `auto-${reason}-${Date.now()}`,
       symbol: target.symbol,
       type: 'sell',
@@ -168,13 +185,19 @@ async function scanPositions(): Promise<void> {
         continue;
       }
 
-      const { sell, reason, targetPrice } = shouldSell(target, quote.price);
+      // Get the position's highest price from the store
+      const position = store.paperPortfolio.positions.find((p) => p.id === target.positionId);
+      const highestPrice = position?.highestPrice;
+
+      const { sell, reason, targetPrice } = shouldSell(target, quote.price, highestPrice);
 
       if (sell && reason) {
+        const reasonLabel = reason === 'trailing_stop' ? 'TRAILING_STOP' : reason.toUpperCase();
         logger.info(
           'PositionMonitor',
-          `${reason.toUpperCase()} hit for ${target.symbol}: ` +
-            `current $${quote.price.toFixed(2)}, target $${targetPrice?.toFixed(2)}`
+          `${reasonLabel} hit for ${target.symbol}: ` +
+            `current $${quote.price.toFixed(2)}, target $${targetPrice?.toFixed(2)}` +
+            (reason === 'trailing_stop' ? `, highest $${highestPrice?.toFixed(2)}` : '')
         );
         await executeAutoSell(target, quote.price, reason);
       }
@@ -208,7 +231,8 @@ export function registerPositionForMonitoring(position: Position, rule: TradingR
       'PositionMonitor',
       `Monitoring ${position.symbol}: ` +
         `TP: ${target.takeProfitPrice ? '$' + target.takeProfitPrice.toFixed(2) : 'none'}, ` +
-        `SL: ${target.stopLossPrice ? '$' + target.stopLossPrice.toFixed(2) : 'none'}`
+        `SL: ${target.stopLossPrice ? '$' + target.stopLossPrice.toFixed(2) : 'none'}, ` +
+        `Trailing: ${target.trailingStopPercent ? target.trailingStopPercent + '%' : 'none'}`
     );
   }
 }

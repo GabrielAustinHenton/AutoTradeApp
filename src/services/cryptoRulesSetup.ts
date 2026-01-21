@@ -27,13 +27,15 @@ const BEARISH_PATTERNS: CandlestickPattern[] = [
 interface CryptoRuleConfig {
   takeProfitPercent: number;
   stopLossPercent: number;
+  trailingStopPercent: number;
   shares: number;
   cooldownMinutes: number;
 }
 
 const DEFAULT_CONFIG: CryptoRuleConfig = {
-  takeProfitPercent: 5,    // Sell when up 5%
+  takeProfitPercent: 10,   // Sell when up 10% (higher to let winners run)
   stopLossPercent: 3,      // Sell when down 3%
+  trailingStopPercent: 5,  // Trail 5% below highest price
   shares: 1,               // Trade 1 unit of crypto
   cooldownMinutes: 15,     // 15 min cooldown between trades
 };
@@ -75,6 +77,7 @@ function createCryptoRule(
     cooldownMinutes: config.cooldownMinutes,
     takeProfitPercent: config.takeProfitPercent,
     stopLossPercent: config.stopLossPercent,
+    trailingStopPercent: config.trailingStopPercent,
   };
 }
 

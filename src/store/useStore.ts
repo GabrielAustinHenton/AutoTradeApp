@@ -529,12 +529,15 @@ export const useStore = create<AppState>()(
               const totalValue = p.shares * newPrice;
               const totalGain = totalValue - p.shares * p.avgCost;
               const totalGainPercent = p.avgCost > 0 ? ((newPrice - p.avgCost) / p.avgCost) * 100 : 0;
+              // Track highest price for trailing stop
+              const highestPrice = Math.max(newPrice, p.highestPrice || p.avgCost);
               return {
                 ...p,
                 currentPrice: newPrice,
                 totalValue,
                 totalGain,
                 totalGainPercent,
+                highestPrice,
               };
             }),
           },
