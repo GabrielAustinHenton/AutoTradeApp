@@ -128,7 +128,7 @@ export function Dashboard() {
         />
         <StatCard
           title="Cash Balance"
-          value={`$${cashBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`$${displayCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           subtitle="Available to trade"
         />
         <StatCard
