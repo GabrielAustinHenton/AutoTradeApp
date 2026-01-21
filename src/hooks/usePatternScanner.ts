@@ -1,10 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { getIntradayData } from '../services/alphaVantage';
+import { getBinanceCandles, isCryptoSymbol } from '../services/binanceApi';
 import { detectPatterns, PATTERN_INFO, type Candle } from '../services/candlestickPatterns';
 import { playSound } from '../services/sounds';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
-import type { Alert } from '../types';
+import type { Alert, PriceHistory } from '../types';
 
 const SCAN_INTERVAL = 60000; // Scan every 60 seconds
 
@@ -27,7 +28,15 @@ export function usePatternScanner() {
     const newAlerts: Alert[] = [];
 
     try {
-      const data = await getIntradayData(symbol, '15min');
+      // Use Binance for crypto, Alpha Vantage for stocks
+      let data: PriceHistory[];
+      if (isCryptoSymbol(symbol)) {
+        data = await getBinanceCandles(symbol, '15min', 100);
+        console.log(`Fetched ${data.length} candles from Binance for ${symbol}`);
+      } else {
+        data = await getIntradayData(symbol, '15min');
+      }
+
       if (data.length < 3) return newAlerts;
 
       // Convert to candle format
@@ -40,6 +49,10 @@ export function usePatternScanner() {
 
       // Detect patterns
       const patterns = detectPatterns(candles);
+
+      if (patterns.length > 0) {
+        console.log(`Found ${patterns.length} pattern(s) for ${symbol}:`, patterns.map(p => p.pattern));
+      }
 
       // Get enabled pattern rules for this symbol
       const enabledRules = tradingRules.filter(
@@ -54,7 +67,11 @@ export function usePatternScanner() {
         const matchingRule = enabledRules.find((r) => r.pattern === pattern.pattern);
 
         // Create unique key to avoid duplicate alerts
-        const alertKey = `${symbol}-${pattern.pattern}-${data[data.length - 1]?.timestamp}`;
+        const lastCandle = data[data.length - 1];
+        const candleTime = lastCandle?.date instanceof Date
+          ? lastCandle.date.toISOString()
+          : (lastCandle as any)?.timestamp || Date.now();
+        const alertKey = `${symbol}-${pattern.pattern}-${candleTime}`;
 
         // Skip if we already alerted for this pattern at this time
         if (lastScannedRef.current.get(`${symbol}-${pattern.pattern}`) === alertKey) {
@@ -96,6 +113,8 @@ export function usePatternScanner() {
       .filter((r) => r.enabled && r.ruleType === 'pattern')
       .map((r) => r.symbol);
     const symbolsToScan = [...new Set([...ruleSymbols, ...watchlist])];
+
+    console.log(`Starting pattern scan for ${symbolsToScan.length} symbols:`, symbolsToScan);
 
     for (const symbol of symbolsToScan) {
       const newAlerts = await scanSymbol(symbol);
