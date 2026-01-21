@@ -9,6 +9,7 @@ import {
   type IntradayData,
   type SearchResult,
 } from '../services/alphaVantage';
+import { getBinanceCandles, isCryptoSymbol } from '../services/binanceApi';
 
 interface UseQuoteResult {
   quote: QuoteData | null;
@@ -167,8 +168,25 @@ export function useIntradayData(
     setError(null);
 
     try {
-      const result = await getIntradayData(symbol, interval);
-      setData(result);
+      // Use Binance for crypto symbols
+      if (isCryptoSymbol(symbol)) {
+        const binanceData = await getBinanceCandles(symbol, interval, 100);
+        // Convert to IntradayData format
+        const result: IntradayData[] = binanceData.map((d) => ({
+          timestamp: d.date instanceof Date
+            ? d.date.toISOString().replace('T', ' ').slice(0, 16)
+            : String(d.date),
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+          volume: d.volume,
+        }));
+        setData(result);
+      } else {
+        const result = await getIntradayData(symbol, interval);
+        setData(result);
+      }
     } catch (err) {
       setError('Failed to fetch intraday data');
     } finally {
@@ -208,8 +226,27 @@ export function useDailyData(
     setError(null);
 
     try {
-      const result = await getDailyData(symbol, outputSize);
-      setData(result);
+      // Use Binance for crypto symbols
+      if (isCryptoSymbol(symbol)) {
+        // Get more candles for full output size
+        const limit = outputSize === 'full' ? 365 : 100;
+        const binanceData = await getBinanceCandles(symbol, '1d', limit);
+        // Convert to IntradayData format
+        const result: IntradayData[] = binanceData.map((d) => ({
+          timestamp: d.date instanceof Date
+            ? d.date.toISOString().split('T')[0]
+            : String(d.date).split('T')[0],
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+          volume: d.volume,
+        }));
+        setData(result);
+      } else {
+        const result = await getDailyData(symbol, outputSize);
+        setData(result);
+      }
     } catch (err) {
       setError('Failed to fetch daily data');
     } finally {

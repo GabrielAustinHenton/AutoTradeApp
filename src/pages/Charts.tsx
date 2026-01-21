@@ -5,9 +5,23 @@ import { CandlestickChartSVG } from '../components/charts/CandlestickChartSVG';
 
 type TimeFrame = '1D' | '5D' | '1M' | '3M';
 
+// Crypto symbols always available (use Binance API - free, no key needed)
+const CRYPTO_SYMBOLS = ['ETH', 'BTC', 'SOL'];
+
 export function Charts() {
-  const { watchlist, positions } = useStore();
-  const [selectedSymbol, setSelectedSymbol] = useState(watchlist[0] || 'AAPL');
+  const { watchlist, positions, tradingMode, paperPortfolio } = useStore();
+
+  // Get positions based on trading mode
+  const activePositions = tradingMode === 'paper' ? paperPortfolio.positions : positions;
+
+  // Combine all symbols: crypto (always available) + watchlist + positions
+  const allAvailableSymbols = [...new Set([
+    ...CRYPTO_SYMBOLS,
+    ...watchlist,
+    ...activePositions.filter((p) => p.shares > 0).map((p) => p.symbol),
+  ])];
+
+  const [selectedSymbol, setSelectedSymbol] = useState('ETH');
   const [timeframe, setTimeframe] = useState<TimeFrame>('1M');
   const [showPatterns, setShowPatterns] = useState(true);
   const [showRSI, setShowRSI] = useState(true);
@@ -67,13 +81,8 @@ export function Charts() {
 
   const loading = timeframe === '1D' ? intradayLoading : dailyLoading;
 
-  // All symbols (watchlist + positions)
-  const allSymbols = [
-    ...new Set([
-      ...watchlist,
-      ...positions.filter((p) => p.shares > 0).map((p) => p.symbol),
-    ]),
-  ];
+  // Use the already computed symbols list
+  const allSymbols = allAvailableSymbols;
 
   // Calculate stats
   const latestCandle = chartData[chartData.length - 1];
