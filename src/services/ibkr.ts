@@ -1,6 +1,8 @@
 // Interactive Brokers Client Portal API Service
 // Requires IB Gateway running locally on port 5000
 
+import { IBKR_CONFIG } from '../config/ibkr';
+
 export interface IBKRConfig {
   gatewayUrl: string; // Usually https://localhost:5000
   accountId: string;
@@ -150,6 +152,18 @@ class IBKRService {
       this.config = JSON.parse(stored);
       return this.config;
     }
+
+    // Fall back to config file if localStorage is empty
+    if (IBKR_CONFIG.accountId && IBKR_CONFIG.accountId !== 'DU123456') {
+      this.config = {
+        gatewayUrl: IBKR_CONFIG.baseUrl,
+        accountId: IBKR_CONFIG.accountId,
+      };
+      // Save to localStorage for future loads
+      localStorage.setItem('ibkr_config', JSON.stringify(this.config));
+      return this.config;
+    }
+
     return null;
   }
 
