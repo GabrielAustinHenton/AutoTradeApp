@@ -5,6 +5,7 @@ import type { TradingRule, AutoTradeConfig, AutoTradeExecution, Alert, TradingMo
 import { useStore } from '../store/useStore';
 import { ibkr } from './ibkr';
 import { getQuote } from './alphaVantage';
+import { getBinancePrice, isCryptoSymbol } from './binanceApi';
 import { registerPositionForMonitoring } from './positionMonitor';
 
 // Check if current time is within market hours (9:30 AM - 4:00 PM ET)
@@ -93,9 +94,20 @@ export async function executeAutoTrade(
   };
 
   try {
-    // Get current price
-    const quote = await getQuote(alert.symbol);
-    execution.price = quote.price;
+    // Get current price - use Binance for crypto, Alpha Vantage for stocks
+    let currentPrice: number | null = null;
+    if (isCryptoSymbol(alert.symbol)) {
+      currentPrice = await getBinancePrice(alert.symbol);
+    } else {
+      const quote = await getQuote(alert.symbol);
+      currentPrice = quote?.price ?? null;
+    }
+
+    if (currentPrice === null || currentPrice <= 0) {
+      throw new Error(`Could not get price for ${alert.symbol}`);
+    }
+
+    execution.price = currentPrice;
 
     // Calculate shares based on rule action
     if (rule.action.targetDollarAmount && execution.price > 0) {
