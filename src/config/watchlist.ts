@@ -26,6 +26,13 @@ export const PERMANENT_CRYPTO = [
   'ETH',
   'BTC',
   'SOL',
+  'ADA',
+  'DOT',
+  'DOGE',
+  'AVAX',
+  'MATIC',
+  'LINK',
+  'XRP',
 ];
 
 // Combined permanent watchlist

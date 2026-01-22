@@ -210,35 +210,24 @@ const stockMACDRules = WATCHLIST_STOCKS.flatMap(symbol => [
   createMACDSellRule(symbol, false),
 ]);
 
-const cryptoMACDRules = ['ETH', 'BTC', 'SOL'].flatMap(symbol => [
+// Generate crypto rules for all permanent crypto symbols
+const cryptoBuyRules = PERMANENT_CRYPTO.flatMap(symbol =>
+  BULLISH_PATTERNS.map(({ pattern, name }) => createCryptoRule(symbol, pattern, name))
+);
+
+const cryptoSellRules = PERMANENT_CRYPTO.flatMap(symbol =>
+  BEARISH_PATTERNS.map(({ pattern, name }) => createCryptoSellRule(symbol, pattern, name))
+);
+
+const cryptoMACDRules = PERMANENT_CRYPTO.flatMap(symbol => [
   createMACDBuyRule(symbol, true),
   createMACDSellRule(symbol, true),
 ]);
 
 const defaultPatternRules: TradingRule[] = [
   // Crypto auto-trading rules with take-profit and stop-loss
-  createCryptoRule('ETH', 'hammer', 'Hammer'),
-  createCryptoRule('ETH', 'bullish_engulfing', 'Bullish Engulfing'),
-  createCryptoRule('ETH', 'inverted_hammer', 'Inverted Hammer'),
-  createCryptoRule('ETH', 'bullish_breakout', 'Bullish Breakout'),
-  createCryptoRule('BTC', 'hammer', 'Hammer'),
-  createCryptoRule('BTC', 'bullish_engulfing', 'Bullish Engulfing'),
-  createCryptoRule('BTC', 'inverted_hammer', 'Inverted Hammer'),
-  createCryptoRule('BTC', 'bullish_breakout', 'Bullish Breakout'),
-  createCryptoRule('SOL', 'hammer', 'Hammer'),
-  createCryptoRule('SOL', 'bullish_engulfing', 'Bullish Engulfing'),
-  createCryptoRule('SOL', 'inverted_hammer', 'Inverted Hammer'),
-  createCryptoRule('SOL', 'bullish_breakout', 'Bullish Breakout'),
-  // Crypto auto-sell rules for bearish patterns
-  createCryptoSellRule('ETH', 'shooting_star', 'Shooting Star'),
-  createCryptoSellRule('ETH', 'bearish_engulfing', 'Bearish Engulfing'),
-  createCryptoSellRule('ETH', 'evening_star', 'Evening Star'),
-  createCryptoSellRule('BTC', 'shooting_star', 'Shooting Star'),
-  createCryptoSellRule('BTC', 'bearish_engulfing', 'Bearish Engulfing'),
-  createCryptoSellRule('BTC', 'evening_star', 'Evening Star'),
-  createCryptoSellRule('SOL', 'shooting_star', 'Shooting Star'),
-  createCryptoSellRule('SOL', 'bearish_engulfing', 'Bearish Engulfing'),
-  createCryptoSellRule('SOL', 'evening_star', 'Evening Star'),
+  ...cryptoBuyRules,
+  ...cryptoSellRules,
   // Stock auto-trading rules with robust filtering
   ...stockBuyRules,
   ...stockSellRules,
