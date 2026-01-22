@@ -142,6 +142,9 @@ const createStockSellRule = (
   rsiFilter: { enabled: true, period: 14, minRSI: 30 }, // Only sell when not oversold
 });
 
+// Crypto symbols (use Binance API)
+const CRYPTO_SYMBOLS = ['ETH', 'BTC', 'SOL', 'ADA', 'DOT', 'DOGE', 'AVAX', 'MATIC', 'LINK', 'XRP'];
+
 // Watchlist stocks to create rules for
 const WATCHLIST_STOCKS = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'];
 
@@ -387,11 +390,51 @@ export const useStore = create<AppState>()(
 
       // Watchlist actions
       addToWatchlist: (symbol) =>
-        set((state) => ({
-          watchlist: state.watchlist.includes(symbol)
-            ? state.watchlist
-            : [...state.watchlist, symbol],
-        })),
+        set((state) => {
+          // Don't add if already in watchlist
+          if (state.watchlist.includes(symbol)) {
+            return state;
+          }
+
+          // Check if rules already exist for this symbol
+          const hasRulesForSymbol = state.tradingRules.some(r => r.symbol === symbol && r.autoTrade);
+
+          // Generate rules for new symbol if none exist
+          let newRules: TradingRule[] = [];
+          if (!hasRulesForSymbol) {
+            // Check if it's a crypto symbol
+            const isCrypto = CRYPTO_SYMBOLS.includes(symbol);
+
+            if (isCrypto) {
+              // Create crypto buy rules for bullish patterns
+              const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
+                createCryptoRule(symbol, pattern, name)
+              );
+              // Create crypto sell rules for bearish patterns
+              const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
+                createCryptoSellRule(symbol, pattern, name)
+              );
+              newRules = [...buyRules, ...sellRules];
+            } else {
+              // Create stock buy rules for bullish patterns
+              const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
+                createStockBuyRule(symbol, pattern, name)
+              );
+              // Create stock sell rules for bearish patterns
+              const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
+                createStockSellRule(symbol, pattern, name)
+              );
+              newRules = [...buyRules, ...sellRules];
+            }
+          }
+
+          return {
+            watchlist: [...state.watchlist, symbol],
+            tradingRules: newRules.length > 0
+              ? [...state.tradingRules, ...newRules]
+              : state.tradingRules,
+          };
+        }),
 
       removeFromWatchlist: (symbol) =>
         set((state) => ({
