@@ -65,9 +65,16 @@ export interface TradingRule {
   symbol: string;
   enabled: boolean;
   type: 'buy' | 'sell';
-  ruleType: 'price' | 'pattern';
+  ruleType: 'price' | 'pattern' | 'macd';
   conditions?: RuleCondition[];
   pattern?: CandlestickPattern;
+  // MACD crossover settings
+  macdSettings?: {
+    fastPeriod: number;   // Fast EMA period (default 12)
+    slowPeriod: number;   // Slow EMA period (default 26)
+    signalPeriod: number; // Signal line period (default 9)
+    crossoverType: 'bullish' | 'bearish'; // Which crossover to trigger on
+  };
   action: RuleAction;
   createdAt: Date;
   lastTriggered?: Date;

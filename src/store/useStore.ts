@@ -142,6 +142,57 @@ const createStockSellRule = (
   rsiFilter: { enabled: true, period: 14, minRSI: 30 }, // Only sell when not oversold
 });
 
+// Create MACD crossover rules
+const createMACDBuyRule = (
+  symbol: string,
+  isCrypto: boolean = false
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} MACD Bullish Crossover`,
+  symbol,
+  enabled: true,
+  type: 'buy',
+  ruleType: 'macd',
+  macdSettings: {
+    fastPeriod: 12,
+    slowPeriod: 26,
+    signalPeriod: 9,
+    crossoverType: 'bullish',
+  },
+  action: { type: 'market', shares: isCrypto ? 1 : 5 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: isCrypto ? 15 : 30,
+  takeProfitPercent: 5,
+  stopLossPercent: 3,
+  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  rsiFilter: isCrypto ? undefined : { enabled: true, period: 14, maxRSI: 70 },
+});
+
+const createMACDSellRule = (
+  symbol: string,
+  isCrypto: boolean = false
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} MACD Bearish Crossover`,
+  symbol,
+  enabled: true,
+  type: 'sell',
+  ruleType: 'macd',
+  macdSettings: {
+    fastPeriod: 12,
+    slowPeriod: 26,
+    signalPeriod: 9,
+    crossoverType: 'bearish',
+  },
+  action: { type: 'market', percentOfPortfolio: 100 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: isCrypto ? 15 : 30,
+  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  rsiFilter: isCrypto ? undefined : { enabled: true, period: 14, minRSI: 30 },
+});
+
 // Crypto symbols (use Binance API)
 const CRYPTO_SYMBOLS = ['ETH', 'BTC', 'SOL', 'ADA', 'DOT', 'DOGE', 'AVAX', 'MATIC', 'LINK', 'XRP'];
 
@@ -171,6 +222,17 @@ const stockBuyRules = WATCHLIST_STOCKS.flatMap(symbol =>
 const stockSellRules = WATCHLIST_STOCKS.flatMap(symbol =>
   BEARISH_PATTERNS.map(({ pattern, name }) => createStockSellRule(symbol, pattern, name))
 );
+
+// Generate MACD rules for stocks and crypto
+const stockMACDRules = WATCHLIST_STOCKS.flatMap(symbol => [
+  createMACDBuyRule(symbol, false),
+  createMACDSellRule(symbol, false),
+]);
+
+const cryptoMACDRules = ['ETH', 'BTC', 'SOL'].flatMap(symbol => [
+  createMACDBuyRule(symbol, true),
+  createMACDSellRule(symbol, true),
+]);
 
 const defaultPatternRules: TradingRule[] = [
   createPatternRule('hammer', 'buy', 'Hammer - Buy Signal'),
@@ -208,6 +270,9 @@ const defaultPatternRules: TradingRule[] = [
   // Stock auto-trading rules with robust filtering
   ...stockBuyRules,
   ...stockSellRules,
+  // MACD crossover rules
+  ...stockMACDRules,
+  ...cryptoMACDRules,
 ];
 
 interface AppState {
@@ -415,7 +480,9 @@ export const useStore = create<AppState>()(
               const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
                 createCryptoSellRule(symbol, pattern, name)
               );
-              newRules = [...buyRules, ...sellRules];
+              // Create MACD rules for crypto
+              const macdRules = [createMACDBuyRule(symbol, true), createMACDSellRule(symbol, true)];
+              newRules = [...buyRules, ...sellRules, ...macdRules];
             } else {
               // Create stock buy rules for bullish patterns
               const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
@@ -425,7 +492,9 @@ export const useStore = create<AppState>()(
               const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
                 createStockSellRule(symbol, pattern, name)
               );
-              newRules = [...buyRules, ...sellRules];
+              // Create MACD rules for stocks
+              const macdRules = [createMACDBuyRule(symbol, false), createMACDSellRule(symbol, false)];
+              newRules = [...buyRules, ...sellRules, ...macdRules];
             }
           }
 
@@ -463,7 +532,8 @@ export const useStore = create<AppState>()(
                 const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
                   createCryptoSellRule(symbol, pattern, name)
                 );
-                newRules.push(...buyRules, ...sellRules);
+                const macdRules = [createMACDBuyRule(symbol, true), createMACDSellRule(symbol, true)];
+                newRules.push(...buyRules, ...sellRules, ...macdRules);
               } else {
                 const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
                   createStockBuyRule(symbol, pattern, name)
@@ -471,7 +541,8 @@ export const useStore = create<AppState>()(
                 const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
                   createStockSellRule(symbol, pattern, name)
                 );
-                newRules.push(...buyRules, ...sellRules);
+                const macdRules = [createMACDBuyRule(symbol, false), createMACDSellRule(symbol, false)];
+                newRules.push(...buyRules, ...sellRules, ...macdRules);
               }
             }
           }

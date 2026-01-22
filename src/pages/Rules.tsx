@@ -15,7 +15,7 @@ function formatTimeAgo(date: Date | undefined): string {
 export function Rules() {
   const { tradingRules, addTradingRule, toggleTradingRule, removeTradingRule, updateTradingRule, autoTradeConfig } = useStore();
   const [showForm, setShowForm] = useState(false);
-  const [ruleType, setRuleType] = useState<'price' | 'pattern'>('pattern');
+  const [ruleType, setRuleType] = useState<'price' | 'pattern' | 'macd'>('pattern');
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('AAPL');
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -47,6 +47,11 @@ export function Rules() {
   // Volume filter state
   const [volumeFilterEnabled, setVolumeFilterEnabled] = useState(false);
   const [volumeMultiplier, setVolumeMultiplier] = useState('1.5');
+  // MACD settings state
+  const [macdFastPeriod, setMacdFastPeriod] = useState('12');
+  const [macdSlowPeriod, setMacdSlowPeriod] = useState('26');
+  const [macdSignalPeriod, setMacdSignalPeriod] = useState('9');
+  const [macdCrossoverType, setMacdCrossoverType] = useState<'bullish' | 'bearish'>('bullish');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +84,39 @@ export function Rules() {
           maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
         } : undefined,
         minConfidence: minConfidence ? parseInt(minConfidence) : undefined,
+        volumeFilter: volumeFilterEnabled ? {
+          enabled: true,
+          minMultiplier: parseFloat(volumeMultiplier) || 1.5,
+        } : undefined,
+      };
+      addTradingRule(rule);
+    } else if (ruleType === 'macd') {
+      const rule: TradingRule = {
+        id: crypto.randomUUID(),
+        name: name || `${symbol.toUpperCase()} MACD ${macdCrossoverType === 'bullish' ? 'Bullish' : 'Bearish'} Crossover`,
+        symbol: symbol.toUpperCase(),
+        enabled: true,
+        type: macdCrossoverType === 'bullish' ? 'buy' : 'sell',
+        ruleType: 'macd',
+        macdSettings: {
+          fastPeriod: parseInt(macdFastPeriod) || 12,
+          slowPeriod: parseInt(macdSlowPeriod) || 26,
+          signalPeriod: parseInt(macdSignalPeriod) || 9,
+          crossoverType: macdCrossoverType,
+        },
+        action,
+        createdAt: new Date(),
+        autoTrade: autoTradeEnabled,
+        cooldownMinutes: parseInt(cooldownMinutes) || 5,
+        takeProfitPercent: takeProfitPercent ? parseFloat(takeProfitPercent) : undefined,
+        stopLossPercent: stopLossPercent ? parseFloat(stopLossPercent) : undefined,
+        trailingStopPercent: trailingStopPercent ? parseFloat(trailingStopPercent) : undefined,
+        rsiFilter: rsiFilterEnabled ? {
+          enabled: true,
+          period: 14,
+          minRSI: rsiMin ? parseFloat(rsiMin) : undefined,
+          maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
+        } : undefined,
         volumeFilter: volumeFilterEnabled ? {
           enabled: true,
           minMultiplier: parseFloat(volumeMultiplier) || 1.5,
@@ -135,6 +173,10 @@ export function Rules() {
     setCooldownMinutes('5');
     setTakeProfitPercent('');
     setStopLossPercent('');
+    setMacdFastPeriod('12');
+    setMacdSlowPeriod('26');
+    setMacdSignalPeriod('9');
+    setMacdCrossoverType('bullish');
   };
 
   const getConditionText = (condition: RuleCondition) => {
@@ -149,6 +191,7 @@ export function Rules() {
   };
 
   const patternRules = tradingRules.filter((r) => r.ruleType === 'pattern');
+  const macdRules = tradingRules.filter((r) => r.ruleType === 'macd');
   const priceRules = tradingRules.filter((r) => r.ruleType === 'price');
 
   return (
@@ -181,6 +224,17 @@ export function Rules() {
                   }`}
                 >
                   Candlestick Pattern
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRuleType('macd')}
+                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                    ruleType === 'macd'
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  MACD Crossover
                 </button>
                 <button
                   type="button"
@@ -220,31 +274,33 @@ export function Rules() {
               </div>
             </div>
 
-            {/* Buy/Sell Selection */}
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setTradeType('buy')}
-                className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-                  tradeType === 'buy'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-700 text-slate-300'
-                }`}
-              >
-                Buy Rule
-              </button>
-              <button
-                type="button"
-                onClick={() => setTradeType('sell')}
-                className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-                  tradeType === 'sell'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-slate-700 text-slate-300'
-                }`}
-              >
-                Sell Rule
-              </button>
-            </div>
+            {/* Buy/Sell Selection - hidden for MACD since crossover type determines it */}
+            {ruleType !== 'macd' && (
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setTradeType('buy')}
+                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                    tradeType === 'buy'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  Buy Rule
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTradeType('sell')}
+                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                    tradeType === 'sell'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  Sell Rule
+                </button>
+              </div>
+            )}
 
             {/* Pattern Selection */}
             {ruleType === 'pattern' && (
@@ -274,6 +330,82 @@ export function Rules() {
                 <p className="mt-3 text-sm text-slate-400">
                   {PATTERN_INFO[selectedPattern].description}
                 </p>
+              </div>
+            )}
+
+            {/* MACD Crossover Settings */}
+            {ruleType === 'macd' && (
+              <div className="bg-slate-700 rounded-lg p-4">
+                <h3 className="font-semibold mb-3">MACD Crossover Settings</h3>
+                <p className="text-sm text-slate-400 mb-4">
+                  MACD (Moving Average Convergence Divergence) detects momentum changes by comparing two EMAs.
+                  A bullish crossover (MACD crosses above signal) suggests buying, while a bearish crossover suggests selling.
+                </p>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setMacdCrossoverType('bullish')}
+                    className={`py-3 rounded-lg font-semibold transition-colors ${
+                      macdCrossoverType === 'bullish'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-600 text-slate-300'
+                    }`}
+                  >
+                    Bullish Crossover (Buy)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMacdCrossoverType('bearish')}
+                    className={`py-3 rounded-lg font-semibold transition-colors ${
+                      macdCrossoverType === 'bearish'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-slate-600 text-slate-300'
+                    }`}
+                  >
+                    Bearish Crossover (Sell)
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs text-orange-400 mb-1 block">Fast EMA Period</label>
+                    <input
+                      type="number"
+                      value={macdFastPeriod}
+                      onChange={(e) => setMacdFastPeriod(e.target.value)}
+                      placeholder="12"
+                      min="2"
+                      max="50"
+                      className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Default: 12</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-orange-400 mb-1 block">Slow EMA Period</label>
+                    <input
+                      type="number"
+                      value={macdSlowPeriod}
+                      onChange={(e) => setMacdSlowPeriod(e.target.value)}
+                      placeholder="26"
+                      min="2"
+                      max="100"
+                      className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Default: 26</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-orange-400 mb-1 block">Signal Line Period</label>
+                    <input
+                      type="number"
+                      value={macdSignalPeriod}
+                      onChange={(e) => setMacdSignalPeriod(e.target.value)}
+                      placeholder="9"
+                      min="2"
+                      max="50"
+                      className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Default: 9</p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -628,6 +760,120 @@ export function Rules() {
                             {rule.minConfidence && (
                               <span className="text-amber-400 ml-2">
                                 Min Conf: {rule.minConfidence}%
+                              </span>
+                            )}
+                            {rule.volumeFilter?.enabled && (
+                              <span className="text-cyan-400 ml-2">
+                                Vol: ≥{rule.volumeFilter.minMultiplier}x
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateTradingRule(rule.id, { autoTrade: !rule.autoTrade })}
+                      className={`px-3 py-1 rounded text-sm ${
+                        rule.autoTrade
+                          ? 'bg-amber-600 hover:bg-amber-700'
+                          : 'bg-slate-600 hover:bg-slate-500'
+                      }`}
+                      title={rule.autoTrade ? 'Disable auto-trade' : 'Enable auto-trade'}
+                    >
+                      Auto
+                    </button>
+                    <button
+                      onClick={() => toggleTradingRule(rule.id)}
+                      className={`px-3 py-1 rounded text-sm ${
+                        rule.enabled
+                          ? 'bg-emerald-600 hover:bg-emerald-700'
+                          : 'bg-slate-600 hover:bg-slate-500'
+                      }`}
+                    >
+                      {rule.enabled ? 'Enabled' : 'Disabled'}
+                    </button>
+                    <button
+                      onClick={() => removeTradingRule(rule.id)}
+                      className="text-red-400 hover:text-red-300 px-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MACD Crossover Rules */}
+      <div className="bg-slate-800 rounded-xl p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <span className="text-orange-400">◈</span> MACD Crossover Rules
+        </h2>
+        {macdRules.length === 0 ? (
+          <p className="text-slate-400">No MACD crossover rules configured.</p>
+        ) : (
+          <div className="space-y-3">
+            {macdRules.map((rule) => (
+              <div
+                key={rule.id}
+                className={`p-4 rounded-lg border ${
+                  rule.enabled
+                    ? 'bg-slate-700 border-slate-600'
+                    : 'bg-slate-800 border-slate-700 opacity-60'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold">{rule.name}</h3>
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
+                        {rule.symbol}
+                      </span>
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${
+                          rule.type === 'buy'
+                            ? 'bg-emerald-900 text-emerald-300'
+                            : 'bg-red-900 text-red-300'
+                        }`}
+                      >
+                        {rule.type.toUpperCase()}
+                      </span>
+                      {rule.autoTrade && (
+                        <span className="text-xs px-2 py-1 rounded bg-amber-900 text-amber-300">
+                          AUTO
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-400 mt-1">
+                      When <span className="text-orange-400 font-medium">
+                        {rule.macdSettings?.crossoverType === 'bullish' ? 'Bullish' : 'Bearish'} MACD Crossover
+                      </span> detected
+                      <span className="text-slate-500 ml-2">
+                        ({rule.macdSettings?.fastPeriod}/{rule.macdSettings?.slowPeriod}/{rule.macdSettings?.signalPeriod})
+                      </span>
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      → {rule.action.type} order for {rule.action.shares} shares
+                    </p>
+                    {rule.autoTrade && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
+                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.volumeFilter?.enabled) && (
+                          <span className="ml-2">
+                            {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
+                            {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
+                            {rule.stopLossPercent && <span className="text-red-400">SL: {rule.stopLossPercent}%</span>}
+                            {rule.stopLossPercent && rule.trailingStopPercent && ' • '}
+                            {rule.trailingStopPercent && <span className="text-blue-400">Trail: {rule.trailingStopPercent}%</span>}
+                            {rule.rsiFilter?.enabled && (
+                              <span className="text-purple-400 ml-2">
+                                RSI: {rule.rsiFilter.minRSI !== undefined && `≥${rule.rsiFilter.minRSI}`}
+                                {rule.rsiFilter.minRSI !== undefined && rule.rsiFilter.maxRSI !== undefined && ' & '}
+                                {rule.rsiFilter.maxRSI !== undefined && `≤${rule.rsiFilter.maxRSI}`}
                               </span>
                             )}
                             {rule.volumeFilter?.enabled && (

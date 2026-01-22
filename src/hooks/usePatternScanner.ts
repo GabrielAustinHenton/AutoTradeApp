@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { getIntradayData } from '../services/alphaVantage';
 import { getBinanceCandles, isCryptoSymbol } from '../services/binanceApi';
 import { detectPatterns, PATTERN_INFO, type Candle } from '../services/candlestickPatterns';
-import { calculateRSI } from '../services/technicalIndicators';
+import { calculateRSI, calculateMACD, detectMACDCrossover } from '../services/technicalIndicators';
 import { playSound } from '../services/sounds';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
 import type { Alert, PriceHistory, TradingRule } from '../types';
@@ -69,6 +69,23 @@ function checkVolumeFilter(
   }
 
   return { passed: true };
+}
+
+// Cache MACD values per symbol to avoid recalculating
+const macdCache = new Map<string, { macd: ReturnType<typeof calculateMACD>; timestamp: number }>();
+const MACD_CACHE_TTL = 60000; // 1 minute
+
+function getCachedMACD(symbol: string, prices: number[], fast: number, slow: number, signal: number) {
+  const cacheKey = `${symbol}-${fast}-${slow}-${signal}`;
+  const cached = macdCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < MACD_CACHE_TTL) {
+    return cached.macd;
+  }
+  const macd = calculateMACD(prices, fast, slow, signal);
+  if (macd !== null) {
+    macdCache.set(cacheKey, { macd, timestamp: Date.now() });
+  }
+  return macd;
 }
 
 const SCAN_INTERVAL = 60000; // Scan every 60 seconds
@@ -176,6 +193,54 @@ export function usePatternScanner() {
       const avgVolume = volumes.slice(0, -1).reduce((a, b) => a + b, 0) / (volumes.length - 1);
       const volumeData = { current: currentVolume, average: avgVolume };
 
+      // Get enabled MACD rules for this symbol
+      const enabledMACDRules = tradingRules.filter(
+        (r) =>
+          r.enabled &&
+          r.ruleType === 'macd' &&
+          r.symbol === symbol &&
+          r.macdSettings
+      );
+
+      // Check MACD crossovers
+      for (const rule of enabledMACDRules) {
+        const { fastPeriod, slowPeriod, signalPeriod, crossoverType } = rule.macdSettings!;
+        const macd = getCachedMACD(symbol, closePrices, fastPeriod, slowPeriod, signalPeriod);
+
+        if (macd) {
+          const crossover = detectMACDCrossover(macd);
+
+          if (crossover && crossover.type === crossoverType) {
+            // Create unique key to avoid duplicate alerts
+            const alertKey = `${symbol}-macd-${crossoverType}-${Date.now().toString().slice(0, -4)}`; // Round to ~10 second buckets
+
+            // Skip if we already alerted for this crossover recently
+            if (lastScannedRef.current.get(`${symbol}-macd-${crossoverType}`) === alertKey) {
+              continue;
+            }
+
+            lastScannedRef.current.set(`${symbol}-macd-${crossoverType}`, alertKey);
+
+            console.log(`MACD ${crossoverType} crossover detected for ${symbol}: MACD=${macd.macdLine}, Signal=${macd.signalLine}`);
+
+            const alert: Alert = {
+              id: crypto.randomUUID(),
+              type: 'pattern',
+              symbol,
+              message: `MACD ${crossoverType} crossover on ${symbol} (MACD: ${macd.macdLine.toFixed(4)}, Signal: ${macd.signalLine.toFixed(4)})`,
+              signal: crossover.signal,
+              ruleId: rule.id,
+              confidence: 75, // MACD crossovers are generally reliable
+              timestamp: new Date(),
+              read: false,
+              dismissed: false,
+            };
+
+            newAlerts.push(alert);
+          }
+        }
+      }
+
       return { alerts: newAlerts, rsi, prices: closePrices, volumeData };
     } catch (error) {
       console.error(`Error scanning ${symbol}:`, error);
@@ -191,11 +256,11 @@ export function usePatternScanner() {
 
     // Get unique symbols from rules and watchlist
     const ruleSymbols = tradingRules
-      .filter((r) => r.enabled && r.ruleType === 'pattern')
+      .filter((r) => r.enabled && (r.ruleType === 'pattern' || r.ruleType === 'macd'))
       .map((r) => r.symbol);
     const symbolsToScan = [...new Set([...ruleSymbols, ...watchlist])];
 
-    console.log(`Starting pattern scan for ${symbolsToScan.length} symbols:`, symbolsToScan);
+    console.log(`Starting pattern/MACD scan for ${symbolsToScan.length} symbols:`, symbolsToScan);
 
     for (const symbol of symbolsToScan) {
       const { alerts: newAlerts, rsi, volumeData } = await scanSymbol(symbol);
