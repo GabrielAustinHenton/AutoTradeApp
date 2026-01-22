@@ -1,5 +1,6 @@
 import { useStore } from '../store/useStore';
 import { getQuote } from './alphaVantage';
+import { getBinancePrice, isCryptoSymbol } from './binanceApi';
 import { logger } from '../utils/logger';
 import type { Position, TradingRule, AutoTradeExecution } from '../types';
 
@@ -179,8 +180,16 @@ async function scanPositions(): Promise<void> {
 
   for (const target of [...monitoredPositions]) {
     try {
-      const quote = await getQuote(target.symbol);
-      if (!quote) {
+      // Use Binance for crypto, Alpha Vantage for stocks
+      let currentPrice: number | null = null;
+      if (isCryptoSymbol(target.symbol)) {
+        currentPrice = await getBinancePrice(target.symbol);
+      } else {
+        const quote = await getQuote(target.symbol);
+        currentPrice = quote?.price ?? null;
+      }
+
+      if (currentPrice === null) {
         logger.warn('PositionMonitor', `Could not get quote for ${target.symbol}`);
         continue;
       }
@@ -189,17 +198,17 @@ async function scanPositions(): Promise<void> {
       const position = store.paperPortfolio.positions.find((p) => p.id === target.positionId);
       const highestPrice = position?.highestPrice;
 
-      const { sell, reason, targetPrice } = shouldSell(target, quote.price, highestPrice);
+      const { sell, reason, targetPrice } = shouldSell(target, currentPrice, highestPrice);
 
       if (sell && reason) {
         const reasonLabel = reason === 'trailing_stop' ? 'TRAILING_STOP' : reason.toUpperCase();
         logger.info(
           'PositionMonitor',
           `${reasonLabel} hit for ${target.symbol}: ` +
-            `current $${quote.price.toFixed(2)}, target $${targetPrice?.toFixed(2)}` +
+            `current $${currentPrice.toFixed(2)}, target $${targetPrice?.toFixed(2)}` +
             (reason === 'trailing_stop' ? `, highest $${highestPrice?.toFixed(2)}` : '')
         );
-        await executeAutoSell(target, quote.price, reason);
+        await executeAutoSell(target, currentPrice, reason);
       }
 
       // Small delay between checks to avoid rate limiting
