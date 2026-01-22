@@ -86,6 +86,8 @@ export interface TradingRule {
     minRSI?: number; // Only trigger if RSI >= this (e.g., 30 for oversold buy)
     maxRSI?: number; // Only trigger if RSI <= this (e.g., 70 for overbought sell)
   };
+  // Minimum confidence threshold (0-100) - only execute if pattern confidence >= this
+  minConfidence?: number;
 }
 
 export interface RuleCondition {

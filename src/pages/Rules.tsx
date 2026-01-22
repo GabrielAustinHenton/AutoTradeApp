@@ -42,6 +42,8 @@ export function Rules() {
   const [rsiFilterEnabled, setRsiFilterEnabled] = useState(false);
   const [rsiMin, setRsiMin] = useState('');
   const [rsiMax, setRsiMax] = useState('');
+  // Minimum confidence threshold
+  const [minConfidence, setMinConfidence] = useState('70');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +75,7 @@ export function Rules() {
           minRSI: rsiMin ? parseFloat(rsiMin) : undefined,
           maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
         } : undefined,
+        minConfidence: minConfidence ? parseInt(minConfidence) : undefined,
       };
       addTradingRule(rule);
     } else {
@@ -463,6 +466,38 @@ export function Rules() {
                         </div>
                       )}
                     </div>
+
+                    {/* Minimum Confidence Threshold */}
+                    <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
+                      <label className="text-sm font-medium text-amber-400 mb-2 block">
+                        Minimum Confidence Threshold
+                      </label>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="range"
+                          value={minConfidence}
+                          onChange={(e) => setMinConfidence(e.target.value)}
+                          min="0"
+                          max="100"
+                          step="5"
+                          className="flex-1 h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <div className="flex items-center gap-1 min-w-[60px]">
+                          <input
+                            type="number"
+                            value={minConfidence}
+                            onChange={(e) => setMinConfidence(e.target.value)}
+                            min="0"
+                            max="100"
+                            className="w-14 bg-slate-600 border border-slate-500 rounded px-2 py-1 text-center text-sm"
+                          />
+                          <span className="text-slate-400">%</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Only execute trades when pattern confidence is at least this value. Higher = fewer but more reliable trades.
+                      </p>
+                    </div>
                     </>
                   )}
 
@@ -534,7 +569,7 @@ export function Rules() {
                     {rule.autoTrade && (
                       <p className="text-xs text-slate-500 mt-1">
                         Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled) && (
+                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.minConfidence) && (
                           <span className="ml-2">
                             {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
                             {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
@@ -546,6 +581,11 @@ export function Rules() {
                                 RSI: {rule.rsiFilter.minRSI !== undefined && `≥${rule.rsiFilter.minRSI}`}
                                 {rule.rsiFilter.minRSI !== undefined && rule.rsiFilter.maxRSI !== undefined && ' & '}
                                 {rule.rsiFilter.maxRSI !== undefined && `≤${rule.rsiFilter.maxRSI}`}
+                              </span>
+                            )}
+                            {rule.minConfidence && (
+                              <span className="text-amber-400 ml-2">
+                                Min Conf: {rule.minConfidence}%
                               </span>
                             )}
                           </span>
@@ -638,7 +678,7 @@ export function Rules() {
                     {rule.autoTrade && (
                       <p className="text-xs text-slate-500 mt-1">
                         Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled) && (
+                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.minConfidence) && (
                           <span className="ml-2">
                             {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
                             {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
@@ -650,6 +690,11 @@ export function Rules() {
                                 RSI: {rule.rsiFilter.minRSI !== undefined && `≥${rule.rsiFilter.minRSI}`}
                                 {rule.rsiFilter.minRSI !== undefined && rule.rsiFilter.maxRSI !== undefined && ' & '}
                                 {rule.rsiFilter.maxRSI !== undefined && `≤${rule.rsiFilter.maxRSI}`}
+                              </span>
+                            )}
+                            {rule.minConfidence && (
+                              <span className="text-amber-400 ml-2">
+                                Min Conf: {rule.minConfidence}%
                               </span>
                             )}
                           </span>

@@ -199,7 +199,15 @@ export function usePatternScanner() {
           if (alert.ruleId) {
             const rule = tradingRules.find((r) => r.id === alert.ruleId);
             if (rule && rule.autoTrade) {
-              // Check RSI filter first
+              // Check minimum confidence threshold
+              if (rule.minConfidence && alert.confidence !== undefined) {
+                if (alert.confidence < rule.minConfidence) {
+                  console.log(`Auto-trade blocked for ${alert.symbol}: Confidence ${alert.confidence}% < min ${rule.minConfidence}%`);
+                  continue;
+                }
+              }
+
+              // Check RSI filter
               const rsiCheck = checkRSIFilter(rule, rsi);
               if (!rsiCheck.passed) {
                 console.log(`Auto-trade blocked for ${alert.symbol}: RSI filter - ${rsiCheck.reason}`);
@@ -208,7 +216,7 @@ export function usePatternScanner() {
 
               const canExecute = canExecuteAutoTrade(rule, autoTradeConfig);
               if (canExecute.allowed) {
-                console.log(`Auto-trading: Executing ${rule.type} for ${alert.symbol}${rsi !== null ? ` (RSI: ${rsi.toFixed(1)})` : ''}`);
+                console.log(`Auto-trading: Executing ${rule.type} for ${alert.symbol} (Confidence: ${alert.confidence ?? 'N/A'}%${rsi !== null ? `, RSI: ${rsi.toFixed(1)}` : ''})`);
                 executeAutoTrade(alert, rule, tradingMode, autoTradeConfig).then((execution) => {
                   if (execution.status === 'executed') {
                     console.log(`Auto-trade executed: ${execution.shares} shares of ${execution.symbol} at $${execution.price}`);
