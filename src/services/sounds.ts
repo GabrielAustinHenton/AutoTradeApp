@@ -1,90 +1,103 @@
-// Sound effects using Web Audio API
-let audioContext: AudioContext | null = null;
-
-function getAudioContext(): AudioContext {
-  if (!audioContext) {
-    audioContext = new AudioContext();
-  }
-  return audioContext;
-}
+// Sound effects using HTML5 Audio with base64 encoded WAV files
+// This approach works better with Safari's strict autoplay policies
 
 export type SoundType = 'buy' | 'sell' | 'notification';
 
-interface SoundConfig {
-  frequency: number;
-  duration: number;
-  type: OscillatorType;
-  volume: number;
-  ramp?: 'up' | 'down';
+// Generate a simple beep as a WAV file in base64
+function generateBeepDataUrl(frequency: number, duration: number, volume: number = 0.3): string {
+  const sampleRate = 44100;
+  const numSamples = Math.floor(sampleRate * duration);
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const dataSize = numSamples * blockAlign;
+  const fileSize = 36 + dataSize;
+
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  // WAV header
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, fileSize, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true); // Subchunk1Size
+  view.setUint16(20, 1, true); // AudioFormat (PCM)
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // Generate sine wave samples
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    // Apply envelope to avoid clicks
+    let envelope = 1;
+    const attackTime = 0.01;
+    const releaseTime = 0.01;
+    if (t < attackTime) {
+      envelope = t / attackTime;
+    } else if (t > duration - releaseTime) {
+      envelope = (duration - t) / releaseTime;
+    }
+    const sample = Math.sin(2 * Math.PI * frequency * t) * volume * envelope;
+    const intSample = Math.max(-32768, Math.min(32767, Math.floor(sample * 32767)));
+    view.setInt16(44 + i * 2, intSample, true);
+  }
+
+  // Convert to base64
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return 'data:audio/wav;base64,' + btoa(binary);
 }
 
-const SOUNDS: Record<SoundType, SoundConfig[]> = {
-  // Buy signal: ascending happy tone
+// Pre-generate sound data URLs
+const SOUND_URLS: Record<SoundType, string[]> = {
   buy: [
-    { frequency: 523.25, duration: 0.1, type: 'sine', volume: 0.3 }, // C5
-    { frequency: 659.25, duration: 0.1, type: 'sine', volume: 0.3 }, // E5
-    { frequency: 783.99, duration: 0.15, type: 'sine', volume: 0.3 }, // G5
+    generateBeepDataUrl(523.25, 0.12, 0.4), // C5
+    generateBeepDataUrl(659.25, 0.12, 0.4), // E5
+    generateBeepDataUrl(783.99, 0.15, 0.4), // G5
   ],
-  // Sell signal: descending warning tone
   sell: [
-    { frequency: 783.99, duration: 0.1, type: 'sine', volume: 0.3 }, // G5
-    { frequency: 659.25, duration: 0.1, type: 'sine', volume: 0.3 }, // E5
-    { frequency: 523.25, duration: 0.15, type: 'sine', volume: 0.3 }, // C5
+    generateBeepDataUrl(783.99, 0.12, 0.4), // G5
+    generateBeepDataUrl(659.25, 0.12, 0.4), // E5
+    generateBeepDataUrl(523.25, 0.15, 0.4), // C5
   ],
-  // General notification: single beep
   notification: [
-    { frequency: 880, duration: 0.15, type: 'sine', volume: 0.2 }, // A5
+    generateBeepDataUrl(880, 0.2, 0.3), // A5
   ],
 };
 
-function playTone(config: SoundConfig, startTime: number): void {
-  const ctx = getAudioContext();
-
-  const oscillator = ctx.createOscillator();
-  const gainNode = ctx.createGain();
-
-  oscillator.connect(gainNode);
-  gainNode.connect(ctx.destination);
-
-  oscillator.type = config.type;
-  oscillator.frequency.setValueAtTime(config.frequency, startTime);
-
-  // Envelope for smooth sound
-  gainNode.gain.setValueAtTime(0, startTime);
-  gainNode.gain.linearRampToValueAtTime(config.volume, startTime + 0.01);
-  gainNode.gain.linearRampToValueAtTime(config.volume, startTime + config.duration - 0.02);
-  gainNode.gain.linearRampToValueAtTime(0, startTime + config.duration);
-
-  oscillator.start(startTime);
-  oscillator.stop(startTime + config.duration);
-}
-
-export function playSound(type: SoundType): void {
+export async function playSound(type: SoundType): Promise<void> {
   try {
-    const ctx = getAudioContext();
+    const urls = SOUND_URLS[type];
 
-    // Resume audio context if suspended (browser autoplay policy)
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-    }
-
-    const tones = SOUNDS[type];
-    let currentTime = ctx.currentTime;
-
-    for (const tone of tones) {
-      playTone(tone, currentTime);
-      currentTime += tone.duration;
+    let delay = 0;
+    for (const url of urls) {
+      setTimeout(() => {
+        const audio = new Audio(url);
+        audio.volume = 1.0;
+        audio.play().catch(() => {});
+      }, delay);
+      delay += 100; // 100ms between notes
     }
   } catch (error) {
-    console.warn('Could not play sound:', error);
+    // Silently fail - sounds are not critical
   }
 }
 
-// Test sound on user interaction (needed for browsers that block autoplay)
-export function initializeSounds(): void {
-  try {
-    getAudioContext();
-  } catch (error) {
-    console.warn('Could not initialize audio:', error);
-  }
-}
+// No-op for compatibility
+export function initializeSounds(): void {}
