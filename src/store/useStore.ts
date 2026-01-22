@@ -853,11 +853,29 @@ export const useStore = create<AppState>()(
       name: 'tradeapp-storage',
       // Merge function ensures permanent watchlist symbols are always present
       merge: (persistedState, currentState) => {
-        const merged = { ...currentState, ...(persistedState as object) };
+        const persisted = (persistedState as Partial<AppState>) || {};
+        const merged = { ...currentState, ...persisted };
+
         // Always include permanent watchlist symbols
-        if (merged.watchlist) {
-          merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...merged.watchlist])];
-        }
+        merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...(merged.watchlist || [])])];
+
+        // Ensure paperPortfolio is properly initialized
+        merged.paperPortfolio = {
+          ...defaultPaperPortfolio,
+          ...(merged.paperPortfolio || {}),
+          positions: merged.paperPortfolio?.positions || [],
+          trades: merged.paperPortfolio?.trades || [],
+          history: merged.paperPortfolio?.history || defaultPaperPortfolio.history,
+        };
+
+        // Ensure arrays are never null
+        merged.trades = merged.trades || [];
+        merged.tradingRules = merged.tradingRules || defaultPatternRules;
+        merged.alerts = merged.alerts || [];
+        merged.autoTradeExecutions = merged.autoTradeExecutions || [];
+        merged.journalEntries = merged.journalEntries || [];
+        merged.backtestResults = merged.backtestResults || [];
+
         return merged as AppState;
       },
     }
