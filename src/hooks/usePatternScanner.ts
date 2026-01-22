@@ -46,6 +46,31 @@ function checkRSIFilter(rule: TradingRule, rsi: number | null): { passed: boolea
   return { passed: true };
 }
 
+function checkVolumeFilter(
+  rule: TradingRule,
+  volumeData: { current: number; average: number } | null
+): { passed: boolean; reason?: string } {
+  if (!rule.volumeFilter?.enabled) {
+    return { passed: true };
+  }
+
+  if (!volumeData || volumeData.average === 0) {
+    return { passed: false, reason: 'Not enough data to calculate volume average' };
+  }
+
+  const volumeRatio = volumeData.current / volumeData.average;
+  const requiredMultiplier = rule.volumeFilter.minMultiplier;
+
+  if (volumeRatio < requiredMultiplier) {
+    return {
+      passed: false,
+      reason: `Volume ${volumeRatio.toFixed(2)}x < min ${requiredMultiplier}x avg`,
+    };
+  }
+
+  return { passed: true };
+}
+
 const SCAN_INTERVAL = 60000; // Scan every 60 seconds
 
 export function usePatternScanner() {
@@ -64,7 +89,7 @@ export function usePatternScanner() {
   const lastScannedRef = useRef<Map<string, string>>(new Map());
   const scanningRef = useRef(false);
 
-  const scanSymbol = useCallback(async (symbol: string): Promise<{ alerts: Alert[]; rsi: number | null; prices: number[] }> => {
+  const scanSymbol = useCallback(async (symbol: string): Promise<{ alerts: Alert[]; rsi: number | null; prices: number[]; volumeData: { current: number; average: number } | null }> => {
     const newAlerts: Alert[] = [];
 
     try {
@@ -77,7 +102,7 @@ export function usePatternScanner() {
         data = await getIntradayData(symbol, '15min');
       }
 
-      if (data.length < 3) return { alerts: newAlerts, rsi: null, prices: [] };
+      if (data.length < 3) return { alerts: newAlerts, rsi: null, prices: [], volumeData: null };
 
       // Extract close prices for RSI calculation
       const closePrices = data.map(d => d.close);
@@ -145,12 +170,18 @@ export function usePatternScanner() {
         newAlerts.push(alert);
       }
 
-      return { alerts: newAlerts, rsi, prices: closePrices };
+      // Calculate volume data
+      const volumes = data.map(d => d.volume);
+      const currentVolume = volumes[volumes.length - 1];
+      const avgVolume = volumes.slice(0, -1).reduce((a, b) => a + b, 0) / (volumes.length - 1);
+      const volumeData = { current: currentVolume, average: avgVolume };
+
+      return { alerts: newAlerts, rsi, prices: closePrices, volumeData };
     } catch (error) {
       console.error(`Error scanning ${symbol}:`, error);
     }
 
-    return { alerts: [], rsi: null, prices: [] };
+    return { alerts: [], rsi: null, prices: [], volumeData: null };
   }, [tradingRules]);
 
   const runScan = useCallback(async () => {
@@ -167,7 +198,7 @@ export function usePatternScanner() {
     console.log(`Starting pattern scan for ${symbolsToScan.length} symbols:`, symbolsToScan);
 
     for (const symbol of symbolsToScan) {
-      const { alerts: newAlerts, rsi } = await scanSymbol(symbol);
+      const { alerts: newAlerts, rsi, volumeData } = await scanSymbol(symbol);
 
       for (const alert of newAlerts) {
         // Check if similar alert exists in last 5 minutes
@@ -207,6 +238,13 @@ export function usePatternScanner() {
                 }
               }
 
+              // Check volume filter
+              const volumeCheck = checkVolumeFilter(rule, volumeData);
+              if (!volumeCheck.passed) {
+                console.log(`Auto-trade blocked for ${alert.symbol}: Volume filter - ${volumeCheck.reason}`);
+                continue;
+              }
+
               // Check RSI filter
               const rsiCheck = checkRSIFilter(rule, rsi);
               if (!rsiCheck.passed) {
@@ -216,7 +254,8 @@ export function usePatternScanner() {
 
               const canExecute = canExecuteAutoTrade(rule, autoTradeConfig);
               if (canExecute.allowed) {
-                console.log(`Auto-trading: Executing ${rule.type} for ${alert.symbol} (Confidence: ${alert.confidence ?? 'N/A'}%${rsi !== null ? `, RSI: ${rsi.toFixed(1)}` : ''})`);
+                const volRatio = volumeData ? (volumeData.current / volumeData.average).toFixed(2) : 'N/A';
+                console.log(`Auto-trading: Executing ${rule.type} for ${alert.symbol} (Confidence: ${alert.confidence ?? 'N/A'}%, Vol: ${volRatio}x avg${rsi !== null ? `, RSI: ${rsi.toFixed(1)}` : ''})`);
                 executeAutoTrade(alert, rule, tradingMode, autoTradeConfig).then((execution) => {
                   if (execution.status === 'executed') {
                     console.log(`Auto-trade executed: ${execution.shares} shares of ${execution.symbol} at $${execution.price}`);

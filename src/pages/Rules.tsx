@@ -44,6 +44,9 @@ export function Rules() {
   const [rsiMax, setRsiMax] = useState('');
   // Minimum confidence threshold
   const [minConfidence, setMinConfidence] = useState('70');
+  // Volume filter state
+  const [volumeFilterEnabled, setVolumeFilterEnabled] = useState(false);
+  const [volumeMultiplier, setVolumeMultiplier] = useState('1.5');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,6 +79,10 @@ export function Rules() {
           maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
         } : undefined,
         minConfidence: minConfidence ? parseInt(minConfidence) : undefined,
+        volumeFilter: volumeFilterEnabled ? {
+          enabled: true,
+          minMultiplier: parseFloat(volumeMultiplier) || 1.5,
+        } : undefined,
       };
       addTradingRule(rule);
     } else {
@@ -498,6 +505,41 @@ export function Rules() {
                         Only execute trades when pattern confidence is at least this value. Higher = fewer but more reliable trades.
                       </p>
                     </div>
+
+                    {/* Volume Filter */}
+                    <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={volumeFilterEnabled}
+                          onChange={(e) => setVolumeFilterEnabled(e.target.checked)}
+                          className="w-4 h-4 rounded"
+                        />
+                        <span className="text-sm font-medium text-cyan-400">Volume Confirmation</span>
+                        <span className="text-xs text-slate-400">(only trade on high volume)</span>
+                      </label>
+                      {volumeFilterEnabled && (
+                        <div className="mt-3">
+                          <label className="text-xs text-cyan-400 mb-1 block">Minimum Volume (x average)</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={volumeMultiplier}
+                              onChange={(e) => setVolumeMultiplier(e.target.value)}
+                              placeholder="1.5"
+                              step="0.1"
+                              min="0.5"
+                              max="5"
+                              className="w-24 bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
+                            />
+                            <span className="text-slate-400">x avg volume</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            1.5x = 50% above average. Higher volume = stronger signals.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                     </>
                   )}
 
@@ -569,7 +611,7 @@ export function Rules() {
                     {rule.autoTrade && (
                       <p className="text-xs text-slate-500 mt-1">
                         Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.minConfidence) && (
+                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.minConfidence || rule.volumeFilter?.enabled) && (
                           <span className="ml-2">
                             {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
                             {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
@@ -586,6 +628,11 @@ export function Rules() {
                             {rule.minConfidence && (
                               <span className="text-amber-400 ml-2">
                                 Min Conf: {rule.minConfidence}%
+                              </span>
+                            )}
+                            {rule.volumeFilter?.enabled && (
+                              <span className="text-cyan-400 ml-2">
+                                Vol: ≥{rule.volumeFilter.minMultiplier}x
                               </span>
                             )}
                           </span>
@@ -678,7 +725,7 @@ export function Rules() {
                     {rule.autoTrade && (
                       <p className="text-xs text-slate-500 mt-1">
                         Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.minConfidence) && (
+                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.minConfidence || rule.volumeFilter?.enabled) && (
                           <span className="ml-2">
                             {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
                             {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
@@ -695,6 +742,11 @@ export function Rules() {
                             {rule.minConfidence && (
                               <span className="text-amber-400 ml-2">
                                 Min Conf: {rule.minConfidence}%
+                              </span>
+                            )}
+                            {rule.volumeFilter?.enabled && (
+                              <span className="text-cyan-400 ml-2">
+                                Vol: ≥{rule.volumeFilter.minMultiplier}x
                               </span>
                             )}
                           </span>

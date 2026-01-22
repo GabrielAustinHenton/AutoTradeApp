@@ -54,7 +54,7 @@ const defaultPaperPortfolio: PaperPortfolio = {
   history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
 };
 
-// Create crypto rule with take-profit, stop-loss, and confidence threshold
+// Create crypto rule with take-profit, stop-loss, confidence threshold, and volume filter
 const createCryptoRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -74,6 +74,7 @@ const createCryptoRule = (
   takeProfitPercent: 5,
   stopLossPercent: 3,
   minConfidence: 70, // Only execute high-confidence patterns
+  volumeFilter: { enabled: true, minMultiplier: 1.5 }, // Only trade on above-average volume
 });
 
 const createCryptoSellRule = (
@@ -93,6 +94,7 @@ const createCryptoSellRule = (
   autoTrade: true,
   cooldownMinutes: 15,
   minConfidence: 70, // Only execute high-confidence patterns
+  volumeFilter: { enabled: true, minMultiplier: 1.5 }, // Only trade on above-average volume
 });
 
 const defaultPatternRules: TradingRule[] = [

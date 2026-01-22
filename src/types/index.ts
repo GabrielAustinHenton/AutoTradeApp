@@ -88,6 +88,11 @@ export interface TradingRule {
   };
   // Minimum confidence threshold (0-100) - only execute if pattern confidence >= this
   minConfidence?: number;
+  // Volume filter - only trade when volume is above average
+  volumeFilter?: {
+    enabled: boolean;
+    minMultiplier: number; // Volume must be >= avgVolume * multiplier (e.g., 1.5 = 50% above average)
+  };
 }
 
 export interface RuleCondition {
