@@ -17,26 +17,6 @@ import type {
 import { ibkr, type IBKRConfig } from '../services/ibkr';
 import { PERMANENT_WATCHLIST, PERMANENT_CRYPTO } from '../config/watchlist';
 
-// Default candlestick pattern rules
-const createPatternRule = (
-  pattern: CandlestickPattern,
-  type: 'buy' | 'sell',
-  name: string,
-  symbol: string = 'AAPL'
-): TradingRule => ({
-  id: crypto.randomUUID(),
-  name,
-  symbol,
-  enabled: true,
-  type,
-  ruleType: 'pattern',
-  pattern,
-  action: { type: 'market', shares: 10 },
-  createdAt: new Date(),
-  autoTrade: false,
-  cooldownMinutes: 5,
-});
-
 // Default auto-trade configuration - enabled for paper crypto trading
 const defaultAutoTradeConfig: AutoTradeConfig = {
   enabled: true,
@@ -236,15 +216,6 @@ const cryptoMACDRules = ['ETH', 'BTC', 'SOL'].flatMap(symbol => [
 ]);
 
 const defaultPatternRules: TradingRule[] = [
-  createPatternRule('hammer', 'buy', 'Hammer - Buy Signal'),
-  createPatternRule('evening_star', 'sell', 'Evening Star - Sell Signal'),
-  createPatternRule('bullish_engulfing', 'sell', 'Bullish Engulfing - Sell Signal'),
-  createPatternRule('shooting_star', 'sell', 'Shooting Star - Sell Signal'),
-  createPatternRule('gravestone_doji', 'sell', 'Gravestone Doji - Sell Signal'),
-  createPatternRule('bearish_engulfing', 'buy', 'Bearish Engulfing - Buy Signal'),
-  createPatternRule('inverted_hammer', 'buy', 'Inverted Hammer - Buy Signal'),
-  createPatternRule('bullish_breakout', 'buy', 'Bullish Breakout - Buy Signal'),
-  createPatternRule('bearish_breakout', 'sell', 'Bearish Breakout - Sell Signal'),
   // Crypto auto-trading rules with take-profit and stop-loss
   createCryptoRule('ETH', 'hammer', 'Hammer'),
   createCryptoRule('ETH', 'bullish_engulfing', 'Bullish Engulfing'),
