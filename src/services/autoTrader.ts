@@ -84,7 +84,7 @@ export async function executeAutoTrade(
     alertId: alert.id,
     symbol: alert.symbol,
     type: rule.type,
-    shares: Math.min(rule.action.shares || 10, config.maxPositionSize),
+    shares: 0, // Will be calculated after getting price
     price: 0,
     total: 0,
     status: 'pending',
@@ -96,6 +96,16 @@ export async function executeAutoTrade(
     // Get current price
     const quote = await getQuote(alert.symbol);
     execution.price = quote.price;
+
+    // Calculate shares based on rule action
+    if (rule.action.targetDollarAmount && execution.price > 0) {
+      // Buy a specific dollar amount worth
+      execution.shares = Math.floor(rule.action.targetDollarAmount / execution.price);
+    } else {
+      // Use fixed shares with max position size limit
+      execution.shares = Math.min(rule.action.shares || 10, config.maxPositionSize);
+    }
+
     execution.total = execution.shares * execution.price;
 
     const isLiveMode = mode === 'live';

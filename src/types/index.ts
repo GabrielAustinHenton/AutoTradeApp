@@ -112,6 +112,7 @@ export interface RuleAction {
   type: 'market' | 'limit';
   shares?: number;
   percentOfPortfolio?: number;
+  targetDollarAmount?: number; // Buy/sell this dollar amount worth (calculates shares from price)
   limitPrice?: number;
 }
 

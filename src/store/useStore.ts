@@ -48,7 +48,7 @@ const createCryptoRule = (
   type: 'buy',
   ruleType: 'pattern',
   pattern,
-  action: { type: 'market', shares: 1 },
+  action: { type: 'market', targetDollarAmount: 100 }, // Buy $100 worth
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 15,
@@ -140,7 +140,9 @@ const createMACDBuyRule = (
     signalPeriod: 9,
     crossoverType: 'bullish',
   },
-  action: { type: 'market', shares: isCrypto ? 1 : 5 },
+  action: isCrypto
+    ? { type: 'market', targetDollarAmount: 100 } // Buy $100 worth of crypto
+    : { type: 'market', shares: 5 },
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: isCrypto ? 15 : 30,
