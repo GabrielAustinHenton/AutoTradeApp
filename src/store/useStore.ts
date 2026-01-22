@@ -97,6 +97,78 @@ const createCryptoSellRule = (
   volumeFilter: { enabled: true, minMultiplier: 1.5 }, // Only trade on above-average volume
 });
 
+// Create stock rule with robust filtering (same as crypto)
+const createStockBuyRule = (
+  symbol: string,
+  pattern: CandlestickPattern,
+  patternName: string
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} ${patternName} Auto-Buy`,
+  symbol,
+  enabled: true,
+  type: 'buy',
+  ruleType: 'pattern',
+  pattern,
+  action: { type: 'market', shares: 5 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: 30, // Longer cooldown for stocks
+  takeProfitPercent: 5,
+  stopLossPercent: 3,
+  minConfidence: 70,
+  volumeFilter: { enabled: true, minMultiplier: 1.5 },
+  rsiFilter: { enabled: true, period: 14, maxRSI: 70 }, // Only buy when not overbought
+});
+
+const createStockSellRule = (
+  symbol: string,
+  pattern: CandlestickPattern,
+  patternName: string
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} ${patternName} Auto-Sell`,
+  symbol,
+  enabled: true,
+  type: 'sell',
+  ruleType: 'pattern',
+  pattern,
+  action: { type: 'market', percentOfPortfolio: 100 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: 30,
+  minConfidence: 70,
+  volumeFilter: { enabled: true, minMultiplier: 1.5 },
+  rsiFilter: { enabled: true, period: 14, minRSI: 30 }, // Only sell when not oversold
+});
+
+// Watchlist stocks to create rules for
+const WATCHLIST_STOCKS = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'];
+
+// Bullish patterns for buy rules
+const BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
+  { pattern: 'hammer', name: 'Hammer' },
+  { pattern: 'bullish_engulfing', name: 'Bullish Engulfing' },
+  { pattern: 'inverted_hammer', name: 'Inverted Hammer' },
+  { pattern: 'bullish_breakout', name: 'Bullish Breakout' },
+];
+
+// Bearish patterns for sell rules
+const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
+  { pattern: 'shooting_star', name: 'Shooting Star' },
+  { pattern: 'bearish_engulfing', name: 'Bearish Engulfing' },
+  { pattern: 'evening_star', name: 'Evening Star' },
+];
+
+// Generate stock rules for all watchlist symbols
+const stockBuyRules = WATCHLIST_STOCKS.flatMap(symbol =>
+  BULLISH_PATTERNS.map(({ pattern, name }) => createStockBuyRule(symbol, pattern, name))
+);
+
+const stockSellRules = WATCHLIST_STOCKS.flatMap(symbol =>
+  BEARISH_PATTERNS.map(({ pattern, name }) => createStockSellRule(symbol, pattern, name))
+);
+
 const defaultPatternRules: TradingRule[] = [
   createPatternRule('hammer', 'buy', 'Hammer - Buy Signal'),
   createPatternRule('evening_star', 'sell', 'Evening Star - Sell Signal'),
@@ -130,6 +202,9 @@ const defaultPatternRules: TradingRule[] = [
   createCryptoSellRule('SOL', 'shooting_star', 'Shooting Star'),
   createCryptoSellRule('SOL', 'bearish_engulfing', 'Bearish Engulfing'),
   createCryptoSellRule('SOL', 'evening_star', 'Evening Star'),
+  // Stock auto-trading rules with robust filtering
+  ...stockBuyRules,
+  ...stockSellRules,
 ];
 
 interface AppState {
