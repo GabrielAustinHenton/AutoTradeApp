@@ -15,6 +15,7 @@ import type {
   BacktestResult,
 } from '../types';
 import { ibkr, type IBKRConfig } from '../services/ibkr';
+import { PERMANENT_WATCHLIST, PERMANENT_CRYPTO } from '../config/watchlist';
 
 // Default candlestick pattern rules
 const createPatternRule = (
@@ -193,11 +194,11 @@ const createMACDSellRule = (
   rsiFilter: isCrypto ? undefined : { enabled: true, period: 14, minRSI: 30 },
 });
 
-// Crypto symbols (use Binance API)
-const CRYPTO_SYMBOLS = ['ETH', 'BTC', 'SOL', 'ADA', 'DOT', 'DOGE', 'AVAX', 'MATIC', 'LINK', 'XRP'];
+// Crypto symbols (use Binance API) - includes permanent + additional supported
+const CRYPTO_SYMBOLS = [...new Set([...PERMANENT_CRYPTO, 'ADA', 'DOT', 'DOGE', 'AVAX', 'MATIC', 'LINK', 'XRP'])];
 
-// Watchlist stocks to create rules for
-const WATCHLIST_STOCKS = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'];
+// Watchlist stocks to create rules for - from permanent config
+const WATCHLIST_STOCKS = PERMANENT_WATCHLIST.filter(s => !CRYPTO_SYMBOLS.includes(s));
 
 // Bullish patterns for buy rules
 const BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
@@ -394,7 +395,7 @@ export const useStore = create<AppState>()(
       positions: [],
       portfolioSummary: initialPortfolioSummary,
       cashBalance: 10000,
-      watchlist: ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'],
+      watchlist: [...PERMANENT_WATCHLIST],
       trades: [],
       tradingRules: defaultPatternRules,
       journalEntries: [],
@@ -888,6 +889,15 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'tradeapp-storage',
+      // Merge function ensures permanent watchlist symbols are always present
+      merge: (persistedState, currentState) => {
+        const merged = { ...currentState, ...(persistedState as object) };
+        // Always include permanent watchlist symbols
+        if (merged.watchlist) {
+          merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...merged.watchlist])];
+        }
+        return merged as AppState;
+      },
     }
   )
 );
