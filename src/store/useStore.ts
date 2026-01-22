@@ -259,6 +259,7 @@ interface AppState {
   // Actions - Watchlist
   addToWatchlist: (symbol: string) => void;
   removeFromWatchlist: (symbol: string) => void;
+  syncRulesWithWatchlist: () => void; // Generate rules for all watchlist symbols that don't have them
 
   // Actions - Trades
   addTrade: (trade: Trade) => void;
@@ -440,6 +441,50 @@ export const useStore = create<AppState>()(
         set((state) => ({
           watchlist: state.watchlist.filter((s) => s !== symbol),
         })),
+
+      // Generate rules for all watchlist symbols that don't have them
+      syncRulesWithWatchlist: () =>
+        set((state) => {
+          const newRules: TradingRule[] = [];
+
+          for (const symbol of state.watchlist) {
+            // Check if rules already exist for this symbol
+            const hasRulesForSymbol = state.tradingRules.some(
+              (r) => r.symbol === symbol && r.autoTrade
+            );
+
+            if (!hasRulesForSymbol) {
+              const isCrypto = CRYPTO_SYMBOLS.includes(symbol);
+
+              if (isCrypto) {
+                const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
+                  createCryptoRule(symbol, pattern, name)
+                );
+                const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
+                  createCryptoSellRule(symbol, pattern, name)
+                );
+                newRules.push(...buyRules, ...sellRules);
+              } else {
+                const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
+                  createStockBuyRule(symbol, pattern, name)
+                );
+                const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
+                  createStockSellRule(symbol, pattern, name)
+                );
+                newRules.push(...buyRules, ...sellRules);
+              }
+            }
+          }
+
+          if (newRules.length === 0) {
+            return {};
+          }
+
+          console.log(`Generated ${newRules.length} rules for watchlist symbols`);
+          return {
+            tradingRules: [...state.tradingRules, ...newRules],
+          };
+        }),
 
       // Trade actions
       addTrade: (trade) =>

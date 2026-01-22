@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -13,13 +14,21 @@ import { AlertToast } from './components/alerts/AlertToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePatternScanner } from './hooks/usePatternScanner';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
+import { useStore } from './store/useStore';
 
 function AppContent() {
+  const syncRulesWithWatchlist = useStore((state) => state.syncRulesWithWatchlist);
+
   // Initialize pattern scanner
   usePatternScanner();
 
   // Initialize position monitor for take-profit/stop-loss
   usePositionMonitor();
+
+  // Sync trading rules with watchlist on startup
+  useEffect(() => {
+    syncRulesWithWatchlist();
+  }, [syncRulesWithWatchlist]);
 
   return (
     <>
