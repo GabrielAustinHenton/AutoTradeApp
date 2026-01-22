@@ -393,7 +393,7 @@ export const useStore = create<AppState>()(
         set((state) => {
           // Don't add if already in watchlist
           if (state.watchlist.includes(symbol)) {
-            return state;
+            return {}; // Return empty object, no changes
           }
 
           // Check if rules already exist for this symbol
