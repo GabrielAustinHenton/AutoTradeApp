@@ -35,7 +35,7 @@ const defaultPaperPortfolio: PaperPortfolio = {
   history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
 };
 
-// Create crypto rule with take-profit, stop-loss, confidence threshold, and volume filter
+// Create crypto rule with take-profit, stop-loss, trailing stop, and filters
 const createCryptoRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -52,10 +52,11 @@ const createCryptoRule = (
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 15,
-  takeProfitPercent: 5,
-  stopLossPercent: 3,
-  minConfidence: 70, // Only execute high-confidence patterns
-  volumeFilter: { enabled: true, minMultiplier: 1.5 }, // Only trade on above-average volume
+  takeProfitPercent: 3,    // Take profit at 3% gain
+  stopLossPercent: 2,      // Stop loss at 2% loss (tighter to limit damage)
+  trailingStopPercent: 1.5, // Trail 1.5% below highest price to lock in gains
+  minConfidence: 75,       // Higher confidence threshold
+  volumeFilter: { enabled: true, minMultiplier: 1.5 },
 });
 
 const createCryptoSellRule = (
@@ -141,13 +142,14 @@ const createMACDBuyRule = (
     crossoverType: 'bullish',
   },
   action: isCrypto
-    ? { type: 'market', targetDollarAmount: 100 } // Buy $100 worth of crypto
+    ? { type: 'market', targetDollarAmount: 100 }
     : { type: 'market', shares: 5 },
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: isCrypto ? 15 : 30,
-  takeProfitPercent: 5,
-  stopLossPercent: 3,
+  takeProfitPercent: isCrypto ? 3 : 5,
+  stopLossPercent: isCrypto ? 2 : 3,
+  trailingStopPercent: isCrypto ? 1.5 : 2,
   volumeFilter: { enabled: true, minMultiplier: 1.2 },
   rsiFilter: isCrypto ? undefined : { enabled: true, period: 14, maxRSI: 70 },
 });

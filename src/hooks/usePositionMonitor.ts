@@ -16,8 +16,8 @@ export function usePositionMonitor() {
     const shouldRun = autoTradeConfig.enabled && tradingMode === 'paper';
 
     if (shouldRun && !isMonitorRunning()) {
-      // Check positions every 30 seconds for take-profit/stop-loss
-      startPositionMonitor(30000);
+      // Check positions every 10 seconds for take-profit/stop-loss (crypto moves fast)
+      startPositionMonitor(10000);
     } else if (!shouldRun && isMonitorRunning()) {
       stopPositionMonitor();
     }
