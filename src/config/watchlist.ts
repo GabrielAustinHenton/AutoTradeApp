@@ -7,36 +7,24 @@
  * Trading rules will be auto-generated for each symbol.
  */
 
-// Stocks to always track - Top 100 by market cap/popularity
+// Stocks to always track - Top 20 most traded (Alpha Vantage rate limit: 5/min)
 export const PERMANENT_STOCKS = [
-  // Mega-cap Tech
-  'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA',
-  // Semiconductors
-  'AVGO', 'AMD', 'INTC', 'QCOM', 'TXN', 'MU', 'AMAT', 'LRCX', 'KLAC', 'MRVL',
-  // Software & Cloud
-  'CRM', 'ORCL', 'ADBE', 'NOW', 'INTU', 'SNOW', 'PLTR', 'PANW', 'CRWD', 'ZS',
+  // Mega-cap Tech (most liquid)
+  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA',
+  // High-volume semiconductors
+  'AMD', 'INTC',
   // Financials
-  'JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS', 'BLK', 'SCHW', 'AXP', 'C', 'USB',
-  // Healthcare & Pharma
-  'UNH', 'JNJ', 'LLY', 'PFE', 'ABBV', 'MRK', 'TMO', 'ABT', 'DHR', 'BMY', 'AMGN', 'GILD',
+  'JPM', 'V', 'BAC',
+  // Healthcare
+  'UNH', 'JNJ',
   // Consumer
-  'KO', 'PEP', 'PG', 'COST', 'WMT', 'HD', 'MCD', 'NKE', 'SBUX', 'TGT', 'LOW',
-  // Industrial & Aerospace
-  'CAT', 'DE', 'BA', 'HON', 'UPS', 'RTX', 'LMT', 'GE', 'MMM',
+  'KO', 'WMT',
   // Energy
-  'XOM', 'CVX', 'COP', 'SLB', 'EOG', 'OXY',
-  // Communications & Media
-  'NFLX', 'DIS', 'CMCSA', 'T', 'VZ', 'TMUS',
-  // EV & Auto
-  'F', 'GM', 'RIVN', 'LCID',
-  // Fintech & Payments
-  'PYPL', 'SQ', 'COIN', 'AFRM', 'SOFI',
-  // E-commerce & Internet
-  'SHOP', 'BABA', 'JD', 'MELI', 'SE', 'UBER', 'LYFT', 'ABNB', 'DASH', 'RBLX',
-  // Biotech
-  'MRNA', 'REGN', 'VRTX', 'BIIB',
-  // REITs & Real Estate
-  'AMT', 'PLD', 'SPG',
+  'XOM',
+  // Media
+  'NFLX', 'DIS',
+  // Fintech
+  'PYPL',
 ];
 
 // Crypto symbols to always track (uses Binance API)
