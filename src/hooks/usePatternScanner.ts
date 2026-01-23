@@ -142,6 +142,13 @@ export function usePatternScanner() {
 
       if (patterns.length > 0) {
         console.log(`✅ ${symbol}: Found ${patterns.length} pattern(s) -`, patterns.map(p => `${p.pattern} (${p.confidence}%)`).join(', '));
+        // Debug: Show which patterns have matching rules
+        for (const pattern of patterns) {
+          const matchingRule = enabledRules.find((r) => r.pattern === pattern.pattern);
+          if (!matchingRule) {
+            console.log(`   ⚠️ No rule for ${pattern.pattern} on ${symbol}`);
+          }
+        }
       }
 
       // Get enabled pattern rules for this symbol

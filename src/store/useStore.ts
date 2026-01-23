@@ -52,8 +52,8 @@ const BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
 ];
 
 // Proven bearish patterns (sell signals)
-// Note: Bearish Engulfing removed - backtests show it works better as BUY signal!
 const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
+  { pattern: 'bearish_engulfing', name: 'Bearish Engulfing' }, // Strong reversal pattern
   { pattern: 'shooting_star', name: 'Shooting Star' },      // Reliable bearish reversal
   { pattern: 'evening_star', name: 'Evening Star' },        // Strong 3-candle reversal
 ];
@@ -762,16 +762,28 @@ export const useStore = create<AppState>()(
         const userStocks = (merged.watchlist || []).filter((s: string) => !cryptoSymbols.includes(s));
         merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...userStocks])];
 
-        // Reset paper portfolio to clean state (removes old crypto positions)
-        merged.paperPortfolio = defaultPaperPortfolio;
+        // Merge trading rules: keep user settings, add missing rules for new patterns/stocks
+        const existingRules = (persisted.tradingRules || []) as TradingRule[];
+        const existingRuleKeys = new Set(
+          existingRules.map(r => `${r.symbol}-${r.ruleType}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`)
+        );
 
-        // Reset all trading data to clean state
-        merged.trades = [];
-        merged.alerts = [];
-        merged.tradingRules = defaultPatternRules;
-        merged.autoTradeExecutions = [];
-        merged.journalEntries = merged.journalEntries || [];
-        merged.backtestResults = merged.backtestResults || [];
+        // Find rules that don't exist yet
+        const missingRules = defaultPatternRules.filter(r => {
+          const key = `${r.symbol}-${r.ruleType}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`;
+          return !existingRuleKeys.has(key);
+        });
+
+        // Keep existing rules (preserves user's enabled/autoTrade settings) + add missing ones
+        merged.tradingRules = [...existingRules, ...missingRules];
+
+        // Preserve user data, only reset if not present
+        merged.paperPortfolio = persisted.paperPortfolio || defaultPaperPortfolio;
+        merged.trades = persisted.trades || [];
+        merged.alerts = persisted.alerts || [];
+        merged.autoTradeExecutions = persisted.autoTradeExecutions || [];
+        merged.journalEntries = persisted.journalEntries || [];
+        merged.backtestResults = persisted.backtestResults || [];
 
         return merged as AppState;
       },
