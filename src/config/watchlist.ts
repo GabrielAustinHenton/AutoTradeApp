@@ -35,6 +35,7 @@ export const PERMANENT_STOCKS = [
   'ORCL',
   'UBER',
   'HOOD',
+  'POR',
 ];
 
 export const PERMANENT_WATCHLIST = [...PERMANENT_STOCKS];
