@@ -15,7 +15,7 @@ const SYMBOL_TO_BINANCE: Record<string, string> = {
   'DOT': 'DOTUSD',
   'DOGE': 'DOGEUSD',
   'AVAX': 'AVAXUSD',
-  'MATIC': 'MATICUSD',
+  'POL': 'POLUSD',
   'LINK': 'LINKUSD',
   'XRP': 'XRPUSD',
 };

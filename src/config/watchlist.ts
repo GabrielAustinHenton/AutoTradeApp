@@ -30,7 +30,7 @@ export const PERMANENT_CRYPTO = [
   'DOT',
   'DOGE',
   'AVAX',
-  'MATIC',
+  'POL',
   'LINK',
   'XRP',
 ];

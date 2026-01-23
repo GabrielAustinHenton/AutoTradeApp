@@ -179,7 +179,7 @@ const createMACDSellRule = (
 });
 
 // Crypto symbols (use Binance API) - includes permanent + additional supported
-const CRYPTO_SYMBOLS = [...new Set([...PERMANENT_CRYPTO, 'ADA', 'DOT', 'DOGE', 'AVAX', 'MATIC', 'LINK', 'XRP'])];
+const CRYPTO_SYMBOLS = [...new Set([...PERMANENT_CRYPTO, 'ADA', 'DOT', 'DOGE', 'AVAX', 'POL', 'LINK', 'XRP'])];
 
 // Watchlist stocks to create rules for - from permanent config
 const WATCHLIST_STOCKS = PERMANENT_WATCHLIST.filter(s => !CRYPTO_SYMBOLS.includes(s));
