@@ -89,6 +89,7 @@ function getCachedMACD(symbol: string, prices: number[], fast: number, slow: num
 }
 
 const SCAN_INTERVAL = 60000; // Scan every 60 seconds
+const MAX_CALLS_PER_MINUTE = 8; // Twelve Data free tier limit
 
 export function usePatternScanner() {
   const {
@@ -105,6 +106,7 @@ export function usePatternScanner() {
 
   const lastScannedRef = useRef<Map<string, string>>(new Map());
   const scanningRef = useRef(false);
+  const scanBatchIndexRef = useRef(0); // Track which batch of stocks to scan
 
   const scanSymbol = useCallback(async (symbol: string): Promise<{ alerts: Alert[]; rsi: number | null; prices: number[]; volumeData: { current: number; average: number } | null }> => {
     const newAlerts: Alert[] = [];
@@ -280,10 +282,19 @@ export function usePatternScanner() {
     // Get unique symbols from rules and watchlist
     const enabledRules = tradingRules.filter((r) => r.enabled && (r.ruleType === 'pattern' || r.ruleType === 'macd'));
     const ruleSymbols = enabledRules.map((r) => r.symbol);
-    const symbolsToScan = [...new Set([...ruleSymbols, ...watchlist])];
+    const allSymbols = [...new Set([...ruleSymbols, ...watchlist])];
+
+    // Rate limiting: Only scan MAX_CALLS_PER_MINUTE stocks per cycle, rotating through the list
+    const startIndex = scanBatchIndexRef.current * MAX_CALLS_PER_MINUTE;
+    const symbolsToScan = allSymbols.slice(startIndex, startIndex + MAX_CALLS_PER_MINUTE);
+
+    // Update batch index for next scan (wrap around)
+    const totalBatches = Math.ceil(allSymbols.length / MAX_CALLS_PER_MINUTE);
+    scanBatchIndexRef.current = (scanBatchIndexRef.current + 1) % totalBatches;
 
     console.log(`Enabled rules: ${enabledRules.length} (${enabledRules.filter(r => r.autoTrade).length} with auto-trade)`);
-    console.log(`Symbols to scan: ${symbolsToScan.length}`);
+    console.log(`Scanning batch ${scanBatchIndexRef.current}/${totalBatches}: ${symbolsToScan.length} of ${allSymbols.length} total symbols`);
+    console.log(`Symbols this batch: ${symbolsToScan.join(', ')}`);
 
     for (const symbol of symbolsToScan) {
       const { alerts: newAlerts, rsi, volumeData } = await scanSymbol(symbol);
