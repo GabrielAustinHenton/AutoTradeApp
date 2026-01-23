@@ -754,38 +754,46 @@ export const useStore = create<AppState>()(
       name: 'tradeapp-storage',
       // Merge function ensures permanent watchlist symbols are always present
       merge: (persistedState, currentState) => {
-        const persisted = (persistedState as Partial<AppState>) || {};
-        const merged = { ...currentState, ...persisted };
+        try {
+          const persisted = (persistedState as Partial<AppState>) || {};
+          const merged = { ...currentState, ...persisted };
 
-        // Merge permanent watchlist with user-added stocks (filter out old crypto)
-        const cryptoSymbols = ['ETH', 'BTC', 'SOL', 'ADA', 'DOT', 'DOGE', 'AVAX', 'POL', 'LINK', 'XRP', 'MATIC'];
-        const userStocks = (merged.watchlist || []).filter((s: string) => !cryptoSymbols.includes(s));
-        merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...userStocks])];
+          // Merge permanent watchlist with user-added stocks (filter out old crypto)
+          const cryptoSymbols = ['ETH', 'BTC', 'SOL', 'ADA', 'DOT', 'DOGE', 'AVAX', 'POL', 'LINK', 'XRP', 'MATIC'];
+          const userStocks = (merged.watchlist || []).filter((s: string) => !cryptoSymbols.includes(s));
+          merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...userStocks])];
 
-        // Merge trading rules: keep user settings, add missing rules for new patterns/stocks
-        const existingRules = (persisted.tradingRules || []) as TradingRule[];
-        const existingRuleKeys = new Set(
-          existingRules.map(r => `${r.symbol}-${r.ruleType}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`)
-        );
+          // Merge trading rules: keep user settings, add missing rules for new patterns/stocks
+          const existingRules = Array.isArray(persisted.tradingRules)
+            ? persisted.tradingRules.filter((r): r is TradingRule => r && typeof r === 'object' && 'symbol' in r)
+            : [];
 
-        // Find rules that don't exist yet
-        const missingRules = defaultPatternRules.filter(r => {
-          const key = `${r.symbol}-${r.ruleType}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`;
-          return !existingRuleKeys.has(key);
-        });
+          const existingRuleKeys = new Set(
+            existingRules.map(r => `${r.symbol}-${r.ruleType || ''}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`)
+          );
 
-        // Keep existing rules (preserves user's enabled/autoTrade settings) + add missing ones
-        merged.tradingRules = [...existingRules, ...missingRules];
+          // Find rules that don't exist yet
+          const missingRules = defaultPatternRules.filter(r => {
+            const key = `${r.symbol}-${r.ruleType || ''}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`;
+            return !existingRuleKeys.has(key);
+          });
 
-        // Preserve user data, only reset if not present
-        merged.paperPortfolio = persisted.paperPortfolio || defaultPaperPortfolio;
-        merged.trades = persisted.trades || [];
-        merged.alerts = persisted.alerts || [];
-        merged.autoTradeExecutions = persisted.autoTradeExecutions || [];
-        merged.journalEntries = persisted.journalEntries || [];
-        merged.backtestResults = persisted.backtestResults || [];
+          // Keep existing rules (preserves user's enabled/autoTrade settings) + add missing ones
+          merged.tradingRules = [...existingRules, ...missingRules];
 
-        return merged as AppState;
+          // Preserve user data, only reset if not present
+          merged.paperPortfolio = persisted.paperPortfolio || defaultPaperPortfolio;
+          merged.trades = Array.isArray(persisted.trades) ? persisted.trades : [];
+          merged.alerts = Array.isArray(persisted.alerts) ? persisted.alerts : [];
+          merged.autoTradeExecutions = Array.isArray(persisted.autoTradeExecutions) ? persisted.autoTradeExecutions : [];
+          merged.journalEntries = Array.isArray(persisted.journalEntries) ? persisted.journalEntries : [];
+          merged.backtestResults = Array.isArray(persisted.backtestResults) ? persisted.backtestResults : [];
+
+          return merged as AppState;
+        } catch (error) {
+          console.error('Error in store merge, using defaults:', error);
+          return currentState;
+        }
       },
     }
   )
