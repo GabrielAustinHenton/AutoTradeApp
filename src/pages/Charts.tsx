@@ -5,23 +5,19 @@ import { CandlestickChartSVG } from '../components/charts/CandlestickChartSVG';
 
 type TimeFrame = '1D' | '5D' | '1M' | '3M';
 
-// Crypto symbols always available (use Binance API - free, no key needed)
-const CRYPTO_SYMBOLS = ['ETH', 'BTC', 'SOL'];
-
 export function Charts() {
   const { watchlist, positions, tradingMode, paperPortfolio } = useStore();
 
   // Get positions based on trading mode
   const activePositions = tradingMode === 'paper' ? paperPortfolio.positions : positions;
 
-  // Combine all symbols: crypto (always available) + watchlist + positions
+  // Combine all symbols: watchlist + positions
   const allAvailableSymbols = [...new Set([
-    ...CRYPTO_SYMBOLS,
     ...watchlist,
-    ...activePositions.filter((p) => p.shares > 0).map((p) => p.symbol),
+    ...activePositions.filter((p: { shares: number }) => p.shares > 0).map((p: { symbol: string }) => p.symbol),
   ])];
 
-  const [selectedSymbol, setSelectedSymbol] = useState('ETH');
+  const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [timeframe, setTimeframe] = useState<TimeFrame>('1M');
   const [showPatterns, setShowPatterns] = useState(true);
   const [showRSI, setShowRSI] = useState(true);

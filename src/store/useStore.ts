@@ -6,7 +6,6 @@ import type {
   JournalEntry,
   TradingRule,
   PortfolioSummary,
-  CandlestickPattern,
   Alert,
   TradingMode,
   PaperPortfolio,
@@ -15,14 +14,14 @@ import type {
   BacktestResult,
 } from '../types';
 import { ibkr, type IBKRConfig } from '../services/ibkr';
-import { PERMANENT_WATCHLIST, PERMANENT_CRYPTO } from '../config/watchlist';
+import { PERMANENT_WATCHLIST } from '../config/watchlist';
 
-// Default auto-trade configuration - enabled for paper crypto trading
+// Default auto-trade configuration
 const defaultAutoTradeConfig: AutoTradeConfig = {
   enabled: true,
-  maxTradesPerDay: 20,
+  maxTradesPerDay: 10,
   maxPositionSize: 10,
-  tradingHoursOnly: false, // Crypto trades 24/7
+  tradingHoursOnly: true, // Only trade during market hours
 };
 
 // Default paper portfolio
@@ -35,102 +34,10 @@ const defaultPaperPortfolio: PaperPortfolio = {
   history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
 };
 
-// Create crypto rule with take-profit, stop-loss, trailing stop, and filters
-const createCryptoRule = (
-  symbol: string,
-  pattern: CandlestickPattern,
-  patternName: string
-): TradingRule => ({
+// Create a MACD buy rule for a stock
+const createMACDBuyRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Auto-Buy`,
-  symbol,
-  enabled: true,
-  type: 'buy',
-  ruleType: 'pattern',
-  pattern,
-  action: { type: 'market', targetDollarAmount: 100 }, // Buy $100 worth
-  createdAt: new Date(),
-  autoTrade: true,
-  cooldownMinutes: 15,
-  takeProfitPercent: 3,    // Take profit at 3% gain
-  stopLossPercent: 2,      // Stop loss at 2% loss (tighter to limit damage)
-  trailingStopPercent: 1.5, // Trail 1.5% below highest price to lock in gains
-  minConfidence: 75,       // Higher confidence threshold
-  volumeFilter: { enabled: true, minMultiplier: 1.5 },
-});
-
-const createCryptoSellRule = (
-  symbol: string,
-  pattern: CandlestickPattern,
-  patternName: string
-): TradingRule => ({
-  id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Auto-Sell`,
-  symbol,
-  enabled: true,
-  type: 'sell',
-  ruleType: 'pattern',
-  pattern,
-  action: { type: 'market', percentOfPortfolio: 100 },
-  createdAt: new Date(),
-  autoTrade: true,
-  cooldownMinutes: 15,
-  minConfidence: 70, // Only execute high-confidence patterns
-  volumeFilter: { enabled: true, minMultiplier: 1.5 }, // Only trade on above-average volume
-});
-
-// Create stock rule with robust filtering (same as crypto)
-const createStockBuyRule = (
-  symbol: string,
-  pattern: CandlestickPattern,
-  patternName: string
-): TradingRule => ({
-  id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Auto-Buy`,
-  symbol,
-  enabled: true,
-  type: 'buy',
-  ruleType: 'pattern',
-  pattern,
-  action: { type: 'market', shares: 5 },
-  createdAt: new Date(),
-  autoTrade: true,
-  cooldownMinutes: 30, // Longer cooldown for stocks
-  takeProfitPercent: 5,
-  stopLossPercent: 3,
-  minConfidence: 70,
-  volumeFilter: { enabled: true, minMultiplier: 1.5 },
-  rsiFilter: { enabled: true, period: 14, maxRSI: 70 }, // Only buy when not overbought
-});
-
-const createStockSellRule = (
-  symbol: string,
-  pattern: CandlestickPattern,
-  patternName: string
-): TradingRule => ({
-  id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Auto-Sell`,
-  symbol,
-  enabled: true,
-  type: 'sell',
-  ruleType: 'pattern',
-  pattern,
-  action: { type: 'market', percentOfPortfolio: 100 },
-  createdAt: new Date(),
-  autoTrade: true,
-  cooldownMinutes: 30,
-  minConfidence: 70,
-  volumeFilter: { enabled: true, minMultiplier: 1.5 },
-  rsiFilter: { enabled: true, period: 14, minRSI: 30 }, // Only sell when not oversold
-});
-
-// Create MACD crossover rules
-const createMACDBuyRule = (
-  symbol: string,
-  isCrypto: boolean = false
-): TradingRule => ({
-  id: crypto.randomUUID(),
-  name: `${symbol} MACD Bullish Crossover`,
+  name: `${symbol} MACD Buy`,
   symbol,
   enabled: true,
   type: 'buy',
@@ -141,25 +48,19 @@ const createMACDBuyRule = (
     signalPeriod: 9,
     crossoverType: 'bullish',
   },
-  action: isCrypto
-    ? { type: 'market', targetDollarAmount: 100 }
-    : { type: 'market', shares: 5 },
+  action: { type: 'market', shares: 5 },
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: isCrypto ? 15 : 30,
-  takeProfitPercent: isCrypto ? 3 : 5,
-  stopLossPercent: isCrypto ? 2 : 3,
-  trailingStopPercent: isCrypto ? 1.5 : 2,
+  cooldownMinutes: 60,
+  takeProfitPercent: 5,
+  stopLossPercent: 3,
   volumeFilter: { enabled: true, minMultiplier: 1.2 },
-  rsiFilter: isCrypto ? undefined : { enabled: true, period: 14, maxRSI: 70 },
 });
 
-const createMACDSellRule = (
-  symbol: string,
-  isCrypto: boolean = false
-): TradingRule => ({
+// Create a MACD sell rule for a stock
+const createMACDSellRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} MACD Bearish Crossover`,
+  name: `${symbol} MACD Sell`,
   symbol,
   enabled: true,
   type: 'sell',
@@ -173,72 +74,15 @@ const createMACDSellRule = (
   action: { type: 'market', percentOfPortfolio: 100 },
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: isCrypto ? 15 : 30,
+  cooldownMinutes: 60,
   volumeFilter: { enabled: true, minMultiplier: 1.2 },
-  rsiFilter: isCrypto ? undefined : { enabled: true, period: 14, minRSI: 30 },
 });
 
-// Crypto symbols (use Binance API) - includes permanent + additional supported
-const CRYPTO_SYMBOLS = [...new Set([...PERMANENT_CRYPTO, 'ADA', 'DOT', 'DOGE', 'AVAX', 'POL', 'LINK', 'XRP'])];
-
-// Watchlist stocks to create rules for - from permanent config
-const WATCHLIST_STOCKS = PERMANENT_WATCHLIST.filter(s => !CRYPTO_SYMBOLS.includes(s));
-
-// Bullish patterns for buy rules
-const BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
-  { pattern: 'hammer', name: 'Hammer' },
-  { pattern: 'bullish_engulfing', name: 'Bullish Engulfing' },
-  { pattern: 'inverted_hammer', name: 'Inverted Hammer' },
-  { pattern: 'bullish_breakout', name: 'Bullish Breakout' },
-];
-
-// Bearish patterns for sell rules
-const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
-  { pattern: 'shooting_star', name: 'Shooting Star' },
-  { pattern: 'bearish_engulfing', name: 'Bearish Engulfing' },
-  { pattern: 'evening_star', name: 'Evening Star' },
-];
-
-// Generate stock rules for all watchlist symbols
-const stockBuyRules = WATCHLIST_STOCKS.flatMap(symbol =>
-  BULLISH_PATTERNS.map(({ pattern, name }) => createStockBuyRule(symbol, pattern, name))
-);
-
-const stockSellRules = WATCHLIST_STOCKS.flatMap(symbol =>
-  BEARISH_PATTERNS.map(({ pattern, name }) => createStockSellRule(symbol, pattern, name))
-);
-
-// Generate MACD rules for stocks and crypto
-const stockMACDRules = WATCHLIST_STOCKS.flatMap(symbol => [
-  createMACDBuyRule(symbol, false),
-  createMACDSellRule(symbol, false),
+// Generate MACD rules for all watchlist stocks (2 rules per stock = 40 total)
+const defaultPatternRules: TradingRule[] = PERMANENT_WATCHLIST.flatMap(symbol => [
+  createMACDBuyRule(symbol),
+  createMACDSellRule(symbol),
 ]);
-
-// Generate crypto rules for all permanent crypto symbols
-const cryptoBuyRules = PERMANENT_CRYPTO.flatMap(symbol =>
-  BULLISH_PATTERNS.map(({ pattern, name }) => createCryptoRule(symbol, pattern, name))
-);
-
-const cryptoSellRules = PERMANENT_CRYPTO.flatMap(symbol =>
-  BEARISH_PATTERNS.map(({ pattern, name }) => createCryptoSellRule(symbol, pattern, name))
-);
-
-const cryptoMACDRules = PERMANENT_CRYPTO.flatMap(symbol => [
-  createMACDBuyRule(symbol, true),
-  createMACDSellRule(symbol, true),
-]);
-
-const defaultPatternRules: TradingRule[] = [
-  // Crypto auto-trading rules with take-profit and stop-loss
-  ...cryptoBuyRules,
-  ...cryptoSellRules,
-  // Stock auto-trading rules with robust filtering
-  ...stockBuyRules,
-  ...stockSellRules,
-  // MACD crossover rules
-  ...stockMACDRules,
-  ...cryptoMACDRules,
-];
 
 interface AppState {
   // Portfolio
@@ -354,7 +198,7 @@ const initialPortfolioSummary: PortfolioSummary = {
 
 export const useStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Initial state
       positions: [],
       portfolioSummary: initialPortfolioSummary,
@@ -420,95 +264,62 @@ export const useStore = create<AppState>()(
         })),
 
       // Watchlist actions
-      addToWatchlist: (symbol) =>
-        set((state) => {
-          // Don't add if already in watchlist
-          if (state.watchlist.includes(symbol)) {
-            return {}; // Return empty object, no changes
-          }
+      addToWatchlist: (symbol) => {
+        const state = get();
+        // Don't add if already in watchlist
+        if (state.watchlist.includes(symbol)) {
+          return;
+        }
 
-          // Check if rules already exist for this symbol
-          const hasRulesForSymbol = state.tradingRules.some(r => r.symbol === symbol && r.autoTrade);
+        // Check if MACD rules already exist for this symbol
+        const hasRulesForSymbol = state.tradingRules.some(r => r.symbol === symbol);
 
-          // Generate rules for new symbol if none exist
-          let newRules: TradingRule[] = [];
-          if (!hasRulesForSymbol) {
-            // Check if it's a crypto symbol
-            const isCrypto = CRYPTO_SYMBOLS.includes(symbol);
+        // Generate MACD rules for new symbol if none exist
+        const newRules: TradingRule[] = hasRulesForSymbol ? [] : [
+          createMACDBuyRule(symbol),
+          createMACDSellRule(symbol),
+        ];
 
-            if (isCrypto) {
-              // Create crypto buy rules for bullish patterns
-              const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
-                createCryptoRule(symbol, pattern, name)
-              );
-              // Create crypto sell rules for bearish patterns
-              const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
-                createCryptoSellRule(symbol, pattern, name)
-              );
-              // Create MACD rules for crypto
-              const macdRules = [createMACDBuyRule(symbol, true), createMACDSellRule(symbol, true)];
-              newRules = [...buyRules, ...sellRules, ...macdRules];
-            } else {
-              // Create stock buy rules for bullish patterns
-              const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
-                createStockBuyRule(symbol, pattern, name)
-              );
-              // Create stock sell rules for bearish patterns
-              const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
-                createStockSellRule(symbol, pattern, name)
-              );
-              // Create MACD rules for stocks
-              const macdRules = [createMACDBuyRule(symbol, false), createMACDSellRule(symbol, false)];
-              newRules = [...buyRules, ...sellRules, ...macdRules];
-            }
-          }
+        const newWatchlist = [...state.watchlist, symbol];
 
-          return {
-            watchlist: [...state.watchlist, symbol],
-            tradingRules: newRules.length > 0
-              ? [...state.tradingRules, ...newRules]
-              : state.tradingRules,
-          };
-        }),
+        set({
+          watchlist: newWatchlist,
+          tradingRules: newRules.length > 0
+            ? [...state.tradingRules, ...newRules]
+            : state.tradingRules,
+        });
 
-      removeFromWatchlist: (symbol) =>
-        set((state) => ({
-          watchlist: state.watchlist.filter((s) => s !== symbol),
-        })),
+        // Persist to file
+        fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stocks: newWatchlist }),
+        }).catch(console.error);
+      },
 
-      // Generate rules for all watchlist symbols that don't have them
+      removeFromWatchlist: (symbol) => {
+        const state = get();
+        const newWatchlist = state.watchlist.filter((s) => s !== symbol);
+
+        set({ watchlist: newWatchlist });
+
+        // Persist to file
+        fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stocks: newWatchlist }),
+        }).catch(console.error);
+      },
+
+      // Generate MACD rules for all watchlist symbols that don't have them
       syncRulesWithWatchlist: () =>
         set((state) => {
           const newRules: TradingRule[] = [];
 
           for (const symbol of state.watchlist) {
-            // Check if rules already exist for this symbol
-            const hasRulesForSymbol = state.tradingRules.some(
-              (r) => r.symbol === symbol && r.autoTrade
-            );
-
+            const hasRulesForSymbol = state.tradingRules.some((r) => r.symbol === symbol);
             if (!hasRulesForSymbol) {
-              const isCrypto = CRYPTO_SYMBOLS.includes(symbol);
-
-              if (isCrypto) {
-                const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
-                  createCryptoRule(symbol, pattern, name)
-                );
-                const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
-                  createCryptoSellRule(symbol, pattern, name)
-                );
-                const macdRules = [createMACDBuyRule(symbol, true), createMACDSellRule(symbol, true)];
-                newRules.push(...buyRules, ...sellRules, ...macdRules);
-              } else {
-                const buyRules = BULLISH_PATTERNS.map(({ pattern, name }) =>
-                  createStockBuyRule(symbol, pattern, name)
-                );
-                const sellRules = BEARISH_PATTERNS.map(({ pattern, name }) =>
-                  createStockSellRule(symbol, pattern, name)
-                );
-                const macdRules = [createMACDBuyRule(symbol, false), createMACDSellRule(symbol, false)];
-                newRules.push(...buyRules, ...sellRules, ...macdRules);
-              }
+              newRules.push(createMACDBuyRule(symbol), createMACDSellRule(symbol));
             }
           }
 
@@ -516,7 +327,6 @@ export const useStore = create<AppState>()(
             return {};
           }
 
-          console.log(`Generated ${newRules.length} rules for watchlist symbols`);
           return {
             tradingRules: [...state.tradingRules, ...newRules],
           };
@@ -858,23 +668,19 @@ export const useStore = create<AppState>()(
         const persisted = (persistedState as Partial<AppState>) || {};
         const merged = { ...currentState, ...persisted };
 
-        // Always include permanent watchlist symbols
-        merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...(merged.watchlist || [])])];
+        // Merge permanent watchlist with user-added stocks (filter out old crypto)
+        const cryptoSymbols = ['ETH', 'BTC', 'SOL', 'ADA', 'DOT', 'DOGE', 'AVAX', 'POL', 'LINK', 'XRP', 'MATIC'];
+        const userStocks = (merged.watchlist || []).filter((s: string) => !cryptoSymbols.includes(s));
+        merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...userStocks])];
 
-        // Ensure paperPortfolio is properly initialized
-        merged.paperPortfolio = {
-          ...defaultPaperPortfolio,
-          ...(merged.paperPortfolio || {}),
-          positions: merged.paperPortfolio?.positions || [],
-          trades: merged.paperPortfolio?.trades || [],
-          history: merged.paperPortfolio?.history || defaultPaperPortfolio.history,
-        };
+        // Reset paper portfolio to clean state (removes old crypto positions)
+        merged.paperPortfolio = defaultPaperPortfolio;
 
-        // Ensure arrays are never null
-        merged.trades = merged.trades || [];
-        merged.tradingRules = merged.tradingRules || defaultPatternRules;
-        merged.alerts = merged.alerts || [];
-        merged.autoTradeExecutions = merged.autoTradeExecutions || [];
+        // Reset all trading data to clean state
+        merged.trades = [];
+        merged.alerts = [];
+        merged.tradingRules = defaultPatternRules;
+        merged.autoTradeExecutions = [];
         merged.journalEntries = merged.journalEntries || [];
         merged.backtestResults = merged.backtestResults || [];
 
