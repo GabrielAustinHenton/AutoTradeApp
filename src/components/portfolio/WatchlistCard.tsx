@@ -62,14 +62,14 @@ export function WatchlistCard() {
               <div className="flex items-center gap-3">
                 {quote ? (
                   <div className="text-right">
-                    <div className="font-semibold">${quote.price.toFixed(2)}</div>
+                    <div className="font-semibold">${quote.price?.toFixed(2) ?? '--'}</div>
                     <div
                       className={`text-sm ${
                         isPositive ? 'text-emerald-400' : 'text-red-400'
                       }`}
                     >
                       {isPositive ? '+' : ''}
-                      {quote.changePercent.toFixed(2)}%
+                      {quote.changePercent?.toFixed(2) ?? '0.00'}%
                     </div>
                   </div>
                 ) : loading ? (

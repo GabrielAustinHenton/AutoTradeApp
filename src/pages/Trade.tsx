@@ -325,16 +325,16 @@ export function Trade() {
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Current Price</span>
                     <div className="text-right">
-                      <span className="text-xl font-bold">${quote.price.toFixed(2)}</span>
-                      <span className={`ml-2 ${quote.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {quote.change >= 0 ? '+' : ''}{quote.change.toFixed(2)} ({quote.changePercent.toFixed(2)}%)
+                      <span className="text-xl font-bold">${quote.price?.toFixed(2) ?? '--'}</span>
+                      <span className={`ml-2 ${(quote.change ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {(quote.change ?? 0) >= 0 ? '+' : ''}{quote.change?.toFixed(2) ?? '0.00'} ({quote.changePercent?.toFixed(2) ?? '0.00'}%)
                       </span>
                     </div>
                   </div>
                   <div className="flex gap-4 mt-2 text-sm text-slate-400">
-                    <span>H: ${quote.high.toFixed(2)}</span>
-                    <span>L: ${quote.low.toFixed(2)}</span>
-                    <span>Vol: {(quote.volume / 1000000).toFixed(2)}M</span>
+                    <span>H: ${quote.high?.toFixed(2) ?? '--'}</span>
+                    <span>L: ${quote.low?.toFixed(2) ?? '--'}</span>
+                    <span>Vol: {((quote.volume ?? 0) / 1000000).toFixed(2)}M</span>
                   </div>
                 </div>
               )}

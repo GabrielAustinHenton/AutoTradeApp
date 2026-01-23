@@ -24,15 +24,15 @@ export function StockTicker({ symbol, showDetails = false }: StockTickerProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="font-semibold">${quote.price.toFixed(2)}</span>
+      <span className="font-semibold">${quote.price?.toFixed(2) ?? '--'}</span>
       <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
         {isPositive ? '+' : ''}
-        {quote.change.toFixed(2)} ({isPositive ? '+' : ''}
-        {quote.changePercent.toFixed(2)}%)
+        {quote.change?.toFixed(2) ?? '0.00'} ({isPositive ? '+' : ''}
+        {quote.changePercent?.toFixed(2) ?? '0.00'}%)
       </span>
       {showDetails && (
         <span className="text-slate-400 text-sm">
-          Vol: {(quote.volume / 1000000).toFixed(2)}M
+          Vol: {((quote.volume ?? 0) / 1000000).toFixed(2)}M
         </span>
       )}
     </div>

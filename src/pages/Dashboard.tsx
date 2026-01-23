@@ -31,9 +31,9 @@ export function Dashboard() {
 
   // Use paper portfolio data when in paper mode
   const isPaperMode = tradingMode === 'paper';
-  const displayPositions = isPaperMode ? paperPortfolio.positions : positions;
-  const displayCash = isPaperMode ? paperPortfolio.cashBalance : cashBalance;
-  const displayTrades = isPaperMode ? paperPortfolio.trades : trades;
+  const displayPositions = isPaperMode ? (paperPortfolio?.positions || []) : positions;
+  const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : cashBalance;
+  const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : trades;
 
   // Get unique symbols from positions
   const positionSymbols = displayPositions.filter(p => p.shares > 0).map((p) => p.symbol);
@@ -65,13 +65,14 @@ export function Dashboard() {
 
   // Calculate portfolio performance from history
   const chartData = useMemo(() => {
-    if (!isPaperMode || !paperPortfolio.history || paperPortfolio.history.length === 0) {
+    const history = paperPortfolio?.history;
+    if (!isPaperMode || !history || history.length === 0) {
       return [];
     }
 
     // Group snapshots by date and take the last value of each day
     const dailyData = new Map<string, number>();
-    paperPortfolio.history.forEach((snapshot) => {
+    history.forEach((snapshot) => {
       const date = new Date(snapshot.date);
       const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       dailyData.set(dateKey, snapshot.totalValue);
@@ -81,10 +82,10 @@ export function Dashboard() {
       date,
       value,
     }));
-  }, [isPaperMode, paperPortfolio.history]);
+  }, [isPaperMode, paperPortfolio?.history]);
 
   // Calculate P&L stats
-  const startingBalance = isPaperMode ? paperPortfolio.startingBalance : 10000;
+  const startingBalance = isPaperMode ? (paperPortfolio?.startingBalance ?? 10000) : 10000;
   const totalPnL = totalPortfolioValue - startingBalance;
   const totalPnLPercent = (totalPnL / startingBalance) * 100;
 
