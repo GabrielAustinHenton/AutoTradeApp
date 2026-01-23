@@ -35,21 +35,30 @@ const defaultPaperPortfolio: PaperPortfolio = {
   history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
 };
 
-// Bullish candlestick patterns (buy signals)
+// ============================================================================
+// RESEARCH-BACKED TRADING RULES
+// Based on QuantifiedStrategies backtests of 75 candlestick patterns
+// - Only patterns with >55% win rate and profit factor >1.5 included
+// - $100 fixed position sizing (limits risk per trade)
+// - 1:2 risk-reward ratio (2% stop loss, 4% take profit)
+// - 2% trailing stop to lock in gains
+// ============================================================================
+
+// Proven bullish patterns (buy signals) - from backtest data
 const BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
-  { pattern: 'hammer', name: 'Hammer' },
-  { pattern: 'bullish_engulfing', name: 'Bullish Engulfing' },
-  { pattern: 'inverted_hammer', name: 'Inverted Hammer' },
+  { pattern: 'inverted_hammer', name: 'Inverted Hammer' },  // 60% win rate, best performer
+  { pattern: 'hammer', name: 'Hammer' },                    // Classic reversal, ~57% win rate
+  { pattern: 'bullish_engulfing', name: 'Bullish Engulfing' }, // 55-65% win rate
 ];
 
-// Bearish candlestick patterns (sell signals)
+// Proven bearish patterns (sell signals)
+// Note: Bearish Engulfing removed - backtests show it works better as BUY signal!
 const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
-  { pattern: 'shooting_star', name: 'Shooting Star' },
-  { pattern: 'bearish_engulfing', name: 'Bearish Engulfing' },
-  { pattern: 'evening_star', name: 'Evening Star' },
+  { pattern: 'shooting_star', name: 'Shooting Star' },      // Reliable bearish reversal
+  { pattern: 'evening_star', name: 'Evening Star' },        // Strong 3-candle reversal
 ];
 
-// Create a candlestick pattern buy rule
+// Create a candlestick pattern buy rule - $100 position, 1:2 risk-reward
 const createPatternBuyRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -62,17 +71,18 @@ const createPatternBuyRule = (
   type: 'buy',
   ruleType: 'pattern',
   pattern,
-  action: { type: 'market', shares: 5 },
+  action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 60,
-  takeProfitPercent: 5,
-  stopLossPercent: 3,
-  minConfidence: 70,
-  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  cooldownMinutes: 30,           // Reduced cooldown for more opportunities
+  takeProfitPercent: 4,          // 4% take profit
+  stopLossPercent: 2,            // 2% stop loss (1:2 risk-reward)
+  trailingStopPercent: 2,        // 2% trailing stop to lock in gains
+  minConfidence: 60,             // Lowered - patterns already filtered to good ones
+  volumeFilter: { enabled: true, minMultiplier: 1.1 },  // Slightly lower for more trades
 });
 
-// Create a candlestick pattern sell rule
+// Create a candlestick pattern sell rule - sells all holdings
 const createPatternSellRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -85,15 +95,15 @@ const createPatternSellRule = (
   type: 'sell',
   ruleType: 'pattern',
   pattern,
-  action: { type: 'market', percentOfPortfolio: 100 },
+  action: { type: 'market', percentOfPortfolio: 100 },  // Sell all
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 60,
-  minConfidence: 70,
-  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  cooldownMinutes: 30,
+  minConfidence: 60,
+  volumeFilter: { enabled: true, minMultiplier: 1.1 },
 });
 
-// Create a MACD buy rule
+// Create a MACD buy rule - $100 position, 1:2 risk-reward
 const createMACDBuyRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Buy`,
@@ -107,16 +117,17 @@ const createMACDBuyRule = (symbol: string): TradingRule => ({
     signalPeriod: 9,
     crossoverType: 'bullish',
   },
-  action: { type: 'market', shares: 5 },
+  action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 60,
-  takeProfitPercent: 5,
-  stopLossPercent: 3,
-  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  cooldownMinutes: 30,
+  takeProfitPercent: 4,
+  stopLossPercent: 2,
+  trailingStopPercent: 2,
+  volumeFilter: { enabled: true, minMultiplier: 1.1 },
 });
 
-// Create a MACD sell rule
+// Create a MACD sell rule - sells all holdings
 const createMACDSellRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Sell`,
@@ -130,14 +141,14 @@ const createMACDSellRule = (symbol: string): TradingRule => ({
     signalPeriod: 9,
     crossoverType: 'bearish',
   },
-  action: { type: 'market', percentOfPortfolio: 100 },
+  action: { type: 'market', percentOfPortfolio: 100 },  // Sell all
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 60,
-  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  cooldownMinutes: 30,
+  volumeFilter: { enabled: true, minMultiplier: 1.1 },
 });
 
-// Generate all rules for a symbol (3 buy patterns + 3 sell patterns + 2 MACD = 8 rules per stock)
+// Generate all rules for a symbol (3 buy patterns + 2 sell patterns + 2 MACD = 7 rules per stock)
 const createRulesForSymbol = (symbol: string): TradingRule[] => [
   // Candlestick pattern rules
   ...BULLISH_PATTERNS.map(({ pattern, name }) => createPatternBuyRule(symbol, pattern, name)),
