@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
+import type { PriceHistory } from '../types';
 
 const BASE_URL = 'https://www.alphavantage.co/query';
 const FINNHUB_URL = 'https://finnhub.io/api/v1';
@@ -195,6 +196,68 @@ export async function getMultipleQuotes(symbols: string[]): Promise<Map<string, 
   return quotes;
 }
 
+// Finnhub candle data - 60 calls/min vs Alpha Vantage's 5 calls/min
+export async function getFinnhubCandles(
+  symbol: string,
+  resolution: '1' | '5' | '15' | '30' | '60' | 'D' = '15',
+  count: number = 100
+): Promise<PriceHistory[]> {
+  const apiKey = getFinnhubApiKey();
+  if (!apiKey) {
+    logger.warn('API', 'Finnhub API key not set');
+    return [];
+  }
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    // Calculate 'from' based on resolution and count
+    let secondsPerCandle = 60; // default 1 min
+    if (resolution === '5') secondsPerCandle = 5 * 60;
+    else if (resolution === '15') secondsPerCandle = 15 * 60;
+    else if (resolution === '30') secondsPerCandle = 30 * 60;
+    else if (resolution === '60') secondsPerCandle = 60 * 60;
+    else if (resolution === 'D') secondsPerCandle = 24 * 60 * 60;
+
+    const from = now - (count * secondsPerCandle * 2); // Extra buffer for market hours
+
+    const response = await axios.get(`${FINNHUB_URL}/stock/candle`, {
+      params: {
+        symbol: symbol.toUpperCase(),
+        resolution,
+        from,
+        to: now,
+        token: apiKey,
+      },
+    });
+
+    const data = response.data;
+    if (!data || data.s === 'no_data' || !data.c || data.c.length === 0) {
+      logger.warn('API', `Finnhub no candle data for ${symbol}`);
+      return [];
+    }
+
+    // Convert Finnhub format to PriceHistory format
+    const candles: PriceHistory[] = [];
+    for (let i = 0; i < data.c.length; i++) {
+      candles.push({
+        date: new Date(data.t[i] * 1000),
+        open: data.o[i],
+        high: data.h[i],
+        low: data.l[i],
+        close: data.c[i],
+        volume: data.v[i],
+      });
+    }
+
+    logger.info('API', `Finnhub candles: ${symbol} - ${candles.length} candles`);
+    return candles;
+  } catch (error) {
+    logger.error('API', `Finnhub candles error for ${symbol}`, error);
+    return [];
+  }
+}
+
+// Alpha Vantage intraday - DEPRECATED: use getFinnhubCandles instead (rate limited to 5 calls/min)
 export async function getIntradayData(
   symbol: string,
   interval: '1min' | '5min' | '15min' | '30min' | '60min' = '5min'
