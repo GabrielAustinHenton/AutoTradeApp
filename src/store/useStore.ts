@@ -701,9 +701,24 @@ export const useStore = create<AppState>()(
 
       // Auto-Trading actions
       updateAutoTradeConfig: (config) =>
-        set((state) => ({
-          autoTradeConfig: { ...state.autoTradeConfig, ...config },
-        })),
+        set((state) => {
+          const newConfig = { ...state.autoTradeConfig, ...config };
+
+          // When global auto-trade is toggled, update all rules accordingly
+          if ('enabled' in config) {
+            const updatedRules = state.tradingRules.map(rule => ({
+              ...rule,
+              enabled: config.enabled,
+              autoTrade: config.enabled,
+            }));
+            return {
+              autoTradeConfig: newConfig,
+              tradingRules: updatedRules,
+            };
+          }
+
+          return { autoTradeConfig: newConfig };
+        }),
 
       addAutoTradeExecution: (execution) =>
         set((state) => ({

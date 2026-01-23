@@ -122,11 +122,8 @@ export function usePatternScanner() {
       }
 
       if (data.length < 3) {
-        console.log(`  ⚠️ ${symbol}: Insufficient data (${data.length} candles)`);
         return { alerts: newAlerts, rsi: null, prices: [], volumeData: null };
       }
-
-      console.log(`  📊 ${symbol}: ${data.length} candles, last price: $${data[data.length - 1]?.close?.toFixed(2) || 'N/A'}`);
 
       // Extract close prices for RSI calculation
       const closePrices = data.map(d => d.close);
@@ -144,9 +141,7 @@ export function usePatternScanner() {
       const patterns = detectPatterns(candles);
 
       if (patterns.length > 0) {
-        console.log(`  ✅ ${symbol}: Found ${patterns.length} pattern(s):`, patterns.map(p => `${p.pattern} (${p.confidence}%)`).join(', '));
-      } else {
-        console.log(`  ⬜ ${symbol}: No patterns detected`);
+        console.log(`✅ ${symbol}: Found ${patterns.length} pattern(s) -`, patterns.map(p => `${p.pattern} (${p.confidence}%)`).join(', '));
       }
 
       // Get enabled pattern rules for this symbol
@@ -255,29 +250,11 @@ export function usePatternScanner() {
   }, [tradingRules]);
 
   const runScan = useCallback(async () => {
-    // Debug: Log why scan might not run
-    if (!alertsEnabled) {
-      console.log('🔴 SCAN SKIPPED: Alerts are disabled. Enable in Settings.');
-      return;
-    }
-    if (scanningRef.current) {
-      console.log('🔴 SCAN SKIPPED: Previous scan still running.');
+    if (!alertsEnabled || scanningRef.current) {
       return;
     }
 
     scanningRef.current = true;
-
-    // Debug: Log current config
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('🔍 PATTERN SCANNER STARTING');
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('Config:', {
-      alertsEnabled,
-      autoTradeEnabled: autoTradeConfig.enabled,
-      tradingMode,
-      maxTradesPerDay: autoTradeConfig.maxTradesPerDay,
-      tradingHoursOnly: autoTradeConfig.tradingHoursOnly,
-    });
 
     // Get unique symbols from rules and watchlist
     const enabledRules = tradingRules.filter((r) => r.enabled && (r.ruleType === 'pattern' || r.ruleType === 'macd'));
@@ -292,9 +269,7 @@ export function usePatternScanner() {
     const totalBatches = Math.ceil(allSymbols.length / MAX_CALLS_PER_MINUTE);
     scanBatchIndexRef.current = (scanBatchIndexRef.current + 1) % totalBatches;
 
-    console.log(`Enabled rules: ${enabledRules.length} (${enabledRules.filter(r => r.autoTrade).length} with auto-trade)`);
-    console.log(`Scanning batch ${scanBatchIndexRef.current}/${totalBatches}: ${symbolsToScan.length} of ${allSymbols.length} total symbols`);
-    console.log(`Symbols this batch: ${symbolsToScan.join(', ')}`);
+    console.log(`🔍 Scanning batch ${scanBatchIndexRef.current}/${totalBatches}: ${symbolsToScan.join(', ')}`);
 
     for (const symbol of symbolsToScan) {
       const { alerts: newAlerts, rsi, volumeData } = await scanSymbol(symbol);
@@ -377,12 +352,6 @@ export function usePatternScanner() {
       // Small delay between symbols to avoid rate limiting
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
-
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('🔍 SCAN COMPLETE');
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('Next scan in 60 seconds. Check above for any blocked trades.');
-    console.log('If no patterns found, market may be quiet or data unavailable.');
 
     scanningRef.current = false;
   }, [alertsEnabled, soundEnabled, tradingRules, watchlist, alerts, scanSymbol, addAlert, tradingMode, autoTradeConfig]);
