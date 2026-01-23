@@ -4,6 +4,7 @@ import type { PriceHistory } from '../types';
 
 const BASE_URL = 'https://www.alphavantage.co/query';
 const FINNHUB_URL = 'https://finnhub.io/api/v1';
+const TWELVE_DATA_URL = 'https://api.twelvedata.com';
 
 const getApiKey = () => {
   const key = import.meta.env.VITE_ALPHA_VANTAGE_API_KEY;
@@ -15,6 +16,10 @@ const getApiKey = () => {
 
 const getFinnhubApiKey = () => {
   return import.meta.env.VITE_FINNHUB_API_KEY || '';
+};
+
+const getTwelveDataApiKey = () => {
+  return import.meta.env.VITE_TWELVE_DATA_API_KEY || 'demo';
 };
 
 // Common crypto symbols - map to Finnhub's Binance format
@@ -257,7 +262,52 @@ export async function getFinnhubCandles(
   }
 }
 
-// Alpha Vantage intraday - DEPRECATED: use getFinnhubCandles instead (rate limited to 5 calls/min)
+// Twelve Data candle data - 800 calls/day, 8 calls/min on free tier
+// Works with demo key for testing
+export async function getTwelveDataCandles(
+  symbol: string,
+  interval: '1min' | '5min' | '15min' | '30min' | '1h' = '15min',
+  outputSize: number = 100
+): Promise<PriceHistory[]> {
+  const apiKey = getTwelveDataApiKey();
+
+  try {
+    const response = await axios.get(`${TWELVE_DATA_URL}/time_series`, {
+      params: {
+        symbol: symbol.toUpperCase(),
+        interval,
+        outputsize: outputSize,
+        apikey: apiKey,
+      },
+    });
+
+    const data = response.data;
+    if (!data || data.status === 'error' || !data.values || data.values.length === 0) {
+      const errorMsg = data?.message || 'No data';
+      logger.warn('API', `Twelve Data no candle data for ${symbol}: ${errorMsg}`);
+      return [];
+    }
+
+    // Convert Twelve Data format to PriceHistory format
+    // Note: Twelve Data returns newest first, so we reverse
+    const candles: PriceHistory[] = data.values.map((v: any) => ({
+      date: new Date(v.datetime),
+      open: parseFloat(v.open),
+      high: parseFloat(v.high),
+      low: parseFloat(v.low),
+      close: parseFloat(v.close),
+      volume: parseInt(v.volume) || 0,
+    })).reverse(); // Oldest first
+
+    logger.info('API', `Twelve Data candles: ${symbol} - ${candles.length} candles`);
+    return candles;
+  } catch (error) {
+    logger.error('API', `Twelve Data candles error for ${symbol}`, error);
+    return [];
+  }
+}
+
+// Alpha Vantage intraday - DEPRECATED: use getTwelveDataCandles instead (rate limited to 5 calls/min)
 export async function getIntradayData(
   symbol: string,
   interval: '1min' | '5min' | '15min' | '30min' | '60min' = '5min'

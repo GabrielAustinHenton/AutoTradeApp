@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
-import { getFinnhubCandles } from '../services/alphaVantage';
+import { getTwelveDataCandles } from '../services/alphaVantage';
 import { getBinanceCandles, isCryptoSymbol } from '../services/binanceApi';
 import { detectPatterns, PATTERN_INFO, type Candle } from '../services/candlestickPatterns';
 import { calculateRSI, calculateMACD, detectMACDCrossover } from '../services/technicalIndicators';
@@ -110,13 +110,13 @@ export function usePatternScanner() {
     const newAlerts: Alert[] = [];
 
     try {
-      // Use Finnhub for stocks (60 calls/min vs Alpha Vantage's 5 calls/min)
+      // Use Twelve Data for stocks (8 calls/min, 800/day free tier)
       // Binance for crypto is disabled - crypto removed from app
       let data: PriceHistory[];
       if (isCryptoSymbol(symbol)) {
         data = await getBinanceCandles(symbol, '15min', 100);
       } else {
-        data = await getFinnhubCandles(symbol, '15', 100);
+        data = await getTwelveDataCandles(symbol, '15min', 100);
       }
 
       if (data.length < 3) {
