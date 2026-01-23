@@ -6,6 +6,7 @@ import type {
   JournalEntry,
   TradingRule,
   PortfolioSummary,
+  CandlestickPattern,
   Alert,
   TradingMode,
   PaperPortfolio,
@@ -19,9 +20,9 @@ import { PERMANENT_WATCHLIST } from '../config/watchlist';
 // Default auto-trade configuration
 const defaultAutoTradeConfig: AutoTradeConfig = {
   enabled: true,
-  maxTradesPerDay: 10,
+  maxTradesPerDay: 20,
   maxPositionSize: 10,
-  tradingHoursOnly: true, // Only trade during market hours
+  tradingHoursOnly: true,
 };
 
 // Default paper portfolio
@@ -34,7 +35,65 @@ const defaultPaperPortfolio: PaperPortfolio = {
   history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
 };
 
-// Create a MACD buy rule for a stock
+// Bullish candlestick patterns (buy signals)
+const BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
+  { pattern: 'hammer', name: 'Hammer' },
+  { pattern: 'bullish_engulfing', name: 'Bullish Engulfing' },
+  { pattern: 'inverted_hammer', name: 'Inverted Hammer' },
+];
+
+// Bearish candlestick patterns (sell signals)
+const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
+  { pattern: 'shooting_star', name: 'Shooting Star' },
+  { pattern: 'bearish_engulfing', name: 'Bearish Engulfing' },
+  { pattern: 'evening_star', name: 'Evening Star' },
+];
+
+// Create a candlestick pattern buy rule
+const createPatternBuyRule = (
+  symbol: string,
+  pattern: CandlestickPattern,
+  patternName: string
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} ${patternName} Buy`,
+  symbol,
+  enabled: true,
+  type: 'buy',
+  ruleType: 'pattern',
+  pattern,
+  action: { type: 'market', shares: 5 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: 60,
+  takeProfitPercent: 5,
+  stopLossPercent: 3,
+  minConfidence: 70,
+  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+});
+
+// Create a candlestick pattern sell rule
+const createPatternSellRule = (
+  symbol: string,
+  pattern: CandlestickPattern,
+  patternName: string
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} ${patternName} Sell`,
+  symbol,
+  enabled: true,
+  type: 'sell',
+  ruleType: 'pattern',
+  pattern,
+  action: { type: 'market', percentOfPortfolio: 100 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: 60,
+  minConfidence: 70,
+  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+});
+
+// Create a MACD buy rule
 const createMACDBuyRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Buy`,
@@ -57,7 +116,7 @@ const createMACDBuyRule = (symbol: string): TradingRule => ({
   volumeFilter: { enabled: true, minMultiplier: 1.2 },
 });
 
-// Create a MACD sell rule for a stock
+// Create a MACD sell rule
 const createMACDSellRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Sell`,
@@ -78,11 +137,18 @@ const createMACDSellRule = (symbol: string): TradingRule => ({
   volumeFilter: { enabled: true, minMultiplier: 1.2 },
 });
 
-// Generate MACD rules for all watchlist stocks (2 rules per stock = 40 total)
-const defaultPatternRules: TradingRule[] = PERMANENT_WATCHLIST.flatMap(symbol => [
+// Generate all rules for a symbol (3 buy patterns + 3 sell patterns + 2 MACD = 8 rules per stock)
+const createRulesForSymbol = (symbol: string): TradingRule[] => [
+  // Candlestick pattern rules
+  ...BULLISH_PATTERNS.map(({ pattern, name }) => createPatternBuyRule(symbol, pattern, name)),
+  ...BEARISH_PATTERNS.map(({ pattern, name }) => createPatternSellRule(symbol, pattern, name)),
+  // MACD rules
   createMACDBuyRule(symbol),
   createMACDSellRule(symbol),
-]);
+];
+
+// Generate all rules for all watchlist stocks
+const defaultPatternRules: TradingRule[] = PERMANENT_WATCHLIST.flatMap(createRulesForSymbol);
 
 interface AppState {
   // Portfolio
@@ -271,14 +337,11 @@ export const useStore = create<AppState>()(
           return;
         }
 
-        // Check if MACD rules already exist for this symbol
+        // Check if rules already exist for this symbol
         const hasRulesForSymbol = state.tradingRules.some(r => r.symbol === symbol);
 
-        // Generate MACD rules for new symbol if none exist
-        const newRules: TradingRule[] = hasRulesForSymbol ? [] : [
-          createMACDBuyRule(symbol),
-          createMACDSellRule(symbol),
-        ];
+        // Generate all rules (patterns + MACD) for new symbol if none exist
+        const newRules: TradingRule[] = hasRulesForSymbol ? [] : createRulesForSymbol(symbol);
 
         const newWatchlist = [...state.watchlist, symbol];
 
@@ -311,7 +374,7 @@ export const useStore = create<AppState>()(
         }).catch(console.error);
       },
 
-      // Generate MACD rules for all watchlist symbols that don't have them
+      // Generate rules for all watchlist symbols that don't have them
       syncRulesWithWatchlist: () =>
         set((state) => {
           const newRules: TradingRule[] = [];
@@ -319,7 +382,7 @@ export const useStore = create<AppState>()(
           for (const symbol of state.watchlist) {
             const hasRulesForSymbol = state.tradingRules.some((r) => r.symbol === symbol);
             if (!hasRulesForSymbol) {
-              newRules.push(createMACDBuyRule(symbol), createMACDSellRule(symbol));
+              newRules.push(...createRulesForSymbol(symbol));
             }
           }
 
