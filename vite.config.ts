@@ -57,6 +57,11 @@ export const PERMANENT_WATCHLIST = [...PERMANENT_STOCKS];
         secure: false,
         rewrite: (path) => path.replace(/^\/api\/ibkr/, ''),
       },
+      '/api/twelvedata': {
+        target: 'https://api.twelvedata.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/twelvedata/, ''),
+      },
     },
   },
 })

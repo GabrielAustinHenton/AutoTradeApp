@@ -4,7 +4,8 @@ import type { PriceHistory } from '../types';
 
 const BASE_URL = 'https://www.alphavantage.co/query';
 const FINNHUB_URL = 'https://finnhub.io/api/v1';
-const TWELVE_DATA_URL = 'https://api.twelvedata.com';
+// Use Vite proxy to bypass CORS for Twelve Data
+const TWELVE_DATA_URL = '/api/twelvedata';
 
 const getApiKey = () => {
   const key = import.meta.env.VITE_ALPHA_VANTAGE_API_KEY;
