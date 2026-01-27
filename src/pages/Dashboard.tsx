@@ -27,16 +27,15 @@ export function Dashboard() {
     autoTradeConfig,
     requestScan,
     alertsEnabled,
+    ibkrConnected,
   } = useStore();
 
   // Use paper portfolio data when in paper mode
   const isPaperMode = tradingMode === 'paper';
-  const displayPositions = isPaperMode ? (paperPortfolio?.positions || []) : positions;
-  const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : cashBalance;
-  const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : trades;
-
-  // Debug logging for balance issues
-  console.log(`[Dashboard] Mode: ${tradingMode}, Paper Cash: $${paperPortfolio?.cashBalance?.toFixed(2)}, Live Cash: $${cashBalance?.toFixed(2)}, Display Cash: $${displayCash?.toFixed(2)}`);
+  const isLiveNotConnected = tradingMode === 'live' && !ibkrConnected;
+  const displayPositions = isPaperMode ? (paperPortfolio?.positions || []) : (isLiveNotConnected ? [] : positions);
+  const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : (isLiveNotConnected ? null : cashBalance);
+  const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : (isLiveNotConnected ? [] : trades);
 
   // Get unique symbols from positions
   const positionSymbols = displayPositions.filter(p => p.shares > 0).map((p) => p.symbol);
@@ -59,9 +58,9 @@ export function Dashboard() {
   }, [quotes, updatePositionPrices, updatePaperPositionPrices, isPaperMode]);
 
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
-  const totalPortfolioValue = totalPositionValue + displayCash;
-  const totalGain = displayPositions.reduce((sum, p) => sum + p.totalGain, 0);
-  const dayChange = Array.from(quotes.values()).reduce(
+  const totalPortfolioValue = isLiveNotConnected ? null : totalPositionValue + (displayCash ?? 0);
+  const totalGain = isLiveNotConnected ? null : displayPositions.reduce((sum, p) => sum + p.totalGain, 0);
+  const dayChange = isLiveNotConnected ? null : Array.from(quotes.values()).reduce(
     (sum, q) => sum + q.change * (displayPositions.find((p) => p.symbol === q.symbol)?.shares || 0),
     0
   );
@@ -89,8 +88,8 @@ export function Dashboard() {
 
   // Calculate P&L stats
   const startingBalance = isPaperMode ? (paperPortfolio?.startingBalance ?? 10000) : 10000;
-  const totalPnL = totalPortfolioValue - startingBalance;
-  const totalPnLPercent = (totalPnL / startingBalance) * 100;
+  const totalPnL = totalPortfolioValue !== null ? totalPortfolioValue - startingBalance : null;
+  const totalPnLPercent = totalPnL !== null ? (totalPnL / startingBalance) * 100 : null;
 
   return (
     <div className="text-white">
@@ -124,28 +123,34 @@ export function Dashboard() {
         </div>
       </div>
 
+      {isLiveNotConnected && (
+        <div className="mb-6 p-4 bg-slate-800 border border-slate-600 rounded-xl text-center">
+          <p className="text-slate-400">IBKR not connected. Connect your broker in Settings to see live portfolio data.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Portfolio Value"
-          value={`$${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          subtitle="Total assets"
+          value={totalPortfolioValue !== null ? `$${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+          subtitle={isLiveNotConnected ? 'Not connected' : 'Total assets'}
         />
         <StatCard
           title="Cash Balance"
-          value={`$${displayCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          subtitle="Available to trade"
+          value={displayCash !== null ? `$${displayCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+          subtitle={isLiveNotConnected ? 'Not connected' : 'Available to trade'}
         />
         <StatCard
           title="Total Gain/Loss"
-          value={`$${totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          subtitle={totalGain >= 0 ? 'All-time profit' : 'All-time loss'}
-          valueColor={totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}
+          value={totalGain !== null ? `$${totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+          subtitle={isLiveNotConnected ? 'Not connected' : (totalGain !== null && totalGain >= 0 ? 'All-time profit' : 'All-time loss')}
+          valueColor={totalGain !== null ? (totalGain >= 0 ? 'text-emerald-400' : 'text-red-400') : undefined}
         />
         <StatCard
           title="Day Change"
-          value={`$${dayChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          subtitle="Today's P&L"
-          valueColor={dayChange >= 0 ? 'text-emerald-400' : 'text-red-400'}
+          value={dayChange !== null ? `$${dayChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+          subtitle={isLiveNotConnected ? 'Not connected' : "Today's P&L"}
+          valueColor={dayChange !== null ? (dayChange >= 0 ? 'text-emerald-400' : 'text-red-400') : undefined}
         />
       </div>
 
@@ -155,12 +160,18 @@ export function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Portfolio Performance</h2>
               <div className="text-right">
-                <div className={`text-lg font-semibold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {totalPnL >= 0 ? '+' : ''}${totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-                <div className={`text-sm ${totalPnLPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {totalPnLPercent >= 0 ? '+' : ''}{totalPnLPercent.toFixed(2)}% all-time
-                </div>
+                {totalPnL !== null ? (
+                  <>
+                    <div className={`text-lg font-semibold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {totalPnL >= 0 ? '+' : ''}${totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className={`text-sm ${(totalPnLPercent ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {(totalPnLPercent ?? 0) >= 0 ? '+' : ''}{(totalPnLPercent ?? 0).toFixed(2)}% all-time
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-slate-400">--</div>
+                )}
               </div>
             </div>
             <div className="h-64">

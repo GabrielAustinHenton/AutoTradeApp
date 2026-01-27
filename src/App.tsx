@@ -29,13 +29,6 @@ function AppContent() {
   // Initialize position monitor for take-profit/stop-loss
   usePositionMonitor();
 
-  // Auto-switch to paper mode if in live mode without IBKR
-  useEffect(() => {
-    if (tradingMode === 'live' && !ibkrConnected) {
-      console.log('[App] IBKR not connected, switching to paper mode');
-      setTradingMode('paper');
-    }
-  }, [ibkrConnected, tradingMode, setTradingMode]);
 
   // Sync trading rules with watchlist on startup
   useEffect(() => {

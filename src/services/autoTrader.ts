@@ -36,6 +36,12 @@ export function canExecuteAutoTrade(
     return { allowed: false, reason: 'Auto-trade not enabled for this rule' };
   }
 
+  // Check if in live mode without IBKR connected
+  const state = useStore.getState();
+  if (state.tradingMode === 'live' && !state.ibkrConnected) {
+    return { allowed: false, reason: 'Live mode requires IBKR connection. Switch to Paper mode or connect IBKR.' };
+  }
+
   // Check trading hours if required
   if (config.tradingHoursOnly && !isWithinTradingHours()) {
     return { allowed: false, reason: 'Outside trading hours' };

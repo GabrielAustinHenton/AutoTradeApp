@@ -16,8 +16,9 @@ const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export function Portfolio() {
   const location = useLocation();
-  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, updatePaperPositionPrices } = useStore();
+  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, updatePaperPositionPrices, ibkrConnected } = useStore();
   const [activeTab, setActiveTab] = useState<'paper' | 'live'>(tradingMode);
+  const isLiveNotConnected = activeTab === 'live' && !ibkrConnected;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -87,23 +88,23 @@ export function Portfolio() {
 
   // Determine which portfolio to display
   const isShowingPaper = activeTab === 'paper';
-  const displayPositions: Position[] = isShowingPaper ? paperPortfolio.positions : positions;
-  const displayCash = isShowingPaper ? paperPortfolio.cashBalance : cashBalance;
+  const displayPositions: Position[] = isShowingPaper ? paperPortfolio.positions : (isLiveNotConnected ? [] : positions);
+  const displayCash = isShowingPaper ? paperPortfolio.cashBalance : (isLiveNotConnected ? null : cashBalance);
 
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
-  const totalPortfolioValue = totalPositionValue + displayCash;
+  const totalPortfolioValue = displayCash !== null ? totalPositionValue + displayCash : null;
 
   // Paper portfolio specific stats
   const paperTotalValue = paperPortfolio.positions.reduce((sum, p) => sum + p.totalValue, 0) + paperPortfolio.cashBalance;
   const paperPnL = paperTotalValue - paperPortfolio.startingBalance;
   const paperPnLPercent = (paperPnL / paperPortfolio.startingBalance) * 100;
 
-  const pieData = [
+  const pieData = isLiveNotConnected ? [] : [
     ...displayPositions.map((p) => ({
       name: p.symbol,
       value: p.totalValue,
     })),
-    { name: 'Cash', value: displayCash },
+    { name: 'Cash', value: displayCash ?? 0 },
   ].filter((d) => d.value > 0);
 
   const handleResetPaper = () => {
@@ -359,7 +360,11 @@ export function Portfolio() {
 
         <div className="bg-slate-800 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-4">Allocation</h2>
-          {pieData.length === 0 || totalPortfolioValue === 0 ? (
+          {isLiveNotConnected ? (
+            <div className="h-64 flex items-center justify-center text-slate-400">
+              IBKR not connected
+            </div>
+          ) : pieData.length === 0 || totalPortfolioValue === 0 || totalPortfolioValue === null ? (
             <div className="h-64 flex items-center justify-center text-slate-400">
               No allocation data
             </div>

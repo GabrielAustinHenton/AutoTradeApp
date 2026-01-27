@@ -1,25 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { ibkr } from '../services/ibkr';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
 import type { Alert } from '../types';
 
-// Force paper mode if IBKR not connected
-function useAutoSwitchToPaper() {
-  const { ibkrConnected, tradingMode, setTradingMode } = useStore();
-
-  useEffect(() => {
-    if (tradingMode === 'live' && !ibkrConnected) {
-      console.log('[Settings] IBKR not connected, switching to paper mode');
-      setTradingMode('paper');
-    }
-  }, [ibkrConnected, tradingMode, setTradingMode]);
-}
-
 export function Settings() {
-  // Auto-switch to paper mode if IBKR not connected
-  useAutoSwitchToPaper();
-
   const {
     ibkrConnected,
     ibkrAccountId,
