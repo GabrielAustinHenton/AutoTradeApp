@@ -35,6 +35,9 @@ export function Dashboard() {
   const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : cashBalance;
   const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : trades;
 
+  // Debug logging for balance issues
+  console.log(`[Dashboard] Mode: ${tradingMode}, Paper Cash: $${paperPortfolio?.cashBalance?.toFixed(2)}, Live Cash: $${cashBalance?.toFixed(2)}, Display Cash: $${displayCash?.toFixed(2)}`);
+
   // Get unique symbols from positions
   const positionSymbols = displayPositions.filter(p => p.shares > 0).map((p) => p.symbol);
   const { quotes, loading: quotesLoading } = useMultipleQuotes(positionSymbols, true);

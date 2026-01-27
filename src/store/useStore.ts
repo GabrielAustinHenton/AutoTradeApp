@@ -923,7 +923,21 @@ export const useStore = create<AppState>()(
           merged.tradingRules = [...existingRules, ...missingRules];
 
           // Preserve user data, only reset if not present
-          merged.paperPortfolio = persisted.paperPortfolio || defaultPaperPortfolio;
+          // Ensure paper portfolio cash balance is preserved (don't reset to $10k!)
+          if (persisted.paperPortfolio && typeof persisted.paperPortfolio.cashBalance === 'number') {
+            merged.paperPortfolio = {
+              ...defaultPaperPortfolio,
+              ...persisted.paperPortfolio,
+              // Ensure nested arrays are preserved
+              positions: Array.isArray(persisted.paperPortfolio.positions) ? persisted.paperPortfolio.positions : [],
+              trades: Array.isArray(persisted.paperPortfolio.trades) ? persisted.paperPortfolio.trades : [],
+              history: Array.isArray(persisted.paperPortfolio.history) ? persisted.paperPortfolio.history : [],
+            };
+            console.log(`[Store] Restored paper portfolio: $${merged.paperPortfolio.cashBalance.toFixed(2)} cash, ${merged.paperPortfolio.positions.length} positions`);
+          } else {
+            merged.paperPortfolio = defaultPaperPortfolio;
+            console.log('[Store] No existing paper portfolio, using default $10,000');
+          }
           merged.trades = Array.isArray(persisted.trades) ? persisted.trades : [];
           merged.alerts = Array.isArray(persisted.alerts) ? persisted.alerts : [];
           merged.autoTradeExecutions = Array.isArray(persisted.autoTradeExecutions) ? persisted.autoTradeExecutions : [];

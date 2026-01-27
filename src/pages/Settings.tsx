@@ -1,10 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { ibkr } from '../services/ibkr';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
 import type { Alert } from '../types';
 
+// Force paper mode if IBKR not connected
+function useAutoSwitchToPaper() {
+  const { ibkrConnected, tradingMode, setTradingMode } = useStore();
+
+  useEffect(() => {
+    if (tradingMode === 'live' && !ibkrConnected) {
+      console.log('[Settings] IBKR not connected, switching to paper mode');
+      setTradingMode('paper');
+    }
+  }, [ibkrConnected, tradingMode, setTradingMode]);
+}
+
 export function Settings() {
+  // Auto-switch to paper mode if IBKR not connected
+  useAutoSwitchToPaper();
+
   const {
     ibkrConnected,
     ibkrAccountId,
@@ -239,14 +254,8 @@ export function Settings() {
           <div className="p-4 bg-slate-700/50 rounded-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium">Paper Portfolio</h3>
-              <button
-                onClick={() => resetPaperPortfolio(10000)}
-                className="text-sm text-red-400 hover:text-red-300"
-              >
-                Reset Portfolio
-              </button>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-3 gap-4 text-sm mb-4">
               <div>
                 <span className="text-slate-400">Cash Balance</span>
                 <p className="font-semibold text-emerald-400">
@@ -261,6 +270,36 @@ export function Settings() {
                 <span className="text-slate-400">Total Trades</span>
                 <p className="font-semibold">{paperPortfolio.trades.length}</p>
               </div>
+            </div>
+            <div className="border-t border-slate-600 pt-4">
+              <p className="text-sm text-slate-400 mb-2">Reset portfolio with custom starting balance:</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => resetPaperPortfolio(5)}
+                  className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                >
+                  $5
+                </button>
+                <button
+                  onClick={() => resetPaperPortfolio(100)}
+                  className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                >
+                  $100
+                </button>
+                <button
+                  onClick={() => resetPaperPortfolio(1000)}
+                  className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                >
+                  $1,000
+                </button>
+                <button
+                  onClick={() => resetPaperPortfolio(10000)}
+                  className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                >
+                  $10,000
+                </button>
+              </div>
+              <p className="text-xs text-red-400 mt-2">Warning: This will clear all positions and trade history</p>
             </div>
           </div>
         )}
