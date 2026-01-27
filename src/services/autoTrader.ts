@@ -44,7 +44,9 @@ export function canExecuteAutoTrade(
 
   // Check trading hours if required
   if (config.tradingHoursOnly && !isWithinTradingHours()) {
-    return { allowed: false, reason: 'Outside trading hours' };
+    const now = new Date();
+    const etTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    return { allowed: false, reason: `Outside trading hours (current ET: ${etTime.toLocaleTimeString()}, market: 9:30 AM - 4:00 PM)` };
   }
 
   // Check cooldown period

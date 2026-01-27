@@ -276,7 +276,7 @@ export function usePatternScanner() {
     const totalBatches = Math.ceil(allSymbols.length / MAX_CALLS_PER_MINUTE);
     scanBatchIndexRef.current = (scanBatchIndexRef.current + 1) % totalBatches;
 
-    console.log(`🔍 Scanning batch ${scanBatchIndexRef.current}/${totalBatches}: ${symbolsToScan.join(', ')}`);
+    console.log(`🔍 Scanning batch ${scanBatchIndexRef.current}/${totalBatches}: ${symbolsToScan.join(', ')} | Auto-trade: ${autoTradeConfig.enabled ? 'ON' : 'OFF'} | Mode: ${tradingMode}`);
 
     for (const symbol of symbolsToScan) {
       const { alerts: newAlerts, rsi, volumeData } = await scanSymbol(symbol);
