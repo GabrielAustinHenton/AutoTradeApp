@@ -45,9 +45,9 @@ export function isHammer(candle: Candle): boolean {
   if (range === 0) return false;
 
   return (
-    lower >= body * 2 && // Long lower shadow
-    upper <= body * 0.5 && // Little upper shadow
-    body <= range * 0.35 // Small body relative to range
+    lower >= body * 1.5 && // Long lower shadow (relaxed from 2x)
+    upper <= body * 0.8 && // Little upper shadow (relaxed from 0.5)
+    body <= range * 0.45 // Small body relative to range (relaxed from 0.35)
   );
 }
 
@@ -64,9 +64,9 @@ export function isInvertedHammer(candle: Candle): boolean {
   if (range === 0) return false;
 
   return (
-    upper >= body * 2 && // Long upper shadow
-    lower <= body * 0.5 && // Little lower shadow
-    body <= range * 0.35 // Small body relative to range
+    upper >= body * 1.5 && // Long upper shadow (relaxed from 2x)
+    lower <= body * 0.8 && // Little lower shadow (relaxed from 0.5)
+    body <= range * 0.45 // Small body relative to range (relaxed from 0.35)
   );
 }
 
@@ -158,7 +158,7 @@ export function isEveningStar(
  * Bullish Breakout: Price closes above recent high with strong momentum
  * Looks for price breaking above the highest high of the lookback period
  */
-export function isBullishBreakout(candles: Candle[], lookbackPeriod: number = 10): boolean {
+export function isBullishBreakout(candles: Candle[], lookbackPeriod: number = 5): boolean {
   if (candles.length < lookbackPeriod + 1) return false;
 
   const current = candles[candles.length - 1];
@@ -171,7 +171,7 @@ export function isBullishBreakout(candles: Candle[], lookbackPeriod: number = 10
   // and be a bullish candle (close > open)
   const closeAboveHigh = current.close > highestHigh;
   const bullishCandle = current.close > current.open;
-  const strongMove = (current.close - current.open) / current.open > 0.005; // At least 0.5% move
+  const strongMove = (current.close - current.open) / current.open > 0.001; // At least 0.1% move (relaxed)
 
   return closeAboveHigh && bullishCandle && strongMove;
 }
@@ -180,7 +180,7 @@ export function isBullishBreakout(candles: Candle[], lookbackPeriod: number = 10
  * Bearish Breakout: Price closes below recent low with strong momentum
  * Looks for price breaking below the lowest low of the lookback period
  */
-export function isBearishBreakout(candles: Candle[], lookbackPeriod: number = 10): boolean {
+export function isBearishBreakout(candles: Candle[], lookbackPeriod: number = 5): boolean {
   if (candles.length < lookbackPeriod + 1) return false;
 
   const current = candles[candles.length - 1];
@@ -193,7 +193,7 @@ export function isBearishBreakout(candles: Candle[], lookbackPeriod: number = 10
   // and be a bearish candle (close < open)
   const closeBelowLow = current.close < lowestLow;
   const bearishCandle = current.close < current.open;
-  const strongMove = (current.open - current.close) / current.open > 0.005; // At least 0.5% move
+  const strongMove = (current.open - current.close) / current.open > 0.001; // At least 0.1% move (relaxed)
 
   return closeBelowLow && bearishCandle && strongMove;
 }

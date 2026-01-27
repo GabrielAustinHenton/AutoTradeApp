@@ -21,10 +21,23 @@ export interface Position {
   highestPrice?: number; // Track highest price since purchase for trailing stop
 }
 
+// Short position - profit when price goes DOWN
+export interface ShortPosition {
+  id: string;
+  symbol: string;
+  name: string;
+  shares: number;        // Number of shares shorted
+  entryPrice: number;    // Price at which we shorted
+  currentPrice: number;
+  lowestPrice?: number;  // Track lowest price since short for trailing stop
+  // P/L calculation: (entryPrice - currentPrice) * shares
+  // Positive when price drops, negative when price rises
+}
+
 export interface Trade {
   id: string;
   symbol: string;
-  type: 'buy' | 'sell';
+  type: 'buy' | 'sell' | 'short' | 'cover';  // short = open short, cover = close short
   shares: number;
   price: number;
   total: number;
@@ -64,7 +77,7 @@ export interface TradingRule {
   name: string;
   symbol: string;
   enabled: boolean;
-  type: 'buy' | 'sell';
+  type: 'buy' | 'sell' | 'short' | 'cover';  // short = open short position, cover = close short
   ruleType: 'price' | 'pattern' | 'macd';
   conditions?: RuleCondition[];
   pattern?: CandlestickPattern;
@@ -140,7 +153,7 @@ export interface Alert {
   type: 'pattern' | 'price' | 'rule';
   symbol: string;
   message: string;
-  signal: 'buy' | 'sell';
+  signal: 'buy' | 'sell' | 'short';
   pattern?: CandlestickPattern;
   ruleId?: string;
   confidence?: number;
@@ -164,6 +177,7 @@ export interface PortfolioSnapshot {
 export interface PaperPortfolio {
   cashBalance: number;
   positions: Position[];
+  shortPositions: ShortPosition[];  // Short positions
   trades: Trade[];
   startingBalance: number;
   createdAt: Date;
@@ -185,7 +199,7 @@ export interface AutoTradeExecution {
   ruleName: string;
   alertId: string;
   symbol: string;
-  type: 'buy' | 'sell';
+  type: 'buy' | 'sell' | 'short' | 'cover';
   shares: number;
   price: number;
   total: number;

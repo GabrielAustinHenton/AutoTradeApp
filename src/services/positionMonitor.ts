@@ -2,7 +2,7 @@ import { useStore } from '../store/useStore';
 import { getQuote } from './alphaVantage';
 import { getBinancePrice, isCryptoSymbol } from './binanceApi';
 import { logger } from '../utils/logger';
-import type { Position, TradingRule, AutoTradeExecution } from '../types';
+import type { Position, ShortPosition, TradingRule, AutoTradeExecution } from '../types';
 
 /**
  * Position Monitor Service
@@ -21,8 +21,21 @@ interface PositionTarget {
   trailingStopPercent?: number; // Trailing stop percentage from highest price
 }
 
+// Short position target - for short selling (profit when price goes DOWN)
+interface ShortPositionTarget {
+  symbol: string;
+  positionId: string;
+  ruleId: string;
+  ruleName: string;
+  entryPrice: number;  // Price at which we shorted
+  shares: number;
+  stopLossPrice?: number;  // Cover if price rises to this level (loss)
+  trailingStopPercent?: number;  // Cover if price rises X% from lowest
+}
+
 // Track positions with active targets
 let monitoredPositions: PositionTarget[] = [];
+let monitoredShortPositions: ShortPositionTarget[] = [];
 let monitorInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
@@ -178,10 +191,154 @@ async function executeAutoSell(
 }
 
 /**
+ * Calculate short position targets (inverse logic - profit when price drops)
+ */
+function calculateShortTargets(position: ShortPosition, rule: TradingRule): ShortPositionTarget | null {
+  if (!rule.stopLossPercent && !rule.trailingStopPercent) {
+    return null;
+  }
+
+  const target: ShortPositionTarget = {
+    symbol: position.symbol,
+    positionId: position.id,
+    ruleId: rule.id,
+    ruleName: rule.name,
+    entryPrice: position.entryPrice,
+    shares: position.shares,
+  };
+
+  // For shorts, stop loss triggers when price RISES (we lose money)
+  if (rule.stopLossPercent) {
+    target.stopLossPrice = position.entryPrice * (1 + rule.stopLossPercent / 100);
+  }
+
+  if (rule.trailingStopPercent) {
+    target.trailingStopPercent = rule.trailingStopPercent;
+  }
+
+  return target;
+}
+
+/**
+ * Check if a short position should be covered based on current price
+ * For shorts: profit when price drops, loss when price rises
+ */
+function shouldCover(
+  target: ShortPositionTarget,
+  currentPrice: number,
+  lowestPrice?: number
+): { cover: boolean; reason: 'stop_loss' | 'trailing_stop' | null; targetPrice: number | null } {
+  // Check trailing stop first (dynamic)
+  // For shorts, we cover if price RISES from the lowest point
+  if (target.trailingStopPercent && lowestPrice) {
+    const trailingStopPrice = lowestPrice * (1 + target.trailingStopPercent / 100);
+    // Only trigger if we've made some profit (price below entry)
+    if (lowestPrice < target.entryPrice && currentPrice >= trailingStopPrice) {
+      return { cover: true, reason: 'trailing_stop', targetPrice: trailingStopPrice };
+    }
+  }
+
+  // Check fixed stop-loss (cover if price rises too much)
+  if (target.stopLossPrice && currentPrice >= target.stopLossPrice) {
+    return { cover: true, reason: 'stop_loss', targetPrice: target.stopLossPrice };
+  }
+
+  return { cover: false, reason: null, targetPrice: null };
+}
+
+/**
+ * Execute auto-cover for a short position
+ */
+async function executeAutoCover(
+  target: ShortPositionTarget,
+  currentPrice: number,
+  reason: 'stop_loss' | 'trailing_stop'
+): Promise<boolean> {
+  const store = useStore.getState();
+  const { tradingMode, autoTradeConfig, paperPortfolio, addAutoTradeExecution, coverShortPosition } = store;
+
+  if (tradingMode !== 'paper') {
+    logger.warn('PositionMonitor', `Auto-cover skipped: not in paper mode`);
+    return false;
+  }
+
+  if (!autoTradeConfig.enabled) {
+    logger.warn('PositionMonitor', `Auto-cover skipped: auto-trading disabled`);
+    return false;
+  }
+
+  const shortPosition = paperPortfolio.shortPositions?.find((p) => p.id === target.positionId);
+  if (!shortPosition) {
+    logger.warn('PositionMonitor', `Short position ${target.positionId} no longer exists`);
+    return false;
+  }
+
+  const sharesToCover = shortPosition.shares;
+  const total = sharesToCover * currentPrice;
+  // For shorts: profit = (entry - current) * shares
+  const profitLoss = (target.entryPrice - currentPrice) * sharesToCover;
+  const profitLossPercent = ((target.entryPrice - currentPrice) / target.entryPrice) * 100;
+
+  const reasonLabel = reason === 'trailing_stop' ? 'TRAILING STOP' : 'STOP LOSS';
+  const plEmoji = profitLoss >= 0 ? '💰' : '📉';
+
+  // Clear, prominent P/L logging
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`${plEmoji} SHORT COVERED: ${target.symbol} - ${reasonLabel}`);
+  console.log(`${'='.repeat(60)}`);
+  console.log(`   Shares Covered: ${sharesToCover}`);
+  console.log(`   Short Entry: $${target.entryPrice.toFixed(2)}`);
+  console.log(`   Cover Price: $${currentPrice.toFixed(2)}`);
+  console.log(`   ---`);
+  console.log(`   P/L: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)} (${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(2)}%)`);
+  console.log(`${'='.repeat(60)}\n`);
+
+  logger.info(
+    'PositionMonitor',
+    `${reasonLabel} triggered for SHORT ${target.symbol}: ` +
+      `covering ${sharesToCover} shares @ $${currentPrice.toFixed(2)} ` +
+      `(${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)}, ${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(2)}%)`
+  );
+
+  const success = coverShortPosition(target.symbol, sharesToCover, currentPrice);
+
+  if (success) {
+    const reasonDisplayName = reason === 'trailing_stop' ? 'Trailing Stop' : 'Stop Loss';
+    const execution: AutoTradeExecution = {
+      id: `exec-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      ruleId: target.ruleId,
+      ruleName: `${target.ruleName} (${reasonDisplayName})`,
+      alertId: `auto-cover-${reason}-${Date.now()}`,
+      symbol: target.symbol,
+      type: 'cover',
+      shares: sharesToCover,
+      price: currentPrice,
+      total,
+      status: 'executed',
+      mode: 'paper',
+      timestamp: new Date(),
+    };
+    addAutoTradeExecution(execution);
+
+    // Remove from monitored short positions
+    monitoredShortPositions = monitoredShortPositions.filter((p) => p.positionId !== target.positionId);
+
+    logger.info('PositionMonitor', `Auto-cover executed successfully for ${target.symbol}`);
+    return true;
+  } else {
+    logger.error('PositionMonitor', `Failed to execute auto-cover for ${target.symbol}`);
+    return false;
+  }
+}
+
+/**
  * Scan positions and check targets
  */
 async function scanPositions(): Promise<void> {
-  if (monitoredPositions.length === 0) {
+  const hasLongPositions = monitoredPositions.length > 0;
+  const hasShortPositions = monitoredShortPositions.length > 0;
+
+  if (!hasLongPositions && !hasShortPositions) {
     return;
   }
 
@@ -190,7 +347,7 @@ async function scanPositions(): Promise<void> {
     return;
   }
 
-  logger.debug('PositionMonitor', `Scanning ${monitoredPositions.length} monitored positions`);
+  logger.debug('PositionMonitor', `Scanning ${monitoredPositions.length} long + ${monitoredShortPositions.length} short positions`);
 
   for (const target of [...monitoredPositions]) {
     try {
@@ -257,6 +414,71 @@ async function scanPositions(): Promise<void> {
       logger.error('PositionMonitor', `Error checking ${target.symbol}`, error);
     }
   }
+
+  // Scan short positions
+  for (const target of [...monitoredShortPositions]) {
+    try {
+      let currentPrice: number | null = null;
+      if (isCryptoSymbol(target.symbol)) {
+        currentPrice = await getBinancePrice(target.symbol);
+      } else {
+        const quote = await getQuote(target.symbol);
+        currentPrice = quote?.price ?? null;
+      }
+
+      if (currentPrice === null) {
+        logger.warn('PositionMonitor', `Could not get quote for SHORT ${target.symbol}`);
+        continue;
+      }
+
+      // Get the position's lowest price from the store (for trailing stop)
+      const shortPosition = store.paperPortfolio.shortPositions?.find((p) => p.id === target.positionId);
+      let lowestPrice = shortPosition?.lowestPrice || target.entryPrice;
+
+      // Update lowest price if current price is lower
+      if (currentPrice < lowestPrice) {
+        lowestPrice = currentPrice;
+        // Update in store
+        useStore.setState((s) => ({
+          paperPortfolio: {
+            ...s.paperPortfolio,
+            shortPositions: (s.paperPortfolio.shortPositions || []).map((p) =>
+              p.id === target.positionId ? { ...p, lowestPrice: currentPrice, currentPrice } : p
+            ),
+          },
+        }));
+        logger.debug('PositionMonitor', `New low for SHORT ${target.symbol}: $${currentPrice.toFixed(2)}`);
+      }
+
+      const { cover, reason, targetPrice } = shouldCover(target, currentPrice, lowestPrice);
+
+      if (cover && reason) {
+        const reasonLabel = reason === 'trailing_stop' ? 'TRAILING_STOP' : 'STOP_LOSS';
+        logger.info(
+          'PositionMonitor',
+          `${reasonLabel} hit for SHORT ${target.symbol}: ` +
+            `current $${currentPrice.toFixed(2)}, target $${targetPrice?.toFixed(2)}` +
+            (reason === 'trailing_stop' ? `, lowest $${lowestPrice?.toFixed(2)}` : '')
+        );
+        await executeAutoCover(target, currentPrice, reason);
+      } else if (target.trailingStopPercent && lowestPrice < target.entryPrice) {
+        // Log trailing stop status for short positions in profit
+        const trailingStopPrice = lowestPrice * (1 + target.trailingStopPercent / 100);
+        const profitPercent = ((target.entryPrice - currentPrice) / target.entryPrice * 100).toFixed(2);
+        const distanceToStop = ((trailingStopPrice - currentPrice) / currentPrice * 100).toFixed(2);
+        logger.debug(
+          'PositionMonitor',
+          `SHORT ${target.symbol}: $${currentPrice.toFixed(2)} (+${profitPercent}% profit) | ` +
+            `Trail stop @ $${trailingStopPrice.toFixed(2)} (${distanceToStop}% away) | ` +
+            `Low: $${lowestPrice.toFixed(2)}`
+        );
+      }
+
+      await new Promise((r) => setTimeout(r, 300));
+    } catch (error) {
+      logger.error('PositionMonitor', `Error checking SHORT ${target.symbol}`, error);
+    }
+  }
 }
 
 /**
@@ -287,6 +509,31 @@ export function registerPositionForMonitoring(position: Position, rule: TradingR
 }
 
 /**
+ * Register a SHORT position for monitoring with stop-loss/trailing-stop targets
+ * For shorts: stop loss triggers when price RISES, trailing stop from LOWEST price
+ */
+export function registerShortPositionForMonitoring(position: ShortPosition, rule: TradingRule): void {
+  const target = calculateShortTargets(position, rule);
+  if (!target) {
+    return;
+  }
+
+  const existing = monitoredShortPositions.find((p) => p.positionId === position.id);
+  if (existing) {
+    Object.assign(existing, target);
+    logger.info('PositionMonitor', `Updated targets for SHORT ${position.symbol}`);
+  } else {
+    monitoredShortPositions.push(target);
+    logger.info(
+      'PositionMonitor',
+      `Monitoring SHORT ${position.symbol}: ` +
+        `SL (cover if rises): ${target.stopLossPrice ? '$' + target.stopLossPrice.toFixed(2) : 'none'}, ` +
+        `Trailing: ${target.trailingStopPercent ? target.trailingStopPercent + '% from low' : 'none'}`
+    );
+  }
+}
+
+/**
  * Remove a position from monitoring
  */
 export function unregisterPosition(positionId: string): void {
@@ -294,6 +541,12 @@ export function unregisterPosition(positionId: string): void {
   if (removed) {
     monitoredPositions = monitoredPositions.filter((p) => p.positionId !== positionId);
     logger.info('PositionMonitor', `Stopped monitoring position ${removed.symbol}`);
+  }
+  // Also check short positions
+  const removedShort = monitoredShortPositions.find((p) => p.positionId === positionId);
+  if (removedShort) {
+    monitoredShortPositions = monitoredShortPositions.filter((p) => p.positionId !== positionId);
+    logger.info('PositionMonitor', `Stopped monitoring SHORT position ${removedShort.symbol}`);
   }
 }
 

@@ -6,7 +6,7 @@ import { useStore } from '../store/useStore';
 import { ibkr } from './ibkr';
 import { getQuote } from './alphaVantage';
 import { getBinancePrice, isCryptoSymbol } from './binanceApi';
-import { registerPositionForMonitoring } from './positionMonitor';
+import { registerPositionForMonitoring, registerShortPositionForMonitoring } from './positionMonitor';
 
 // Check if current time is within market hours (9:30 AM - 4:00 PM ET)
 export function isWithinTradingHours(): boolean {
@@ -189,8 +189,20 @@ export async function executeAutoTrade(
             },
           }));
         }
+      } else if (rule.type === 'short') {
+        // SHORT - Open a short position (profit when price goes DOWN)
+        const success = state.openShortPosition(alert.symbol, execution.shares, execution.price);
+        if (!success) {
+          throw new Error('Could not open short position - insufficient margin');
+        }
+      } else if (rule.type === 'cover') {
+        // COVER - Close a short position (buy back shares)
+        const success = state.coverShortPosition(alert.symbol, execution.shares, execution.price);
+        if (!success) {
+          throw new Error('Could not cover short - no short position or insufficient shares');
+        }
       } else {
-        // Sell
+        // Sell (close long position)
         const existingPosition = paperPositions.find((p) => p.symbol === alert.symbol);
         if (!existingPosition || existingPosition.shares < execution.shares) {
           throw new Error('Insufficient shares in paper portfolio');
@@ -206,27 +218,28 @@ export async function executeAutoTrade(
 
         const newShares = existingPosition.shares - execution.shares;
         state.updatePaperPosition(alert.symbol, newShares, existingPosition.avgCost, execution.price);
-      }
 
-      // Add trade to paper portfolio
-      state.addPaperTrade({
-        id: crypto.randomUUID(),
-        symbol: alert.symbol,
-        type: rule.type,
-        shares: execution.shares,
-        price: execution.price,
-        total: execution.total,
-        date: new Date(),
-        notes: `Auto-trade: ${rule.name}`,
-      });
+        // Add trade to paper portfolio
+        state.addPaperTrade({
+          id: crypto.randomUUID(),
+          symbol: alert.symbol,
+          type: rule.type,
+          shares: execution.shares,
+          price: execution.price,
+          total: execution.total,
+          date: new Date(),
+          notes: `Auto-trade: ${rule.name}`,
+        });
+      }
     }
 
     execution.status = 'executed';
 
     // Clear, prominent trade logging
-    const tradeEmoji = rule.type === 'buy' ? '🟢' : '🔴';
+    const tradeEmoji = rule.type === 'buy' ? '🟢' : rule.type === 'short' ? '🔻' : rule.type === 'cover' ? '🔺' : '🔴';
+    const tradeAction = rule.type === 'short' ? 'SHORT' : rule.type === 'cover' ? 'COVER' : rule.type.toUpperCase();
     console.log(`\n${'='.repeat(60)}`);
-    console.log(`${tradeEmoji} AUTO-TRADE EXECUTED: ${rule.type.toUpperCase()} ${alert.symbol}`);
+    console.log(`${tradeEmoji} AUTO-TRADE EXECUTED: ${tradeAction} ${alert.symbol}`);
     console.log(`${'='.repeat(60)}`);
     console.log(`   Rule: ${rule.name}`);
     console.log(`   Shares: ${execution.shares}`);
@@ -236,18 +249,31 @@ export async function executeAutoTrade(
       console.log(`   ---`);
       console.log(`   Stop Loss: $${(execution.price * (1 - (rule.stopLossPercent || 1) / 100)).toFixed(2)} (-${rule.stopLossPercent || 1}%)`);
       console.log(`   Trailing Stop: ${rule.trailingStopPercent || 0.75}% from high`);
+    } else if (rule.type === 'short') {
+      console.log(`   ---`);
+      console.log(`   Stop Loss (cover if price rises): $${(execution.price * (1 + (rule.stopLossPercent || 1) / 100)).toFixed(2)} (+${rule.stopLossPercent || 1}%)`);
+      console.log(`   Trailing Stop: ${rule.trailingStopPercent || 0.75}% from low`);
     }
     console.log(`${'='.repeat(60)}\n`);
 
     // Update rule's last executed timestamp
     useStore.getState().updateTradingRule(rule.id, { lastExecutedAt: new Date() });
 
-    // Register position for take-profit/stop-loss/trailing-stop monitoring if it's a buy with targets
+    // Register position for take-profit/stop-loss/trailing-stop monitoring
     if (rule.type === 'buy' && (rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent)) {
       const state = useStore.getState();
       const position = state.paperPortfolio.positions.find((p) => p.symbol === alert.symbol);
       if (position) {
         registerPositionForMonitoring(position, rule);
+      }
+    }
+
+    // Register SHORT position for monitoring (stop loss and trailing stop work inversely)
+    if (rule.type === 'short' && (rule.stopLossPercent || rule.trailingStopPercent)) {
+      const state = useStore.getState();
+      const shortPosition = state.paperPortfolio.shortPositions?.find((p) => p.symbol === alert.symbol);
+      if (shortPosition) {
+        registerShortPositionForMonitoring(shortPosition, rule);
       }
     }
   } catch (error) {

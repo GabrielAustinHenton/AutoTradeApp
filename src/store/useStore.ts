@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   Position,
+  ShortPosition,
   Trade,
   JournalEntry,
   TradingRule,
@@ -34,6 +35,7 @@ const defaultAutoTradeConfig: AutoTradeConfig = {
 const defaultPaperPortfolio: PaperPortfolio = {
   cashBalance: 10000,
   positions: [],
+  shortPositions: [],  // Short positions for bearish trades
   trades: [],
   startingBalance: 10000,
   createdAt: new Date(),
@@ -88,12 +90,12 @@ const createPatternBuyRule = (
   action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 15,            // 15 min cooldown for day trading
+  cooldownMinutes: 5,             // 5 min cooldown for active trading
   // NO takeProfitPercent - let trailing stop capture the full move
   stopLossPercent: 1,             // 1% stop loss - cut losses fast
   trailingStopPercent: 0.75,      // 0.75% trailing stop - ride wave, exit on slowdown
-  minConfidence: 65,              // Higher confidence for better entries
-  volumeFilter: { enabled: true, minMultiplier: 1.2 },  // Need above-avg volume for momentum
+  minConfidence: 60,              // Lower confidence threshold (patterns already filtered)
+  volumeFilter: { enabled: false, minMultiplier: 1.0 },  // Disabled - don't block on volume
 });
 
 // Create pattern ALERT rule (no auto-trade) - for manual decision making
@@ -112,9 +114,9 @@ const createPatternSellRule = (
   action: { type: 'market', percentOfPortfolio: 100 },
   createdAt: new Date(),
   autoTrade: false,  // DISABLED - trailing stop handles exits, this just alerts
-  cooldownMinutes: 15,
-  minConfidence: 65,
-  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  cooldownMinutes: 5,
+  minConfidence: 60,
+  volumeFilter: { enabled: false, minMultiplier: 1.0 },
 });
 
 // Create a MACD buy rule - day trading optimized
@@ -134,11 +136,11 @@ const createMACDBuyRule = (symbol: string): TradingRule => ({
   action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 15,
+  cooldownMinutes: 5,
   // NO takeProfitPercent - let trailing stop capture the move
   stopLossPercent: 1,
   trailingStopPercent: 0.75,
-  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  volumeFilter: { enabled: false, minMultiplier: 1.0 },
 });
 
 // Create a MACD sell ALERT (no auto-trade) - trailing stop handles exits
@@ -158,18 +160,71 @@ const createMACDSellRule = (symbol: string): TradingRule => ({
   action: { type: 'market', percentOfPortfolio: 100 },
   createdAt: new Date(),
   autoTrade: false,  // DISABLED - trailing stop handles exits
-  cooldownMinutes: 15,
-  volumeFilter: { enabled: true, minMultiplier: 1.2 },
+  cooldownMinutes: 5,
+  volumeFilter: { enabled: false, minMultiplier: 1.0 },
 });
 
-// Generate all rules for a symbol (3 buy patterns + 2 sell patterns + 2 MACD = 7 rules per stock)
+// ============================================================================
+// SHORT SELLING RULES - Profit when price goes DOWN
+// Open short on bearish patterns, cover (buy back) on bullish patterns
+// ============================================================================
+
+// Create a SHORT rule - open short position on bearish patterns
+const createPatternShortRule = (
+  symbol: string,
+  pattern: CandlestickPattern,
+  patternName: string
+): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} ${patternName} Short`,
+  symbol,
+  enabled: true,
+  type: 'short',  // Open short position
+  ruleType: 'pattern',
+  pattern,
+  action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: 5,
+  stopLossPercent: 1,             // 1% stop loss - if price rises 1%, cover the short
+  trailingStopPercent: 0.75,      // 0.75% trailing stop from lowest price
+  minConfidence: 60,
+  volumeFilter: { enabled: false, minMultiplier: 1.0 },
+});
+
+// Create MACD short rule - short on bearish MACD crossover
+const createMACDShortRule = (symbol: string): TradingRule => ({
+  id: crypto.randomUUID(),
+  name: `${symbol} MACD Short`,
+  symbol,
+  enabled: true,
+  type: 'short',
+  ruleType: 'macd',
+  macdSettings: {
+    fastPeriod: 12,
+    slowPeriod: 26,
+    signalPeriod: 9,
+    crossoverType: 'bearish',
+  },
+  action: { type: 'market', targetDollarAmount: 100 },
+  createdAt: new Date(),
+  autoTrade: true,
+  cooldownMinutes: 5,
+  stopLossPercent: 1,
+  trailingStopPercent: 0.75,
+  volumeFilter: { enabled: false, minMultiplier: 1.0 },
+});
+
+// Generate all rules for a symbol
+// Buy rules for bullish patterns, Short rules for bearish patterns
 const createRulesForSymbol = (symbol: string): TradingRule[] => [
-  // Candlestick pattern rules
+  // BUY on bullish patterns
   ...BULLISH_PATTERNS.map(({ pattern, name }) => createPatternBuyRule(symbol, pattern, name)),
-  ...BEARISH_PATTERNS.map(({ pattern, name }) => createPatternSellRule(symbol, pattern, name)),
-  // MACD rules
+  // SHORT on bearish patterns (profit when price drops)
+  ...BEARISH_PATTERNS.map(({ pattern, name }) => createPatternShortRule(symbol, pattern, name)),
+  // MACD rules - buy on bullish crossover, short on bearish crossover
   createMACDBuyRule(symbol),
-  createMACDSellRule(symbol),
+  createMACDShortRule(symbol),
 ];
 
 // Generate all rules for all watchlist stocks
@@ -267,6 +322,10 @@ interface AppState {
   updatePaperPositionPrices: (prices: Map<string, number>) => void;
   executePaperSell: (symbol: string, shares: number, price: number) => boolean;
   recordPortfolioSnapshot: () => void;
+  // Short position actions
+  openShortPosition: (symbol: string, shares: number, price: number) => boolean;
+  coverShortPosition: (symbol: string, shares: number, price: number) => boolean;
+  updateShortPositionPrices: (prices: Map<string, number>) => void;
 
   // Actions - Auto-Trading
   updateAutoTradeConfig: (config: Partial<AutoTradeConfig>) => void;
@@ -740,6 +799,151 @@ export const useStore = create<AppState>()(
           },
         }));
       },
+
+      // Short position actions
+      openShortPosition: (symbol, shares, price) => {
+        const state = useStore.getState();
+        const total = shares * price;
+
+        // For shorting, we receive cash upfront (sell borrowed shares)
+        // But we need margin/collateral - require enough cash to cover potential losses
+        // Require 150% of position value as collateral (standard margin requirement)
+        const marginRequired = total * 1.5;
+        if (state.paperPortfolio.cashBalance < marginRequired) {
+          console.log(`Cannot open short: Insufficient margin. Need $${marginRequired.toFixed(2)}, have $${state.paperPortfolio.cashBalance.toFixed(2)}`);
+          return false;
+        }
+
+        // Check if we already have a short position in this symbol
+        const existingShort = state.paperPortfolio.shortPositions?.find((p) => p.symbol === symbol);
+
+        if (existingShort) {
+          // Add to existing short position
+          const newShares = existingShort.shares + shares;
+          const newEntryPrice = (existingShort.entryPrice * existingShort.shares + price * shares) / newShares;
+
+          set((s) => ({
+            paperPortfolio: {
+              ...s.paperPortfolio,
+              shortPositions: (s.paperPortfolio.shortPositions || []).map((p) =>
+                p.symbol === symbol
+                  ? { ...p, shares: newShares, entryPrice: newEntryPrice, currentPrice: price, lowestPrice: price }
+                  : p
+              ),
+            },
+          }));
+        } else {
+          // Create new short position
+          const newShort: ShortPosition = {
+            id: crypto.randomUUID(),
+            symbol,
+            name: symbol,
+            shares,
+            entryPrice: price,
+            currentPrice: price,
+            lowestPrice: price,
+          };
+
+          set((s) => ({
+            paperPortfolio: {
+              ...s.paperPortfolio,
+              shortPositions: [...(s.paperPortfolio.shortPositions || []), newShort],
+            },
+          }));
+        }
+
+        // Add trade record
+        state.addPaperTrade({
+          id: `trade-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          symbol,
+          type: 'short',
+          shares,
+          price,
+          total,
+          date: new Date(),
+          notes: 'Auto-short (bearish pattern)',
+        });
+
+        return true;
+      },
+
+      coverShortPosition: (symbol, shares, price) => {
+        const state = useStore.getState();
+        const shortPos = state.paperPortfolio.shortPositions?.find((p) => p.symbol === symbol);
+
+        if (!shortPos || shortPos.shares < shares) {
+          console.log(`Cannot cover: No short position in ${symbol} or insufficient shares`);
+          return false;
+        }
+
+        const total = shares * price;
+        // P/L = (entry price - current price) * shares
+        // Positive when price dropped, negative when price rose
+        const profitLoss = (shortPos.entryPrice - price) * shares;
+
+        // Update cash: we buy back shares to return them
+        // Net effect: receive entry price cash, pay current price cash
+        // So cash change = profitLoss (can be negative if price went up)
+        set((s) => ({
+          paperPortfolio: {
+            ...s.paperPortfolio,
+            cashBalance: s.paperPortfolio.cashBalance + profitLoss,
+          },
+        }));
+
+        const newShares = shortPos.shares - shares;
+
+        if (newShares <= 0) {
+          // Close entire position
+          set((s) => ({
+            paperPortfolio: {
+              ...s.paperPortfolio,
+              shortPositions: (s.paperPortfolio.shortPositions || []).filter((p) => p.symbol !== symbol),
+            },
+          }));
+        } else {
+          // Reduce position
+          set((s) => ({
+            paperPortfolio: {
+              ...s.paperPortfolio,
+              shortPositions: (s.paperPortfolio.shortPositions || []).map((p) =>
+                p.symbol === symbol ? { ...p, shares: newShares, currentPrice: price } : p
+              ),
+            },
+          }));
+        }
+
+        // Add trade record
+        state.addPaperTrade({
+          id: `trade-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          symbol,
+          type: 'cover',
+          shares,
+          price,
+          total,
+          date: new Date(),
+          notes: `Cover short (P/L: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)})`,
+        });
+
+        return true;
+      },
+
+      updateShortPositionPrices: (prices) =>
+        set((state) => ({
+          paperPortfolio: {
+            ...state.paperPortfolio,
+            shortPositions: (state.paperPortfolio.shortPositions || []).map((position) => {
+              const newPrice = prices.get(position.symbol) || position.currentPrice;
+              // Track lowest price for trailing stop (shorts profit when price goes down)
+              const lowestPrice = Math.min(position.lowestPrice || newPrice, newPrice);
+              return {
+                ...position,
+                currentPrice: newPrice,
+                lowestPrice,
+              };
+            }),
+          },
+        })),
 
       // Auto-Trading actions
       updateAutoTradeConfig: (config) =>

@@ -177,12 +177,18 @@ export function usePatternScanner() {
 
         lastScannedRef.current.set(`${symbol}-${pattern.pattern}`, alertKey);
 
+        // Map rule type to alert signal (cover maps to buy since it's a buy action)
+        let alertSignal: 'buy' | 'sell' | 'short' = pattern.signal;
+        if (matchingRule?.type === 'buy') alertSignal = 'buy';
+        else if (matchingRule?.type === 'sell' || matchingRule?.type === 'cover') alertSignal = 'sell';
+        else if (matchingRule?.type === 'short') alertSignal = 'short';
+
         const alert: Alert = {
           id: crypto.randomUUID(),
           type: 'pattern',
           symbol,
           message: `${PATTERN_INFO[pattern.pattern].name} pattern detected on ${symbol}`,
-          signal: matchingRule?.type || pattern.signal,
+          signal: alertSignal,
           pattern: pattern.pattern,
           ruleId: matchingRule?.id,
           confidence: pattern.confidence,
@@ -230,12 +236,18 @@ export function usePatternScanner() {
 
             console.log(`MACD ${crossoverType} crossover detected for ${symbol}: MACD=${macd.macdLine}, Signal=${macd.signalLine}`);
 
+            // Map rule type to alert signal
+            let macdSignal: 'buy' | 'sell' | 'short' = crossover.signal;
+            if (rule.type === 'buy') macdSignal = 'buy';
+            else if (rule.type === 'sell' || rule.type === 'cover') macdSignal = 'sell';
+            else if (rule.type === 'short') macdSignal = 'short';
+
             const alert: Alert = {
               id: crypto.randomUUID(),
               type: 'pattern',
               symbol,
               message: `MACD ${crossoverType} crossover on ${symbol} (MACD: ${macd.macdLine.toFixed(4)}, Signal: ${macd.signalLine.toFixed(4)})`,
-              signal: crossover.signal,
+              signal: macdSignal,
               ruleId: rule.id,
               confidence: 75, // MACD crossovers are generally reliable
               timestamp: new Date(),
