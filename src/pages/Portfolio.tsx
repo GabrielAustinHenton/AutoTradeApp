@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';
-import type { Position } from '../types';
+import type { Position, ShortPosition } from '../types';
 import { getQuote } from '../services/alphaVantage';
 import { exportToCSV, exportToJSON, exportToPrintableHTML } from '../utils/exportPortfolio';
 
@@ -16,7 +16,7 @@ const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export function Portfolio() {
   const location = useLocation();
-  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, updatePaperPositionPrices, ibkrConnected } = useStore();
+  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, updatePaperPositionPrices, updateShortPositionPrices, ibkrConnected } = useStore();
   const [activeTab, setActiveTab] = useState<'paper' | 'live'>(tradingMode);
   const isLiveNotConnected = activeTab === 'live' && !ibkrConnected;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -37,32 +37,40 @@ export function Portfolio() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch live prices for paper positions
+  // Fetch live prices for paper positions (long and short)
   const refreshPaperPrices = useCallback(async () => {
-    if (paperPortfolio.positions.length === 0) return;
+    const shortPositions = paperPortfolio.shortPositions || [];
+    if (paperPortfolio.positions.length === 0 && shortPositions.length === 0) return;
 
     setIsRefreshing(true);
     const prices = new Map<string, number>();
 
-    for (const position of paperPortfolio.positions) {
+    // Collect all unique symbols from both long and short positions
+    const allSymbols = new Set([
+      ...paperPortfolio.positions.map(p => p.symbol),
+      ...shortPositions.map(p => p.symbol)
+    ]);
+
+    for (const symbol of allSymbols) {
       try {
-        const quote = await getQuote(position.symbol);
+        const quote = await getQuote(symbol);
         if (quote && quote.price) {
-          prices.set(position.symbol, quote.price);
+          prices.set(symbol, quote.price);
         }
         // Small delay to avoid rate limiting
         await new Promise((r) => setTimeout(r, 300));
       } catch (err) {
-        console.error(`Failed to fetch price for ${position.symbol}:`, err);
+        console.error(`Failed to fetch price for ${symbol}:`, err);
       }
     }
 
     if (prices.size > 0) {
       updatePaperPositionPrices(prices);
+      updateShortPositionPrices(prices);
       setLastUpdated(new Date());
     }
     setIsRefreshing(false);
-  }, [paperPortfolio.positions, updatePaperPositionPrices]);
+  }, [paperPortfolio.positions, paperPortfolio.shortPositions, updatePaperPositionPrices, updateShortPositionPrices]);
 
   // Auto-refresh paper prices every time this page is navigated to
   useEffect(() => {
@@ -70,16 +78,18 @@ export function Portfolio() {
     hasRefreshedRef.current = false;
   }, [location.key]);
 
+  const hasAnyPositions = paperPortfolio.positions.length > 0 || (paperPortfolio.shortPositions?.length || 0) > 0;
+
   useEffect(() => {
-    if (!hasRefreshedRef.current && activeTab === 'paper' && paperPortfolio.positions.length > 0) {
+    if (!hasRefreshedRef.current && activeTab === 'paper' && hasAnyPositions) {
       hasRefreshedRef.current = true;
       refreshPaperPrices();
     }
-  }, [location.key, activeTab, paperPortfolio.positions.length, refreshPaperPrices]);
+  }, [location.key, activeTab, hasAnyPositions, refreshPaperPrices]);
 
   // Also refresh when switching tabs
   useEffect(() => {
-    if (activeTab === 'paper' && paperPortfolio.positions.length > 0) {
+    if (activeTab === 'paper' && hasAnyPositions) {
       refreshPaperPrices();
     }
     // Only run when activeTab changes, not on every refreshPaperPrices change
@@ -94,8 +104,11 @@ export function Portfolio() {
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
   const totalPortfolioValue = displayCash !== null ? totalPositionValue + displayCash : null;
 
-  // Paper portfolio specific stats
-  const paperTotalValue = paperPortfolio.positions.reduce((sum, p) => sum + p.totalValue, 0) + paperPortfolio.cashBalance;
+  // Paper portfolio specific stats (including unrealized short P/L)
+  const shortUnrealizedPnL = (paperPortfolio.shortPositions || []).reduce((sum, s) => {
+    return sum + (s.entryPrice - s.currentPrice) * s.shares;
+  }, 0);
+  const paperTotalValue = paperPortfolio.positions.reduce((sum, p) => sum + p.totalValue, 0) + paperPortfolio.cashBalance + shortUnrealizedPnL;
   const paperPnL = paperTotalValue - paperPortfolio.startingBalance;
   const paperPnLPercent = (paperPnL / paperPortfolio.startingBalance) * 100;
 
@@ -252,7 +265,7 @@ export function Portfolio() {
       )}
 
       {/* Refresh Prices Button */}
-      {isShowingPaper && paperPortfolio.positions.length > 0 && (
+      {isShowingPaper && hasAnyPositions && (
         <div className="mb-6 flex items-center gap-4">
           <button
             onClick={refreshPaperPrices}
@@ -298,10 +311,62 @@ export function Portfolio() {
         </div>
       )}
 
+      {/* Short Positions Section */}
+      {isShowingPaper && (paperPortfolio.shortPositions?.length || 0) > 0 && (
+        <div className="bg-slate-800 rounded-xl p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <span className="text-red-400">Short Positions</span>
+            <span className="text-xs bg-red-900 text-red-300 px-2 py-1 rounded">BEARISH</span>
+          </h2>
+          <p className="text-sm text-slate-400 mb-4">
+            Short positions profit when prices go DOWN. You've borrowed shares and sold them, hoping to buy back cheaper.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-slate-400 border-b border-slate-700">
+                  <th className="pb-3">Symbol</th>
+                  <th className="pb-3">Shares</th>
+                  <th className="pb-3">Entry Price</th>
+                  <th className="pb-3">Current</th>
+                  <th className="pb-3">Lowest</th>
+                  <th className="pb-3">Unrealized P/L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(paperPortfolio.shortPositions || []).map((short: ShortPosition) => {
+                  const profitLoss = (short.entryPrice - short.currentPrice) * short.shares;
+                  const profitLossPercent = ((short.entryPrice - short.currentPrice) / short.entryPrice) * 100;
+                  return (
+                    <tr key={short.id} className="border-b border-slate-700">
+                      <td className="py-4">
+                        <div className="font-semibold flex items-center gap-2">
+                          {short.symbol}
+                          <span className="text-xs bg-red-900/50 text-red-400 px-1.5 py-0.5 rounded">SHORT</span>
+                        </div>
+                      </td>
+                      <td className="py-4">{short.shares}</td>
+                      <td className="py-4">${short.entryPrice.toFixed(2)}</td>
+                      <td className="py-4">${short.currentPrice.toFixed(2)}</td>
+                      <td className="py-4 text-slate-400">${(short.lowestPrice || short.entryPrice).toFixed(2)}</td>
+                      <td className="py-4">
+                        <span className={profitLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                          {profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)} ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2 bg-slate-800 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-4">
-            {isShowingPaper ? 'Paper Holdings' : 'Live Holdings'}
+            {isShowingPaper ? 'Long Positions' : 'Live Holdings'}
           </h2>
           {displayPositions.length === 0 ? (
             <div className="text-center py-8">
@@ -444,7 +509,11 @@ export function Portfolio() {
                       <span className={`px-2 py-1 rounded text-xs ${
                         trade.type === 'buy'
                           ? 'bg-emerald-900 text-emerald-300'
-                          : 'bg-red-900 text-red-300'
+                          : trade.type === 'sell'
+                          ? 'bg-red-900 text-red-300'
+                          : trade.type === 'short'
+                          ? 'bg-purple-900 text-purple-300'
+                          : 'bg-amber-900 text-amber-300'
                       }`}>
                         {trade.type.toUpperCase()}
                       </span>

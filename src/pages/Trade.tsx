@@ -27,6 +27,8 @@ export function Trade() {
     paperPortfolio,
     addPaperTrade,
     updatePaperPosition,
+    openShortPosition,
+    coverShortPosition,
   } = useStore();
 
   // Use paper portfolio when in paper mode
@@ -36,8 +38,9 @@ export function Trade() {
   const [symbol, setSymbol] = useState('');
   const [shares, setShares] = useState('');
   const [price, setPrice] = useState('');
-  const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
+  const [tradeType, setTradeType] = useState<'buy' | 'sell' | 'short' | 'cover'>('buy');
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+  const shortPositions = paperPortfolio.shortPositions || [];
   const [notes, setNotes] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -116,15 +119,19 @@ export function Trade() {
         setTimeout(() => syncFromIBKR(), 2000);
       } else {
         // Paper trading mode
+        const existingPosition = activePositions.find(
+          (p) => p.symbol === symbol.toUpperCase()
+        );
+        const existingShort = shortPositions.find(
+          (p) => p.symbol === symbol.toUpperCase()
+        );
+
+        // Validation based on trade type
         if (tradeType === 'buy' && total > activeCashBalance) {
           setOrderStatus({ type: 'error', message: 'Insufficient funds' });
           setSubmitting(false);
           return;
         }
-
-        const existingPosition = activePositions.find(
-          (p) => p.symbol === symbol.toUpperCase()
-        );
 
         if (tradeType === 'sell') {
           if (!existingPosition || existingPosition.shares < sharesNum) {
@@ -134,21 +141,25 @@ export function Trade() {
           }
         }
 
-        const trade: Trade = {
-          id: crypto.randomUUID(),
-          symbol: symbol.toUpperCase(),
-          type: tradeType,
-          shares: sharesNum,
-          price: priceNum,
-          total,
-          date: new Date(),
-          notes: notes || undefined,
-        };
+        if (tradeType === 'short') {
+          // Need 150% margin for shorts
+          const marginRequired = total * 1.5;
+          if (marginRequired > activeCashBalance) {
+            setOrderStatus({ type: 'error', message: `Insufficient margin. Need $${marginRequired.toFixed(2)} (150% of position)` });
+            setSubmitting(false);
+            return;
+          }
+        }
 
-        // Add trade to paper portfolio
-        addPaperTrade(trade);
+        if (tradeType === 'cover') {
+          if (!existingShort || existingShort.shares < sharesNum) {
+            setOrderStatus({ type: 'error', message: 'No short position to cover or insufficient shares' });
+            setSubmitting(false);
+            return;
+          }
+        }
 
-        // Update paper positions
+        // Execute paper trade based on type
         if (tradeType === 'buy') {
           // Update paper cash balance
           useStore.setState((state) => ({
@@ -166,7 +177,24 @@ export function Trade() {
           } else {
             updatePaperPosition(symbol.toUpperCase(), sharesNum, priceNum, priceNum);
           }
-        } else {
+
+          const trade: Trade = {
+            id: crypto.randomUUID(),
+            symbol: symbol.toUpperCase(),
+            type: 'buy',
+            shares: sharesNum,
+            price: priceNum,
+            total,
+            date: new Date(),
+            notes: notes || undefined,
+          };
+          addPaperTrade(trade);
+
+          setOrderStatus({
+            type: 'success',
+            message: `Paper trade: Bought ${sharesNum} shares of ${symbol.toUpperCase()}`,
+          });
+        } else if (tradeType === 'sell') {
           // Sell - update paper cash balance
           useStore.setState((state) => ({
             paperPortfolio: {
@@ -182,12 +210,51 @@ export function Trade() {
             existingPosition!.avgCost,
             priceNum
           );
-        }
 
-        setOrderStatus({
-          type: 'success',
-          message: `Paper trade: ${tradeType === 'buy' ? 'Bought' : 'Sold'} ${sharesNum} shares of ${symbol.toUpperCase()}`,
-        });
+          const trade: Trade = {
+            id: crypto.randomUUID(),
+            symbol: symbol.toUpperCase(),
+            type: 'sell',
+            shares: sharesNum,
+            price: priceNum,
+            total,
+            date: new Date(),
+            notes: notes || undefined,
+          };
+          addPaperTrade(trade);
+
+          setOrderStatus({
+            type: 'success',
+            message: `Paper trade: Sold ${sharesNum} shares of ${symbol.toUpperCase()}`,
+          });
+        } else if (tradeType === 'short') {
+          // Short sell
+          const success = openShortPosition(symbol.toUpperCase(), sharesNum, priceNum);
+          if (!success) {
+            setOrderStatus({ type: 'error', message: 'Failed to open short position' });
+            setSubmitting(false);
+            return;
+          }
+
+          setOrderStatus({
+            type: 'success',
+            message: `Paper trade: Shorted ${sharesNum} shares of ${symbol.toUpperCase()} @ $${priceNum.toFixed(2)}`,
+          });
+        } else if (tradeType === 'cover') {
+          // Cover short
+          const success = coverShortPosition(symbol.toUpperCase(), sharesNum, priceNum);
+          if (!success) {
+            setOrderStatus({ type: 'error', message: 'Failed to cover short position' });
+            setSubmitting(false);
+            return;
+          }
+
+          const profitLoss = (existingShort!.entryPrice - priceNum) * sharesNum;
+          setOrderStatus({
+            type: 'success',
+            message: `Paper trade: Covered ${sharesNum} shares of ${symbol.toUpperCase()} (P/L: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)})`,
+          });
+        }
       }
 
       // Reset form
@@ -229,11 +296,11 @@ export function Trade() {
           <div className="bg-slate-800 rounded-xl p-6">
             <h2 className="text-xl font-semibold mb-4">Place Order</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="flex gap-4">
+              <div className="grid grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => setTradeType('buy')}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`py-3 rounded-lg font-semibold transition-colors ${
                     tradeType === 'buy'
                       ? 'bg-emerald-600 text-white'
                       : 'bg-slate-700 text-slate-300'
@@ -244,7 +311,7 @@ export function Trade() {
                 <button
                   type="button"
                   onClick={() => setTradeType('sell')}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`py-3 rounded-lg font-semibold transition-colors ${
                     tradeType === 'sell'
                       ? 'bg-red-600 text-white'
                       : 'bg-slate-700 text-slate-300'
@@ -252,7 +319,37 @@ export function Trade() {
                 >
                   Sell
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setTradeType('short')}
+                  className={`py-3 rounded-lg font-semibold transition-colors ${
+                    tradeType === 'short'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700 text-slate-300'
+                  }`}
+                  title="Short sell - profit when price drops"
+                >
+                  Short
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTradeType('cover')}
+                  className={`py-3 rounded-lg font-semibold transition-colors ${
+                    tradeType === 'cover'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-slate-700 text-slate-300'
+                  }`}
+                  title="Cover - close short position"
+                >
+                  Cover
+                </button>
               </div>
+              {tradeType === 'short' && (
+                <p className="text-xs text-purple-400 mt-1">Short selling: Borrow shares and sell them, profit when price drops</p>
+              )}
+              {tradeType === 'cover' && (
+                <p className="text-xs text-amber-400 mt-1">Cover: Buy back shares to close your short position</p>
+              )}
 
               <div>
                 <label className="block text-sm text-slate-400 mb-2">Order Type</label>
@@ -430,10 +527,18 @@ export function Trade() {
                 className={`w-full py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                   tradeType === 'buy'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
-                    : 'bg-red-600 hover:bg-red-700'
+                    : tradeType === 'sell'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : tradeType === 'short'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : 'bg-amber-600 hover:bg-amber-700'
                 }`}
               >
-                {submitting ? 'Submitting...' : `${tradeType === 'buy' ? 'Buy' : 'Sell'} ${symbol.toUpperCase() || 'Stock'}`}
+                {submitting ? 'Submitting...' : `${
+                  tradeType === 'buy' ? 'Buy' :
+                  tradeType === 'sell' ? 'Sell' :
+                  tradeType === 'short' ? 'Short' : 'Cover'
+                } ${symbol.toUpperCase() || 'Stock'}`}
               </button>
             </form>
           </div>
@@ -491,15 +596,21 @@ export function Trade() {
                 </span>
               </div>
               <div className="flex justify-between p-4 bg-slate-700 rounded-lg">
-                <span className="text-slate-400">Positions</span>
+                <span className="text-slate-400">Long Positions</span>
                 <span className="font-semibold">{activePositions.filter(p => p.shares > 0).length}</span>
               </div>
+              {!isLiveMode && (
+                <div className="flex justify-between p-4 bg-slate-700 rounded-lg">
+                  <span className="text-slate-400">Short Positions</span>
+                  <span className="font-semibold text-purple-400">{shortPositions.length}</span>
+                </div>
+              )}
             </div>
 
-            <h3 className="text-lg font-semibold mt-6 mb-4">Quick Trade</h3>
+            <h3 className="text-lg font-semibold mt-6 mb-4">Quick Sell (Long Positions)</h3>
             <div className="space-y-2">
               {activePositions.filter(p => p.shares > 0).length === 0 ? (
-                <p className="text-slate-400 text-sm">No positions to quick trade</p>
+                <p className="text-slate-400 text-sm">No long positions</p>
               ) : (
                 activePositions.filter(p => p.shares > 0).map((position) => (
                   <div
@@ -527,6 +638,47 @@ export function Trade() {
                 ))
               )}
             </div>
+
+            {/* Quick Cover for Short Positions */}
+            {!isLiveMode && shortPositions.length > 0 && (
+              <>
+                <h3 className="text-lg font-semibold mt-6 mb-4 text-purple-400">Quick Cover (Short Positions)</h3>
+                <div className="space-y-2">
+                  {shortPositions.map((short) => {
+                    const profitLoss = (short.entryPrice - short.currentPrice) * short.shares;
+                    const profitLossPercent = ((short.entryPrice - short.currentPrice) / short.entryPrice) * 100;
+                    return (
+                      <div
+                        key={short.id}
+                        className="flex justify-between items-center p-3 bg-slate-700 rounded-lg border-l-2 border-purple-500"
+                      >
+                        <div>
+                          <span className="font-semibold">{short.symbol}</span>
+                          <span className="text-xs bg-purple-900/50 text-purple-400 px-1.5 py-0.5 rounded ml-2">SHORT</span>
+                          <span className="text-sm text-slate-400 ml-2">
+                            {short.shares} shares @ ${short.entryPrice.toFixed(2)}
+                          </span>
+                          <div className={`text-xs mt-1 ${profitLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            P/L: {profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)} ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(1)}%)
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSymbol(short.symbol);
+                            setShares(short.shares.toString());
+                            setOrderType('market');
+                            setTradeType('cover');
+                          }}
+                          className="text-sm text-amber-400 hover:text-amber-300"
+                        >
+                          Cover All
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -18,7 +18,7 @@ export function Rules() {
   const [ruleType, setRuleType] = useState<'price' | 'pattern' | 'macd'>('pattern');
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('AAPL');
-  const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
+  const [tradeType, setTradeType] = useState<'buy' | 'sell' | 'short'>('buy');
 
   // Pattern rule state
   const [selectedPattern, setSelectedPattern] = useState<CandlestickPattern>('hammer');
@@ -274,9 +274,9 @@ export function Rules() {
               </div>
             </div>
 
-            {/* Buy/Sell Selection - hidden for MACD since crossover type determines it */}
+            {/* Buy/Sell/Short Selection - hidden for MACD since crossover type determines it */}
             {ruleType !== 'macd' && (
-              <div className="flex gap-4">
+              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setTradeType('buy')}
@@ -286,7 +286,7 @@ export function Rules() {
                       : 'bg-slate-700 text-slate-300'
                   }`}
                 >
-                  Buy Rule
+                  Buy
                 </button>
                 <button
                   type="button"
@@ -297,9 +297,24 @@ export function Rules() {
                       : 'bg-slate-700 text-slate-300'
                   }`}
                 >
-                  Sell Rule
+                  Sell
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTradeType('short')}
+                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                    tradeType === 'short'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700 text-slate-300'
+                  }`}
+                  title="Short sell - profit when price drops"
+                >
+                  Short
                 </button>
               </div>
+            )}
+            {tradeType === 'short' && (
+              <p className="text-xs text-purple-400">Short rules open a short position when the pattern is detected. You profit when price drops.</p>
             )}
 
             {/* Pattern Selection */}
@@ -723,7 +738,11 @@ export function Rules() {
                         className={`text-xs px-2 py-1 rounded ${
                           rule.type === 'buy'
                             ? 'bg-emerald-900 text-emerald-300'
-                            : 'bg-red-900 text-red-300'
+                            : rule.type === 'sell'
+                            ? 'bg-red-900 text-red-300'
+                            : rule.type === 'short'
+                            ? 'bg-purple-900 text-purple-300'
+                            : 'bg-amber-900 text-amber-300'
                         }`}
                       >
                         {rule.type.toUpperCase()}
@@ -837,7 +856,11 @@ export function Rules() {
                         className={`text-xs px-2 py-1 rounded ${
                           rule.type === 'buy'
                             ? 'bg-emerald-900 text-emerald-300'
-                            : 'bg-red-900 text-red-300'
+                            : rule.type === 'sell'
+                            ? 'bg-red-900 text-red-300'
+                            : rule.type === 'short'
+                            ? 'bg-purple-900 text-purple-300'
+                            : 'bg-amber-900 text-amber-300'
                         }`}
                       >
                         {rule.type.toUpperCase()}
@@ -951,7 +974,11 @@ export function Rules() {
                         className={`text-xs px-2 py-1 rounded ${
                           rule.type === 'buy'
                             ? 'bg-emerald-900 text-emerald-300'
-                            : 'bg-red-900 text-red-300'
+                            : rule.type === 'sell'
+                            ? 'bg-red-900 text-red-300'
+                            : rule.type === 'short'
+                            ? 'bg-purple-900 text-purple-300'
+                            : 'bg-amber-900 text-amber-300'
                         }`}
                       >
                         {rule.type.toUpperCase()}
