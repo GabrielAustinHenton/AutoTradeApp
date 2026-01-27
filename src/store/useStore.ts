@@ -295,6 +295,7 @@ interface AppState {
   updateTradingRule: (id: string, updates: Partial<TradingRule>) => void;
   removeTradingRule: (id: string) => void;
   toggleTradingRule: (id: string) => void;
+  resetTradingRules: () => void; // Reset to default rules (includes short selling rules)
 
   // Actions - Journal
   addJournalEntry: (entry: JournalEntry) => void;
@@ -537,6 +538,11 @@ export const useStore = create<AppState>()(
           tradingRules: state.tradingRules.map((r) =>
             r.id === id ? { ...r, enabled: !r.enabled } : r
           ),
+        })),
+
+      resetTradingRules: () =>
+        set((state) => ({
+          tradingRules: state.watchlist.flatMap(createRulesForSymbol),
         })),
 
       // Journal actions

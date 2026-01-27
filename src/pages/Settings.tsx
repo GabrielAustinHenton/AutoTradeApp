@@ -19,6 +19,7 @@ export function Settings() {
     setTradingMode,
     paperPortfolio,
     resetPaperPortfolio,
+    resetTradingRules,
     autoTradeConfig,
     updateAutoTradeConfig,
     tradingRules,
@@ -285,6 +286,27 @@ export function Settings() {
                 </button>
               </div>
               <p className="text-xs text-red-400 mt-2">Warning: This will clear all positions and trade history</p>
+            </div>
+
+            {/* Reset Trading Rules */}
+            <div className="border-t border-slate-600 pt-4 mt-4">
+              <h3 className="font-semibold mb-2">Trading Rules</h3>
+              <p className="text-sm text-slate-400 mb-2">
+                Reset all trading rules to defaults. This includes SHORT rules for bearish patterns.
+              </p>
+              <button
+                onClick={() => {
+                  if (confirm('Reset all trading rules to defaults? This will delete your custom rules and create new ones with BUY rules for bullish patterns and SHORT rules for bearish patterns.')) {
+                    resetTradingRules();
+                  }
+                }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm"
+              >
+                Reset Rules (Include Shorts)
+              </button>
+              <p className="text-xs text-purple-400 mt-2">
+                Current rules: {tradingRules.length} total, {tradingRules.filter(r => r.type === 'short').length} short rules
+              </p>
             </div>
           </div>
         )}
