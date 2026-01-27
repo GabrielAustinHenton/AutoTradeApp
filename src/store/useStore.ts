@@ -48,29 +48,31 @@ const defaultCryptoPortfolio: CryptoPortfolio = {
 };
 
 // ============================================================================
-// RESEARCH-BACKED TRADING RULES
-// Based on QuantifiedStrategies backtests of 75 candlestick patterns
-// - Only patterns with >55% win rate and profit factor >1.5 included
-// - $100 fixed position sizing (limits risk per trade)
-// - 1:2 risk-reward ratio (2% stop loss, 4% take profit)
-// - 2% trailing stop to lock in gains
+// DAY TRADING MOMENTUM RULES
+// Optimized for riding bullish breakouts and exiting when momentum slows
+// - Tight trailing stop (0.75%) to lock in gains without giving back profits
+// - Tight stop loss (1%) to cut losses quickly
+// - NO fixed take profit - let trailing stop capture the full move
+// - Pattern sells DISABLED - trailing stop handles all exits
 // ============================================================================
 
-// Proven bullish patterns (buy signals) - from backtest data
+// Bullish patterns for momentum entry
 const BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
-  { pattern: 'inverted_hammer', name: 'Inverted Hammer' },  // 60% win rate, best performer
-  { pattern: 'hammer', name: 'Hammer' },                    // Classic reversal, ~57% win rate
-  { pattern: 'bullish_engulfing', name: 'Bullish Engulfing' }, // 55-65% win rate
+  { pattern: 'bullish_breakout', name: 'Bullish Breakout' },   // Momentum breakout - best for day trading
+  { pattern: 'bullish_engulfing', name: 'Bullish Engulfing' }, // Strong reversal signal
+  { pattern: 'hammer', name: 'Hammer' },                        // Bottom reversal
+  { pattern: 'inverted_hammer', name: 'Inverted Hammer' },      // Potential reversal
 ];
 
-// Proven bearish patterns (sell signals)
+// Bearish patterns - DISABLED for auto-sell (trailing stop handles exits)
 const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
-  { pattern: 'bearish_engulfing', name: 'Bearish Engulfing' }, // Strong reversal pattern
-  { pattern: 'shooting_star', name: 'Shooting Star' },      // Reliable bearish reversal
-  { pattern: 'evening_star', name: 'Evening Star' },        // Strong 3-candle reversal
+  { pattern: 'bearish_engulfing', name: 'Bearish Engulfing' },
+  { pattern: 'shooting_star', name: 'Shooting Star' },
+  { pattern: 'evening_star', name: 'Evening Star' },
+  { pattern: 'bearish_breakout', name: 'Bearish Breakout' },
 ];
 
-// Create a candlestick pattern buy rule - $100 position, 1:2 risk-reward
+// Create a DAY TRADING buy rule - tight trailing stop, no fixed take profit
 const createPatternBuyRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -86,36 +88,36 @@ const createPatternBuyRule = (
   action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 30,           // Reduced cooldown for more opportunities
-  takeProfitPercent: 4,          // 4% take profit
-  stopLossPercent: 2,            // 2% stop loss (1:2 risk-reward)
-  trailingStopPercent: 2,        // 2% trailing stop to lock in gains
-  minConfidence: 60,             // Lowered - patterns already filtered to good ones
-  volumeFilter: { enabled: true, minMultiplier: 1.1 },  // Slightly lower for more trades
+  cooldownMinutes: 15,            // 15 min cooldown for day trading
+  // NO takeProfitPercent - let trailing stop capture the full move
+  stopLossPercent: 1,             // 1% stop loss - cut losses fast
+  trailingStopPercent: 0.75,      // 0.75% trailing stop - ride wave, exit on slowdown
+  minConfidence: 65,              // Higher confidence for better entries
+  volumeFilter: { enabled: true, minMultiplier: 1.2 },  // Need above-avg volume for momentum
 });
 
-// Create a candlestick pattern sell rule - sells all holdings
+// Create pattern ALERT rule (no auto-trade) - for manual decision making
 const createPatternSellRule = (
   symbol: string,
   pattern: CandlestickPattern,
   patternName: string
 ): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Sell`,
+  name: `${symbol} ${patternName} Alert`,
   symbol,
   enabled: true,
   type: 'sell',
   ruleType: 'pattern',
   pattern,
-  action: { type: 'market', percentOfPortfolio: 100 },  // Sell all
+  action: { type: 'market', percentOfPortfolio: 100 },
   createdAt: new Date(),
-  autoTrade: true,
-  cooldownMinutes: 30,
-  minConfidence: 60,
-  volumeFilter: { enabled: true, minMultiplier: 1.1 },
+  autoTrade: false,  // DISABLED - trailing stop handles exits, this just alerts
+  cooldownMinutes: 15,
+  minConfidence: 65,
+  volumeFilter: { enabled: true, minMultiplier: 1.2 },
 });
 
-// Create a MACD buy rule - $100 position, 1:2 risk-reward
+// Create a MACD buy rule - day trading optimized
 const createMACDBuyRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Buy`,
@@ -132,17 +134,17 @@ const createMACDBuyRule = (symbol: string): TradingRule => ({
   action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 30,
-  takeProfitPercent: 4,
-  stopLossPercent: 2,
-  trailingStopPercent: 2,
-  volumeFilter: { enabled: true, minMultiplier: 1.1 },
+  cooldownMinutes: 15,
+  // NO takeProfitPercent - let trailing stop capture the move
+  stopLossPercent: 1,
+  trailingStopPercent: 0.75,
+  volumeFilter: { enabled: true, minMultiplier: 1.2 },
 });
 
-// Create a MACD sell rule - sells all holdings
+// Create a MACD sell ALERT (no auto-trade) - trailing stop handles exits
 const createMACDSellRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} MACD Sell`,
+  name: `${symbol} MACD Sell Alert`,
   symbol,
   enabled: true,
   type: 'sell',
@@ -153,11 +155,11 @@ const createMACDSellRule = (symbol: string): TradingRule => ({
     signalPeriod: 9,
     crossoverType: 'bearish',
   },
-  action: { type: 'market', percentOfPortfolio: 100 },  // Sell all
+  action: { type: 'market', percentOfPortfolio: 100 },
   createdAt: new Date(),
-  autoTrade: true,
-  cooldownMinutes: 30,
-  volumeFilter: { enabled: true, minMultiplier: 1.1 },
+  autoTrade: false,  // DISABLED - trailing stop handles exits
+  cooldownMinutes: 15,
+  volumeFilter: { enabled: true, minMultiplier: 1.2 },
 });
 
 // Generate all rules for a symbol (3 buy patterns + 2 sell patterns + 2 MACD = 7 rules per stock)

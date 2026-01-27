@@ -168,6 +168,19 @@ export async function executeAutoTrade(
         } else {
           state.updatePaperPosition(alert.symbol, execution.shares, execution.price, execution.price);
         }
+
+        // Initialize highestPrice for new position (for trailing stop)
+        const newPosition = useStore.getState().paperPortfolio.positions.find((p) => p.symbol === alert.symbol);
+        if (newPosition && !newPosition.highestPrice) {
+          useStore.setState((s) => ({
+            paperPortfolio: {
+              ...s.paperPortfolio,
+              positions: s.paperPortfolio.positions.map((p) =>
+                p.symbol === alert.symbol ? { ...p, highestPrice: execution.price } : p
+              ),
+            },
+          }));
+        }
       } else {
         // Sell
         const existingPosition = paperPositions.find((p) => p.symbol === alert.symbol);
@@ -201,6 +214,22 @@ export async function executeAutoTrade(
     }
 
     execution.status = 'executed';
+
+    // Clear, prominent trade logging
+    const tradeEmoji = rule.type === 'buy' ? '🟢' : '🔴';
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`${tradeEmoji} AUTO-TRADE EXECUTED: ${rule.type.toUpperCase()} ${alert.symbol}`);
+    console.log(`${'='.repeat(60)}`);
+    console.log(`   Rule: ${rule.name}`);
+    console.log(`   Shares: ${execution.shares}`);
+    console.log(`   Price: $${execution.price.toFixed(2)}`);
+    console.log(`   Total: $${execution.total.toFixed(2)}`);
+    if (rule.type === 'buy') {
+      console.log(`   ---`);
+      console.log(`   Stop Loss: $${(execution.price * (1 - (rule.stopLossPercent || 1) / 100)).toFixed(2)} (-${rule.stopLossPercent || 1}%)`);
+      console.log(`   Trailing Stop: ${rule.trailingStopPercent || 0.75}% from high`);
+    }
+    console.log(`${'='.repeat(60)}\n`);
 
     // Update rule's last executed timestamp
     useStore.getState().updateTradingRule(rule.id, { lastExecutedAt: new Date() });

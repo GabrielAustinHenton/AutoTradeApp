@@ -122,6 +122,20 @@ async function executeAutoSell(
   const profitLossPercent = ((currentPrice - target.avgCost) / target.avgCost) * 100;
 
   const reasonLabel = reason === 'take_profit' ? 'TAKE PROFIT' : reason === 'trailing_stop' ? 'TRAILING STOP' : 'STOP LOSS';
+  const plEmoji = profitLoss >= 0 ? '💰' : '📉';
+  const plColor = profitLoss >= 0 ? 'profit' : 'loss';
+
+  // Clear, prominent P/L logging
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`${plEmoji} TRADE CLOSED: ${target.symbol} - ${reasonLabel}`);
+  console.log(`${'='.repeat(60)}`);
+  console.log(`   Shares Sold: ${sharesToSell}`);
+  console.log(`   Entry Price: $${target.avgCost.toFixed(2)}`);
+  console.log(`   Exit Price:  $${currentPrice.toFixed(2)}`);
+  console.log(`   ---`);
+  console.log(`   P/L: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)} (${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(2)}%)`);
+  console.log(`${'='.repeat(60)}\n`);
+
   logger.info(
     'PositionMonitor',
     `${reasonLabel} triggered for ${target.symbol}: ` +
@@ -196,7 +210,22 @@ async function scanPositions(): Promise<void> {
 
       // Get the position's highest price from the store
       const position = store.paperPortfolio.positions.find((p) => p.id === target.positionId);
-      const highestPrice = position?.highestPrice;
+      let highestPrice = position?.highestPrice || target.avgCost;
+
+      // Update highest price if current price is higher
+      if (currentPrice > highestPrice) {
+        highestPrice = currentPrice;
+        // Update in store
+        useStore.setState((s) => ({
+          paperPortfolio: {
+            ...s.paperPortfolio,
+            positions: s.paperPortfolio.positions.map((p) =>
+              p.id === target.positionId ? { ...p, highestPrice: currentPrice, currentPrice } : p
+            ),
+          },
+        }));
+        logger.debug('PositionMonitor', `New high for ${target.symbol}: $${currentPrice.toFixed(2)}`);
+      }
 
       const { sell, reason, targetPrice } = shouldSell(target, currentPrice, highestPrice);
 
@@ -209,6 +238,17 @@ async function scanPositions(): Promise<void> {
             (reason === 'trailing_stop' ? `, highest $${highestPrice?.toFixed(2)}` : '')
         );
         await executeAutoSell(target, currentPrice, reason);
+      } else if (target.trailingStopPercent && highestPrice > target.avgCost) {
+        // Log trailing stop status for active positions in profit
+        const trailingStopPrice = highestPrice * (1 - target.trailingStopPercent / 100);
+        const profitPercent = ((currentPrice - target.avgCost) / target.avgCost * 100).toFixed(2);
+        const distanceToStop = ((currentPrice - trailingStopPrice) / currentPrice * 100).toFixed(2);
+        logger.debug(
+          'PositionMonitor',
+          `${target.symbol}: $${currentPrice.toFixed(2)} (+${profitPercent}%) | ` +
+            `Trail stop @ $${trailingStopPrice.toFixed(2)} (${distanceToStop}% away) | ` +
+            `High: $${highestPrice.toFixed(2)}`
+        );
       }
 
       // Small delay between checks to avoid rate limiting
