@@ -10,6 +10,7 @@ import { Rules } from './pages/Rules';
 import { Backtest } from './pages/Backtest';
 import { Journal } from './pages/Journal';
 import { Settings } from './pages/Settings';
+import { CryptoTrade } from './pages/CryptoTrade';
 import { AlertToast } from './components/alerts/AlertToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePatternScanner } from './hooks/usePatternScanner';
@@ -37,6 +38,7 @@ function AppContent() {
         <Route path="/" element={<Layout />}>
           <Route index element={<ErrorBoundary section="Dashboard"><Dashboard /></ErrorBoundary>} />
           <Route path="portfolio" element={<ErrorBoundary section="Portfolio"><Portfolio /></ErrorBoundary>} />
+          <Route path="crypto-trade" element={<ErrorBoundary section="Crypto Trade"><CryptoTrade /></ErrorBoundary>} />
           <Route path="trade" element={<ErrorBoundary section="Trade"><Trade /></ErrorBoundary>} />
           <Route path="history" element={<ErrorBoundary section="Trade History"><TradeHistory /></ErrorBoundary>} />
           <Route path="charts" element={<ErrorBoundary section="Charts"><Charts /></ErrorBoundary>} />

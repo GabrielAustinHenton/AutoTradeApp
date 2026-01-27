@@ -250,3 +250,59 @@ export interface BacktestResult {
   }>;
   runAt: Date;
 }
+
+// Crypto Trading Types
+export interface CryptoPosition {
+  id: string;
+  symbol: string;
+  amount: number;
+  avgCost: number;
+  currentPrice: number;
+}
+
+export interface CryptoTrade {
+  id: string;
+  symbol: string;
+  type: 'buy' | 'sell';
+  amount: number;
+  price: number;
+  total: number;
+  date: Date;
+}
+
+export interface CryptoPortfolio {
+  usdBalance: number;
+  positions: CryptoPosition[];
+  trades: CryptoTrade[];
+}
+
+// DCA (Dollar-Cost Averaging) Configuration
+export interface DCAConfig {
+  id: string;
+  symbol: string;
+  amount: number;
+  interval: 'hourly' | 'daily' | 'weekly';
+  enabled: boolean;
+  lastExecuted?: Date;
+  nextExecution?: Date;
+}
+
+// Grid Trading Configuration
+export interface GridOrder {
+  id: string;
+  price: number;
+  type: 'buy' | 'sell';
+  amount: number;
+  filled: boolean;
+}
+
+export interface GridConfig {
+  id: string;
+  symbol: string;
+  lowerPrice: number;
+  upperPrice: number;
+  gridLevels: number;
+  amountPerGrid: number;
+  enabled: boolean;
+  activeOrders: GridOrder[];
+}

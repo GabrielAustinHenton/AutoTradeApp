@@ -4,6 +4,7 @@ import { useStore } from '../../store/useStore';
 const navItems = [
   { path: '/', label: 'Dashboard', icon: '📊' },
   { path: '/portfolio', label: 'Portfolio', icon: '💼' },
+  { path: '/crypto-trade', label: 'Crypto Trade', icon: '₿' },
   { path: '/trade', label: 'Trade', icon: '💹' },
   { path: '/history', label: 'Trade History', icon: '📜' },
   { path: '/charts', label: 'Charts', icon: '📈' },

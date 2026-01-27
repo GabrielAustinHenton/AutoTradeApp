@@ -13,6 +13,11 @@ import type {
   AutoTradeConfig,
   AutoTradeExecution,
   BacktestResult,
+  CryptoPortfolio,
+  CryptoTrade,
+  CryptoPosition,
+  DCAConfig,
+  GridConfig,
 } from '../types';
 import { ibkr, type IBKRConfig } from '../services/ibkr';
 import { PERMANENT_WATCHLIST } from '../config/watchlist';
@@ -33,6 +38,13 @@ const defaultPaperPortfolio: PaperPortfolio = {
   startingBalance: 10000,
   createdAt: new Date(),
   history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
+};
+
+// Default crypto portfolio
+const defaultCryptoPortfolio: CryptoPortfolio = {
+  usdBalance: 10000,
+  positions: [],
+  trades: [],
 };
 
 // ============================================================================
@@ -200,6 +212,11 @@ interface AppState {
   // Pattern Scanning
   scanRequestTimestamp: number | null;
 
+  // Crypto Trading
+  cryptoPortfolio: CryptoPortfolio;
+  dcaConfigs: DCAConfig[];
+  gridConfigs: GridConfig[];
+
   // Actions - Portfolio
   addPosition: (position: Position) => void;
   updatePosition: (id: string, updates: Partial<Position>) => void;
@@ -261,6 +278,24 @@ interface AppState {
 
   // Actions - Pattern Scanning
   requestScan: () => void;
+
+  // Actions - Crypto Trading
+  addCryptoTrade: (trade: CryptoTrade) => void;
+  addCryptoPosition: (position: CryptoPosition) => void;
+  updateCryptoPosition: (id: string, updates: Partial<CryptoPosition>) => void;
+  updateCryptoPositionPrices: (prices: Map<string, number>) => void;
+  setCryptoUsdBalance: (amount: number) => void;
+  resetCryptoPortfolio: (initialBalance?: number) => void;
+
+  // Actions - DCA
+  addDCAConfig: (config: DCAConfig) => void;
+  updateDCAConfig: (id: string, updates: Partial<DCAConfig>) => void;
+  removeDCAConfig: (id: string) => void;
+
+  // Actions - Grid Trading
+  addGridConfig: (config: GridConfig) => void;
+  updateGridConfig: (id: string, updates: Partial<GridConfig>) => void;
+  removeGridConfig: (id: string) => void;
 }
 
 const initialPortfolioSummary: PortfolioSummary = {
@@ -303,6 +338,11 @@ export const useStore = create<AppState>()(
 
       // Pattern Scanning
       scanRequestTimestamp: null,
+
+      // Crypto Trading
+      cryptoPortfolio: defaultCryptoPortfolio,
+      dcaConfigs: [],
+      gridConfigs: [],
 
       // Portfolio actions
       addPosition: (position) =>
@@ -749,6 +789,105 @@ export const useStore = create<AppState>()(
 
       // Pattern Scanning
       requestScan: () => set({ scanRequestTimestamp: Date.now() }),
+
+      // Crypto Trading actions
+      addCryptoTrade: (trade) =>
+        set((state) => ({
+          cryptoPortfolio: {
+            ...state.cryptoPortfolio,
+            trades: [trade, ...state.cryptoPortfolio.trades],
+          },
+        })),
+
+      addCryptoPosition: (position) =>
+        set((state) => ({
+          cryptoPortfolio: {
+            ...state.cryptoPortfolio,
+            positions: [...state.cryptoPortfolio.positions, position],
+          },
+        })),
+
+      updateCryptoPosition: (id, updates) =>
+        set((state) => {
+          const newPositions = state.cryptoPortfolio.positions
+            .map((p) => (p.id === id ? { ...p, ...updates } : p))
+            .filter((p) => p.amount > 0); // Remove positions with 0 amount
+
+          return {
+            cryptoPortfolio: {
+              ...state.cryptoPortfolio,
+              positions: newPositions,
+            },
+          };
+        }),
+
+      updateCryptoPositionPrices: (prices) =>
+        set((state) => ({
+          cryptoPortfolio: {
+            ...state.cryptoPortfolio,
+            positions: state.cryptoPortfolio.positions.map((p) => {
+              const newPrice = prices.get(p.symbol);
+              if (newPrice === undefined) return p;
+              return {
+                ...p,
+                currentPrice: newPrice,
+              };
+            }),
+          },
+        })),
+
+      setCryptoUsdBalance: (amount) =>
+        set((state) => ({
+          cryptoPortfolio: {
+            ...state.cryptoPortfolio,
+            usdBalance: amount,
+          },
+        })),
+
+      resetCryptoPortfolio: (initialBalance = 10000) =>
+        set({
+          cryptoPortfolio: {
+            usdBalance: initialBalance,
+            positions: [],
+            trades: [],
+          },
+        }),
+
+      // DCA actions
+      addDCAConfig: (config) =>
+        set((state) => ({
+          dcaConfigs: [...state.dcaConfigs, config],
+        })),
+
+      updateDCAConfig: (id, updates) =>
+        set((state) => ({
+          dcaConfigs: state.dcaConfigs.map((c) =>
+            c.id === id ? { ...c, ...updates } : c
+          ),
+        })),
+
+      removeDCAConfig: (id) =>
+        set((state) => ({
+          dcaConfigs: state.dcaConfigs.filter((c) => c.id !== id),
+        })),
+
+      // Grid Trading actions
+      addGridConfig: (config) =>
+        set((state) => ({
+          gridConfigs: [...state.gridConfigs, config],
+        })),
+
+      updateGridConfig: (id, updates) =>
+        set((state) => ({
+          gridConfigs: state.gridConfigs.map((c) =>
+            c.id === id ? { ...c, ...updates } : c
+          ),
+        })),
+
+      removeGridConfig: (id) =>
+        set((state) => ({
+          gridConfigs: state.gridConfigs.filter((c) => c.id !== id),
+        })),
     }),
     {
       name: 'tradeapp-storage',
@@ -788,6 +927,11 @@ export const useStore = create<AppState>()(
           merged.autoTradeExecutions = Array.isArray(persisted.autoTradeExecutions) ? persisted.autoTradeExecutions : [];
           merged.journalEntries = Array.isArray(persisted.journalEntries) ? persisted.journalEntries : [];
           merged.backtestResults = Array.isArray(persisted.backtestResults) ? persisted.backtestResults : [];
+
+          // Preserve crypto state
+          merged.cryptoPortfolio = persisted.cryptoPortfolio || defaultCryptoPortfolio;
+          merged.dcaConfigs = Array.isArray(persisted.dcaConfigs) ? persisted.dcaConfigs : [];
+          merged.gridConfigs = Array.isArray(persisted.gridConfigs) ? persisted.gridConfigs : [];
 
           return merged as AppState;
         } catch (error) {
