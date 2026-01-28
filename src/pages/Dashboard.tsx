@@ -275,11 +275,16 @@ export function Dashboard() {
                       <span className="font-semibold">{trade.symbol}</span>
                       <span
                         className={`ml-2 text-sm ${
-                          trade.type === 'buy' ? 'text-emerald-400' : 'text-red-400'
+                          trade.type === 'buy' ? 'text-emerald-400' :
+                          trade.type === 'short' ? 'text-purple-400' :
+                          trade.type === 'cover' ? 'text-amber-400' : 'text-red-400'
                         }`}
                       >
                         {trade.type.toUpperCase()}
                       </span>
+                      <div className="text-xs text-slate-500">
+                        {new Date(trade.date).toLocaleString()}
+                      </div>
                     </div>
                     <div className="text-right">
                       <div>{trade.shares} shares</div>

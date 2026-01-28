@@ -503,7 +503,10 @@ export function Portfolio() {
               <tbody>
                 {paperPortfolio.trades.slice(0, 20).map((trade) => (
                   <tr key={trade.id} className="border-b border-slate-700/50">
-                    <td className="py-3">{new Date(trade.date).toLocaleDateString()}</td>
+                    <td className="py-3">
+                      <div>{new Date(trade.date).toLocaleDateString()}</div>
+                      <div className="text-xs text-slate-500">{new Date(trade.date).toLocaleTimeString()}</div>
+                    </td>
                     <td className="py-3 font-medium">{trade.symbol}</td>
                     <td className="py-3">
                       <span className={`px-2 py-1 rounded text-xs ${
