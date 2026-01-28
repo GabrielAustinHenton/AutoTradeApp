@@ -19,6 +19,7 @@ export interface Position {
   totalGain: number;
   totalGainPercent: number;
   highestPrice?: number; // Track highest price since purchase for trailing stop
+  openedAt?: Date;       // Track when position was opened for time-based exits
 }
 
 // Short position - profit when price goes DOWN
@@ -30,6 +31,7 @@ export interface ShortPosition {
   entryPrice: number;    // Price at which we shorted
   currentPrice: number;
   lowestPrice?: number;  // Track lowest price since short for trailing stop
+  openedAt?: Date;       // Track when position was opened for time-based exits
   // P/L calculation: (entryPrice - currentPrice) * shares
   // Positive when price drops, negative when price rises
 }

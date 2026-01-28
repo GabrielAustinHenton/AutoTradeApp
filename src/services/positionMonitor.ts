@@ -9,6 +9,9 @@ import type { Position, ShortPosition, TradingRule, AutoTradeExecution } from '.
  * Monitors open positions and auto-sells when take-profit or stop-loss targets are hit
  */
 
+// Time-based exit: close positions after this many hours if no significant movement
+const TIME_BASED_EXIT_HOURS = 4;
+
 interface PositionTarget {
   symbol: string;
   positionId: string;
@@ -19,6 +22,7 @@ interface PositionTarget {
   takeProfitPrice?: number;
   stopLossPrice?: number;
   trailingStopPercent?: number; // Trailing stop percentage from highest price
+  openedAt?: Date;              // When position was opened for time-based exit
 }
 
 // Short position target - for short selling (profit when price goes DOWN)
@@ -31,6 +35,7 @@ interface ShortPositionTarget {
   shares: number;
   stopLossPrice?: number;  // Cover if price rises to this level (loss)
   trailingStopPercent?: number;  // Cover if price rises X% from lowest
+  openedAt?: Date;              // When position was opened for time-based exit
 }
 
 // Track positions with active targets
@@ -42,10 +47,7 @@ let monitorInterval: ReturnType<typeof setInterval> | null = null;
  * Calculate target prices based on rule settings
  */
 function calculateTargets(position: Position, rule: TradingRule): PositionTarget | null {
-  if (!rule.takeProfitPercent && !rule.stopLossPercent && !rule.trailingStopPercent) {
-    return null;
-  }
-
+  // Always create targets for time-based exit, even if no other targets
   const target: PositionTarget = {
     symbol: position.symbol,
     positionId: position.id,
@@ -53,6 +55,7 @@ function calculateTargets(position: Position, rule: TradingRule): PositionTarget
     ruleName: rule.name,
     avgCost: position.avgCost,
     shares: position.shares,
+    openedAt: position.openedAt || new Date(), // Use position open time or now
   };
 
   if (rule.takeProfitPercent) {
@@ -71,13 +74,13 @@ function calculateTargets(position: Position, rule: TradingRule): PositionTarget
 }
 
 /**
- * Check if a position should be sold based on current price
+ * Check if a position should be sold based on current price or time
  */
 function shouldSell(
   target: PositionTarget,
   currentPrice: number,
   highestPrice?: number
-): { sell: boolean; reason: 'take_profit' | 'stop_loss' | 'trailing_stop' | null; targetPrice: number | null } {
+): { sell: boolean; reason: 'take_profit' | 'stop_loss' | 'trailing_stop' | 'time_exit' | null; targetPrice: number | null } {
   // Check take-profit first (prioritize locking in gains)
   if (target.takeProfitPrice && currentPrice >= target.takeProfitPrice) {
     return { sell: true, reason: 'take_profit', targetPrice: target.takeProfitPrice };
@@ -95,6 +98,14 @@ function shouldSell(
   // Check fixed stop-loss
   if (target.stopLossPrice && currentPrice <= target.stopLossPrice) {
     return { sell: true, reason: 'stop_loss', targetPrice: target.stopLossPrice };
+  }
+
+  // Check time-based exit (close after X hours if no significant movement)
+  if (target.openedAt) {
+    const hoursOpen = (Date.now() - new Date(target.openedAt).getTime()) / (1000 * 60 * 60);
+    if (hoursOpen >= TIME_BASED_EXIT_HOURS) {
+      return { sell: true, reason: 'time_exit', targetPrice: currentPrice };
+    }
   }
 
   return { sell: false, reason: null, targetPrice: null };
@@ -157,7 +168,7 @@ async function executeAutoSell(
   );
 
   // Execute the sell in paper portfolio
-  const reasonDisplayName = reason === 'take_profit' ? 'Take Profit' : reason === 'trailing_stop' ? 'Trailing Stop' : 'Stop Loss';
+  const reasonDisplayName = reason === 'take_profit' ? 'Take Profit' : reason === 'trailing_stop' ? 'Trailing Stop' : reason === 'time_exit' ? 'Time Exit (4h)' : 'Stop Loss';
   const executePaperSell = useStore.getState().executePaperSell;
   const success = executePaperSell(target.symbol, sharesToSell, currentPrice, reasonDisplayName);
 
@@ -194,10 +205,7 @@ async function executeAutoSell(
  * Calculate short position targets (inverse logic - profit when price drops)
  */
 function calculateShortTargets(position: ShortPosition, rule: TradingRule): ShortPositionTarget | null {
-  if (!rule.stopLossPercent && !rule.trailingStopPercent) {
-    return null;
-  }
-
+  // Always create targets for time-based exit, even if no other targets
   const target: ShortPositionTarget = {
     symbol: position.symbol,
     positionId: position.id,
@@ -205,6 +213,7 @@ function calculateShortTargets(position: ShortPosition, rule: TradingRule): Shor
     ruleName: rule.name,
     entryPrice: position.entryPrice,
     shares: position.shares,
+    openedAt: position.openedAt || new Date(), // Use position open time or now
   };
 
   // For shorts, stop loss triggers when price RISES (we lose money)
@@ -220,14 +229,14 @@ function calculateShortTargets(position: ShortPosition, rule: TradingRule): Shor
 }
 
 /**
- * Check if a short position should be covered based on current price
+ * Check if a short position should be covered based on current price or time
  * For shorts: profit when price drops, loss when price rises
  */
 function shouldCover(
   target: ShortPositionTarget,
   currentPrice: number,
   lowestPrice?: number
-): { cover: boolean; reason: 'stop_loss' | 'trailing_stop' | null; targetPrice: number | null } {
+): { cover: boolean; reason: 'stop_loss' | 'trailing_stop' | 'time_exit' | null; targetPrice: number | null } {
   // Check trailing stop first (dynamic)
   // For shorts, we cover if price RISES from the lowest point
   if (target.trailingStopPercent && lowestPrice) {
@@ -241,6 +250,14 @@ function shouldCover(
   // Check fixed stop-loss (cover if price rises too much)
   if (target.stopLossPrice && currentPrice >= target.stopLossPrice) {
     return { cover: true, reason: 'stop_loss', targetPrice: target.stopLossPrice };
+  }
+
+  // Check time-based exit (close after X hours if no significant movement)
+  if (target.openedAt) {
+    const hoursOpen = (Date.now() - new Date(target.openedAt).getTime()) / (1000 * 60 * 60);
+    if (hoursOpen >= TIME_BASED_EXIT_HOURS) {
+      return { cover: true, reason: 'time_exit', targetPrice: currentPrice };
+    }
   }
 
   return { cover: false, reason: null, targetPrice: null };
@@ -300,7 +317,7 @@ async function executeAutoCover(
       `(${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)}, ${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(2)}%)`
   );
 
-  const reasonDisplayName = reason === 'trailing_stop' ? 'Trailing Stop' : 'Stop Loss';
+  const reasonDisplayName = reason === 'trailing_stop' ? 'Trailing Stop' : reason === 'time_exit' ? 'Time Exit (4h)' : 'Stop Loss';
   const success = coverShortPosition(target.symbol, sharesToCover, currentPrice, reasonDisplayName);
 
   if (success) {

@@ -9,10 +9,15 @@ interface Position {
   ruleId: string;
   ruleName: string;
   pattern?: CandlestickPattern;
-  type: 'buy' | 'sell';
+  type: 'buy' | 'sell' | 'short';
   shares: number;
   entryPrice: number;
   entryDate: Date;
+  highestPrice: number;    // For trailing stop
+  lowestPrice: number;     // For short trailing stop
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
+  trailingStopPercent?: number;
 }
 
 export interface EquityPoint {
@@ -79,52 +84,121 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
         // Check if we already have an open position from this rule
         const existingPosition = openPositions.find((p) => p.ruleId === matchingRule.id);
 
-        if (!existingPosition && matchingRule.type === 'buy') {
-          // Open a new long position
+        if (!existingPosition && (matchingRule.type === 'buy' || matchingRule.type === 'short')) {
+          // Open a new position
           const shares = Math.floor((capital * positionSize / 100) / currentPrice);
           if (shares > 0 && capital >= shares * currentPrice) {
             const position: Position = {
               ruleId: matchingRule.id,
               ruleName: matchingRule.name,
               pattern: pattern.pattern,
-              type: 'buy',
+              type: matchingRule.type,
               shares,
               entryPrice: currentPrice,
               entryDate: currentDate,
+              highestPrice: currentPrice,
+              lowestPrice: currentPrice,
+              stopLossPrice: matchingRule.stopLossPercent
+                ? matchingRule.type === 'buy'
+                  ? currentPrice * (1 - matchingRule.stopLossPercent / 100)
+                  : currentPrice * (1 + matchingRule.stopLossPercent / 100)
+                : undefined,
+              takeProfitPrice: matchingRule.takeProfitPercent
+                ? matchingRule.type === 'buy'
+                  ? currentPrice * (1 + matchingRule.takeProfitPercent / 100)
+                  : currentPrice * (1 - matchingRule.takeProfitPercent / 100)
+                : undefined,
+              trailingStopPercent: matchingRule.trailingStopPercent,
             };
             openPositions.push(position);
             capital -= shares * currentPrice;
           }
-        } else if (existingPosition && matchingRule.type === 'sell') {
-          // Close the position
-          const exitPrice = currentPrice;
-          const profitLoss = (exitPrice - existingPosition.entryPrice) * existingPosition.shares;
-          const profitLossPercent = ((exitPrice - existingPosition.entryPrice) / existingPosition.entryPrice) * 100;
-          const holdingPeriodDays = Math.floor((currentDate.getTime() - existingPosition.entryDate.getTime()) / (1000 * 60 * 60 * 24));
-
-          const trade: BacktestTrade = {
-            id: crypto.randomUUID(),
-            ruleId: existingPosition.ruleId,
-            ruleName: existingPosition.ruleName,
-            pattern: existingPosition.pattern,
-            type: existingPosition.type,
-            shares: existingPosition.shares,
-            entryPrice: existingPosition.entryPrice,
-            entryDate: existingPosition.entryDate,
-            exitPrice,
-            exitDate: currentDate,
-            profitLoss,
-            profitLossPercent,
-            holdingPeriodDays,
-          };
-
-          trades.push(trade);
-          capital += existingPosition.shares * exitPrice;
-
-          // Remove from open positions
-          const index = openPositions.findIndex((p) => p.ruleId === matchingRule.id);
-          if (index > -1) openPositions.splice(index, 1);
         }
+      }
+    }
+
+    // Check exit conditions for open positions
+    for (let j = openPositions.length - 1; j >= 0; j--) {
+      const position = openPositions[j];
+      let shouldExit = false;
+      let exitReason = '';
+
+      // Update highest/lowest price
+      if (currentPrice > position.highestPrice) position.highestPrice = currentPrice;
+      if (currentPrice < position.lowestPrice) position.lowestPrice = currentPrice;
+
+      if (position.type === 'buy') {
+        // Check take profit
+        if (position.takeProfitPrice && currentPrice >= position.takeProfitPrice) {
+          shouldExit = true;
+          exitReason = 'Take Profit';
+        }
+        // Check stop loss
+        else if (position.stopLossPrice && currentPrice <= position.stopLossPrice) {
+          shouldExit = true;
+          exitReason = 'Stop Loss';
+        }
+        // Check trailing stop
+        else if (position.trailingStopPercent && position.highestPrice > position.entryPrice) {
+          const trailPrice = position.highestPrice * (1 - position.trailingStopPercent / 100);
+          if (currentPrice <= trailPrice) {
+            shouldExit = true;
+            exitReason = 'Trailing Stop';
+          }
+        }
+      } else if (position.type === 'short') {
+        // Check take profit (price dropped)
+        if (position.takeProfitPrice && currentPrice <= position.takeProfitPrice) {
+          shouldExit = true;
+          exitReason = 'Take Profit';
+        }
+        // Check stop loss (price rose)
+        else if (position.stopLossPrice && currentPrice >= position.stopLossPrice) {
+          shouldExit = true;
+          exitReason = 'Stop Loss';
+        }
+        // Check trailing stop (price rose from low)
+        else if (position.trailingStopPercent && position.lowestPrice < position.entryPrice) {
+          const trailPrice = position.lowestPrice * (1 + position.trailingStopPercent / 100);
+          if (currentPrice >= trailPrice) {
+            shouldExit = true;
+            exitReason = 'Trailing Stop';
+          }
+        }
+      }
+
+      if (shouldExit) {
+        const exitPrice = currentPrice;
+        const profitLoss = position.type === 'buy'
+          ? (exitPrice - position.entryPrice) * position.shares
+          : (position.entryPrice - exitPrice) * position.shares;
+        const profitLossPercent = position.type === 'buy'
+          ? ((exitPrice - position.entryPrice) / position.entryPrice) * 100
+          : ((position.entryPrice - exitPrice) / position.entryPrice) * 100;
+        const holdingPeriodDays = Math.floor((currentDate.getTime() - position.entryDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        const trade: BacktestTrade = {
+          id: crypto.randomUUID(),
+          ruleId: position.ruleId,
+          ruleName: `${position.ruleName} (${exitReason})`,
+          pattern: position.pattern,
+          type: position.type,
+          shares: position.shares,
+          entryPrice: position.entryPrice,
+          entryDate: position.entryDate,
+          exitPrice,
+          exitDate: currentDate,
+          profitLoss,
+          profitLossPercent,
+          holdingPeriodDays,
+        };
+
+        trades.push(trade);
+        capital += position.type === 'buy'
+          ? position.shares * exitPrice
+          : position.shares * position.entryPrice + profitLoss; // Short P/L
+
+        openPositions.splice(j, 1);
       }
     }
 
@@ -141,14 +215,18 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
   const lastDate = new Date(filteredData[filteredData.length - 1].timestamp);
 
   for (const position of openPositions) {
-    const profitLoss = (lastPrice - position.entryPrice) * position.shares;
-    const profitLossPercent = ((lastPrice - position.entryPrice) / position.entryPrice) * 100;
+    const profitLoss = position.type === 'buy'
+      ? (lastPrice - position.entryPrice) * position.shares
+      : (position.entryPrice - lastPrice) * position.shares;
+    const profitLossPercent = position.type === 'buy'
+      ? ((lastPrice - position.entryPrice) / position.entryPrice) * 100
+      : ((position.entryPrice - lastPrice) / position.entryPrice) * 100;
     const holdingPeriodDays = Math.floor((lastDate.getTime() - position.entryDate.getTime()) / (1000 * 60 * 60 * 24));
 
     const trade: BacktestTrade = {
       id: crypto.randomUUID(),
       ruleId: position.ruleId,
-      ruleName: position.ruleName,
+      ruleName: `${position.ruleName} (End of Period)`,
       pattern: position.pattern,
       type: position.type,
       shares: position.shares,
@@ -162,7 +240,9 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
     };
 
     trades.push(trade);
-    capital += position.shares * lastPrice;
+    capital += position.type === 'buy'
+      ? position.shares * lastPrice
+      : position.shares * position.entryPrice + profitLoss;
   }
 
   // Calculate metrics

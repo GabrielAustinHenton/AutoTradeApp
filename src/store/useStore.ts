@@ -74,7 +74,7 @@ const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
   { pattern: 'bearish_breakout', name: 'Bearish Breakout' },
 ];
 
-// Create a DAY TRADING buy rule - tight trailing stop, no fixed take profit
+// Create a BUY rule - optimized for steady profits
 const createPatternBuyRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -90,12 +90,13 @@ const createPatternBuyRule = (
   action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 5,             // 5 min cooldown for active trading
-  // NO takeProfitPercent - let trailing stop capture the full move
-  stopLossPercent: 1,             // 1% stop loss - cut losses fast
-  trailingStopPercent: 0.75,      // 0.75% trailing stop - ride wave, exit on slowdown
-  minConfidence: 60,              // Lower confidence threshold (patterns already filtered)
-  volumeFilter: { enabled: false, minMultiplier: 1.0 },  // Disabled - don't block on volume
+  cooldownMinutes: 5,
+  takeProfitPercent: 10,          // Take profit at 10% gain
+  stopLossPercent: 3,             // 3% stop loss - room to breathe
+  trailingStopPercent: 2,         // 2% trailing stop - lets winners run
+  minConfidence: 60,
+  rsiFilter: { enabled: true, maxRSI: 35 },  // Only buy when RSI < 35 (oversold)
+  volumeFilter: { enabled: true, minMultiplier: 2.0 },  // Require 2x average volume
 });
 
 // Create pattern ALERT rule (no auto-trade) - for manual decision making
@@ -119,7 +120,7 @@ const createPatternSellRule = (
   volumeFilter: { enabled: false, minMultiplier: 1.0 },
 });
 
-// Create a MACD buy rule - day trading optimized
+// Create a MACD buy rule - optimized for steady profits
 const createMACDBuyRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Buy`,
@@ -133,14 +134,15 @@ const createMACDBuyRule = (symbol: string): TradingRule => ({
     signalPeriod: 9,
     crossoverType: 'bullish',
   },
-  action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
+  action: { type: 'market', targetDollarAmount: 100 },
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 5,
-  // NO takeProfitPercent - let trailing stop capture the move
-  stopLossPercent: 1,
-  trailingStopPercent: 0.75,
-  volumeFilter: { enabled: false, minMultiplier: 1.0 },
+  takeProfitPercent: 10,          // Take profit at 10% gain
+  stopLossPercent: 3,             // 3% stop loss
+  trailingStopPercent: 2,         // 2% trailing stop
+  rsiFilter: { enabled: true, maxRSI: 35 },  // Only buy when RSI < 35
+  volumeFilter: { enabled: true, minMultiplier: 2.0 },
 });
 
 // Create a MACD sell ALERT (no auto-trade) - trailing stop handles exits
@@ -169,7 +171,7 @@ const createMACDSellRule = (symbol: string): TradingRule => ({
 // Open short on bearish patterns, cover (buy back) on bullish patterns
 // ============================================================================
 
-// Create a SHORT rule - open short position on bearish patterns
+// Create a SHORT rule - optimized for steady profits on bearish moves
 const createPatternShortRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -179,20 +181,22 @@ const createPatternShortRule = (
   name: `${symbol} ${patternName} Short`,
   symbol,
   enabled: true,
-  type: 'short',  // Open short position
+  type: 'short',
   ruleType: 'pattern',
   pattern,
-  action: { type: 'market', targetDollarAmount: 100 },  // $100 per trade
+  action: { type: 'market', targetDollarAmount: 100 },
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 5,
-  stopLossPercent: 1,             // 1% stop loss - if price rises 1%, cover the short
-  trailingStopPercent: 0.75,      // 0.75% trailing stop from lowest price
+  takeProfitPercent: 10,          // Take profit at 10% gain (price drops 10%)
+  stopLossPercent: 3,             // 3% stop loss - if price rises 3%, cover
+  trailingStopPercent: 2,         // 2% trailing stop from lowest price
   minConfidence: 60,
-  volumeFilter: { enabled: false, minMultiplier: 1.0 },
+  rsiFilter: { enabled: true, minRSI: 65 },  // Only short when RSI > 65 (overbought)
+  volumeFilter: { enabled: true, minMultiplier: 2.0 },
 });
 
-// Create MACD short rule - short on bearish MACD crossover
+// Create MACD short rule - optimized for steady profits
 const createMACDShortRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Short`,
@@ -210,9 +214,11 @@ const createMACDShortRule = (symbol: string): TradingRule => ({
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 5,
-  stopLossPercent: 1,
-  trailingStopPercent: 0.75,
-  volumeFilter: { enabled: false, minMultiplier: 1.0 },
+  takeProfitPercent: 10,          // Take profit at 10% gain
+  stopLossPercent: 3,             // 3% stop loss
+  trailingStopPercent: 2,         // 2% trailing stop
+  rsiFilter: { enabled: true, minRSI: 65 },  // Only short when RSI > 65
+  volumeFilter: { enabled: true, minMultiplier: 2.0 },
 });
 
 // Generate all rules for a symbol
@@ -768,8 +774,9 @@ export const useStore = create<AppState>()(
           const totalGain = totalValue - shares * avgCost;
           const totalGainPercent = avgCost > 0 ? ((currentPrice - avgCost) / avgCost) * 100 : 0;
 
+          const existingPosition = existingIndex >= 0 ? state.paperPortfolio.positions[existingIndex] : null;
           const newPosition: Position = {
-            id: existingIndex >= 0 ? state.paperPortfolio.positions[existingIndex].id : crypto.randomUUID(),
+            id: existingPosition?.id || crypto.randomUUID(),
             symbol,
             name: symbol,
             shares,
@@ -778,6 +785,7 @@ export const useStore = create<AppState>()(
             totalValue,
             totalGain,
             totalGainPercent,
+            openedAt: existingPosition?.openedAt || new Date(), // Preserve original open time or set new
           };
 
           let newPositions: Position[];
@@ -942,6 +950,7 @@ export const useStore = create<AppState>()(
             entryPrice: price,
             currentPrice: price,
             lowestPrice: price,
+            openedAt: new Date(),
           };
 
           set((s) => ({
@@ -1226,15 +1235,32 @@ export const useStore = create<AppState>()(
           });
 
           // Keep existing rules (preserves user's enabled/autoTrade settings) + add missing ones
-          // MIGRATION: Ensure all rules have stop-loss and trailing-stop settings for auto-sell
+          // MIGRATION v2: Update all rules with improved settings for steady profits
           const migratedRules = existingRules.map(rule => {
-            const needsMigration = rule.stopLossPercent === undefined || rule.trailingStopPercent === undefined;
+            const isBuyRule = rule.type === 'buy';
+            const isShortRule = rule.type === 'short';
+
+            // Check if rule needs migration to new settings
+            const needsMigration =
+              rule.takeProfitPercent === undefined ||
+              rule.stopLossPercent !== 3 ||
+              rule.trailingStopPercent !== 2 ||
+              !rule.rsiFilter?.enabled ||
+              !rule.volumeFilter?.enabled;
+
             if (needsMigration) {
-              console.log(`[Store] Migrating rule "${rule.name}" - adding stop-loss/trailing-stop settings`);
+              console.log(`[Store] Migrating rule "${rule.name}" - updating to improved settings`);
               return {
                 ...rule,
-                stopLossPercent: rule.stopLossPercent ?? 1,           // 1% stop loss
-                trailingStopPercent: rule.trailingStopPercent ?? 0.75, // 0.75% trailing stop
+                takeProfitPercent: rule.takeProfitPercent ?? 10,      // 10% take profit
+                stopLossPercent: 3,                                    // 3% stop loss (wider)
+                trailingStopPercent: 2,                                // 2% trailing stop (wider)
+                rsiFilter: isBuyRule
+                  ? { enabled: true, maxRSI: 35 }                      // Buy when RSI < 35
+                  : isShortRule
+                    ? { enabled: true, minRSI: 65 }                    // Short when RSI > 65
+                    : rule.rsiFilter,
+                volumeFilter: { enabled: true, minMultiplier: 2.0 },   // Require 2x volume
               };
             }
             return rule;
