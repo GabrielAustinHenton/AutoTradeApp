@@ -119,11 +119,16 @@ export async function executeAutoTrade(
 
     // Calculate shares based on rule action
     if (rule.action.targetDollarAmount && execution.price > 0) {
-      // Buy a specific dollar amount worth
-      execution.shares = Math.floor(rule.action.targetDollarAmount / execution.price);
+      // Buy a specific dollar amount worth - minimum 1 share
+      execution.shares = Math.max(1, Math.floor(rule.action.targetDollarAmount / execution.price));
     } else {
       // Use fixed shares with max position size limit
       execution.shares = Math.min(rule.action.shares || 10, config.maxPositionSize);
+    }
+
+    // Ensure we always trade at least 1 share
+    if (execution.shares < 1) {
+      execution.shares = 1;
     }
 
     execution.total = execution.shares * execution.price;
