@@ -137,27 +137,30 @@ export function usePatternScanner() {
         close: d.close,
       }));
 
-      // Detect patterns
-      const patterns = detectPatterns(candles);
-
-      if (patterns.length > 0) {
-        console.log(`✅ ${symbol}: Found ${patterns.length} pattern(s) -`, patterns.map(p => `${p.pattern} (${p.confidence}%)`).join(', '));
-        // Debug: Show which patterns have matching rules
-        for (const pattern of patterns) {
-          const matchingRule = enabledRules.find((r) => r.pattern === pattern.pattern);
-          if (!matchingRule) {
-            console.log(`   ⚠️ No rule for ${pattern.pattern} on ${symbol}`);
-          }
-        }
-      }
-
-      // Get enabled pattern rules for this symbol
+      // Get enabled pattern rules for this symbol (MUST be defined before use)
       const enabledRules = tradingRules.filter(
         (r) =>
           r.enabled &&
           r.ruleType === 'pattern' &&
           r.symbol === symbol
       );
+
+      // Detect patterns
+      const patterns = detectPatterns(candles);
+
+      if (patterns.length > 0) {
+        console.log(`✅ ${symbol}: Found ${patterns.length} pattern(s) -`, patterns.map(p => `${p.pattern} (${p.confidence}%)`).join(', '));
+        console.log(`   Rules for ${symbol}: ${enabledRules.length} (${enabledRules.map(r => `${r.pattern}:${r.type}`).join(', ') || 'none'})`);
+        // Debug: Show which patterns have matching rules
+        for (const pattern of patterns) {
+          const matchingRule = enabledRules.find((r) => r.pattern === pattern.pattern);
+          if (!matchingRule) {
+            console.log(`   ⚠️ No rule for ${pattern.pattern} on ${symbol}`);
+          } else {
+            console.log(`   ✓ Found rule: ${matchingRule.name} (autoTrade: ${matchingRule.autoTrade})`);
+          }
+        }
+      }
 
       for (const pattern of patterns) {
         // Check if we have a rule for this pattern
