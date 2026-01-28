@@ -306,66 +306,72 @@ export function usePatternScanner() {
             new Date(a.timestamp).getTime() > Date.now() - 5 * 60 * 1000
         );
 
-        if (!recentSimilar) {
-          addAlert(alert);
+        if (recentSimilar) {
+          const ageMs = Date.now() - new Date(recentSimilar.timestamp).getTime();
+          const ageSecs = Math.round(ageMs / 1000);
+          console.log(`⏳ Skipping ${alert.symbol} ${alert.pattern}: similar alert exists (${ageSecs}s ago, wait ${300 - ageSecs}s)`);
+          continue;
+        }
 
-          // Play sound effect
-          if (soundEnabled) {
-            playSound(alert.signal);
-          }
+        console.log(`🔔 New alert: ${alert.symbol} ${alert.pattern} - checking auto-trade...`);
+        addAlert(alert);
 
-          // Show browser notification if supported
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`${alert.signal.toUpperCase()} Signal: ${alert.symbol}`, {
-              body: alert.message,
-              icon: alert.signal === 'buy' ? '📈' : '📉',
-            });
-          }
+        // Play sound effect
+        if (soundEnabled) {
+          playSound(alert.signal);
+        }
 
-          // Auto-trade execution
-          if (alert.ruleId) {
-            const rule = tradingRules.find((r) => r.id === alert.ruleId);
-            if (rule && rule.autoTrade) {
-              // Check minimum confidence threshold
-              if (rule.minConfidence && alert.confidence !== undefined) {
-                if (alert.confidence < rule.minConfidence) {
-                  console.log(`Auto-trade blocked for ${alert.symbol}: Confidence ${alert.confidence}% < min ${rule.minConfidence}%`);
-                  continue;
-                }
-              }
+        // Show browser notification if supported
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(`${alert.signal.toUpperCase()} Signal: ${alert.symbol}`, {
+            body: alert.message,
+            icon: alert.signal === 'buy' ? '📈' : '📉',
+          });
+        }
 
-              // Check volume filter
-              const volumeCheck = checkVolumeFilter(rule, volumeData);
-              if (!volumeCheck.passed) {
-                console.log(`Auto-trade blocked for ${alert.symbol}: Volume filter - ${volumeCheck.reason}`);
+        // Auto-trade execution
+        if (alert.ruleId) {
+          const rule = tradingRules.find((r) => r.id === alert.ruleId);
+          if (rule && rule.autoTrade) {
+            // Check minimum confidence threshold
+            if (rule.minConfidence && alert.confidence !== undefined) {
+              if (alert.confidence < rule.minConfidence) {
+                console.log(`Auto-trade blocked for ${alert.symbol}: Confidence ${alert.confidence}% < min ${rule.minConfidence}%`);
                 continue;
               }
+            }
 
-              // Check RSI filter
-              const rsiCheck = checkRSIFilter(rule, rsi);
-              if (!rsiCheck.passed) {
-                console.log(`Auto-trade blocked for ${alert.symbol}: RSI filter - ${rsiCheck.reason}`);
-                continue;
-              }
+            // Check volume filter
+            const volumeCheck = checkVolumeFilter(rule, volumeData);
+            if (!volumeCheck.passed) {
+              console.log(`Auto-trade blocked for ${alert.symbol}: Volume filter - ${volumeCheck.reason}`);
+              continue;
+            }
 
-              const canExecute = canExecuteAutoTrade(rule, autoTradeConfig);
-              if (canExecute.allowed) {
-                const volRatio = volumeData ? (volumeData.current / volumeData.average).toFixed(2) : 'N/A';
-                console.log(`Auto-trading: Executing ${rule.type} for ${alert.symbol} (Confidence: ${alert.confidence ?? 'N/A'}%, Vol: ${volRatio}x avg${rsi !== null ? `, RSI: ${rsi.toFixed(1)}` : ''})`);
-                executeAutoTrade(alert, rule, tradingMode, autoTradeConfig).then((execution) => {
-                  if (execution.status === 'executed') {
-                    console.log(`Auto-trade executed: ${execution.shares} shares of ${execution.symbol} at $${execution.price}`);
-                    // Play success sound
-                    if (soundEnabled) {
-                      playSound(rule.type);
-                    }
-                  } else {
-                    console.error(`Auto-trade failed: ${execution.error}`);
+            // Check RSI filter
+            const rsiCheck = checkRSIFilter(rule, rsi);
+            if (!rsiCheck.passed) {
+              console.log(`Auto-trade blocked for ${alert.symbol}: RSI filter - ${rsiCheck.reason}`);
+              continue;
+            }
+
+            const canExecute = canExecuteAutoTrade(rule, autoTradeConfig);
+            if (canExecute.allowed) {
+              const volRatio = volumeData ? (volumeData.current / volumeData.average).toFixed(2) : 'N/A';
+              console.log(`Auto-trading: Executing ${rule.type} for ${alert.symbol} (Confidence: ${alert.confidence ?? 'N/A'}%, Vol: ${volRatio}x avg${rsi !== null ? `, RSI: ${rsi.toFixed(1)}` : ''})`);
+              executeAutoTrade(alert, rule, tradingMode, autoTradeConfig).then((execution) => {
+                if (execution.status === 'executed') {
+                  console.log(`Auto-trade executed: ${execution.shares} shares of ${execution.symbol} at $${execution.price}`);
+                  // Play success sound
+                  if (soundEnabled) {
+                    playSound(rule.type);
                   }
-                });
-              } else {
-                console.log(`Auto-trade blocked for ${alert.symbol}: ${canExecute.reason}`);
-              }
+                } else {
+                  console.error(`Auto-trade failed: ${execution.error}`);
+                }
+              });
+            } else {
+              console.log(`Auto-trade blocked for ${alert.symbol}: ${canExecute.reason}`);
             }
           }
         }
