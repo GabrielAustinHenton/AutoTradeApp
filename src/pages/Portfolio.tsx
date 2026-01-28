@@ -16,10 +16,12 @@ const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export function Portfolio() {
   const location = useLocation();
-  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, updatePaperPositionPrices, updateShortPositionPrices, ibkrConnected } = useStore();
+  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, forceCloseAllPositions, updatePaperPositionPrices, updateShortPositionPrices, ibkrConnected, autoTradeConfig, updateAutoTradeConfig } = useStore();
   const [activeTab, setActiveTab] = useState<'paper' | 'live'>(tradingMode);
   const isLiveNotConnected = activeTab === 'live' && !ibkrConnected;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showForceCloseConfirm, setShowForceCloseConfirm] = useState(false);
+  const [forceCloseResult, setForceCloseResult] = useState<{ totalPnL: number; tradesExecuted: number } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -124,6 +126,14 @@ export function Portfolio() {
     resetPaperPortfolio(10000);
     setShowResetConfirm(false);
   };
+
+  const handleForceCloseAll = () => {
+    const result = forceCloseAllPositions();
+    setForceCloseResult(result);
+    setShowForceCloseConfirm(false);
+  };
+
+  const hasOpenPositions = paperPortfolio.positions.length > 0 || (paperPortfolio.shortPositions?.length || 0) > 0;
 
   const handleExport = (format: 'csv' | 'json' | 'print') => {
     const exportData = {
@@ -261,6 +271,20 @@ export function Portfolio() {
               Reset Paper Portfolio
             </button>
           </div>
+          {/* Force Close Button */}
+          {hasOpenPositions && (
+            <div className="bg-slate-800 rounded-xl p-4">
+              <button
+                onClick={() => setShowForceCloseConfirm(true)}
+                className="w-full bg-red-600 hover:bg-red-700 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+              >
+                Force Close All Positions
+              </button>
+              <div className="text-xs text-slate-500 mt-1 text-center">
+                Sells all positions & stops auto-trading
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -307,6 +331,66 @@ export function Portfolio() {
                 Reset
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Force Close Confirmation Modal */}
+      {showForceCloseConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 max-w-md">
+            <h3 className="text-lg font-semibold mb-2">Force Close All Positions?</h3>
+            <p className="text-slate-400 mb-4">
+              This will immediately sell all {paperPortfolio.positions.length} long positions and cover all {paperPortfolio.shortPositions?.length || 0} short positions at current prices.
+            </p>
+            <p className="text-amber-400 text-sm mb-4">
+              Auto-trading will be disabled after closing.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowForceCloseConfirm(false)}
+                className="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForceCloseAll}
+                className="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded-lg"
+              >
+                Close All Positions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Force Close Result Modal */}
+      {forceCloseResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 max-w-md">
+            <h3 className="text-lg font-semibold mb-4">All Positions Closed</h3>
+            <div className="space-y-3 mb-4">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Trades Executed:</span>
+                <span className="font-semibold">{forceCloseResult.tradesExecuted}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Total P/L:</span>
+                <span className={`font-semibold ${forceCloseResult.totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {forceCloseResult.totalPnL >= 0 ? '+' : ''}${forceCloseResult.totalPnL.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Auto-Trading:</span>
+                <span className="text-red-400 font-semibold">Disabled</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setForceCloseResult(null)}
+              className="w-full bg-slate-700 hover:bg-slate-600 py-2 rounded-lg"
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

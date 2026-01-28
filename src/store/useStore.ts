@@ -318,6 +318,7 @@ interface AppState {
   // Actions - Trading Mode
   setTradingMode: (mode: TradingMode) => void;
   resetPaperPortfolio: (initialBalance?: number) => void;
+  forceCloseAllPositions: () => { totalPnL: number; tradesExecuted: number };
   addPaperTrade: (trade: Trade) => void;
   updatePaperPosition: (symbol: string, shares: number, avgCost: number, currentPrice: number) => void;
   updatePaperPositionPrices: (prices: Map<string, number>) => void;
@@ -658,6 +659,94 @@ export const useStore = create<AppState>()(
             createdAt: new Date(),
           },
         }),
+
+      forceCloseAllPositions: () => {
+        const state = useStore.getState();
+        let totalPnL = 0;
+        let tradesExecuted = 0;
+
+        // Close all long positions
+        for (const position of state.paperPortfolio.positions) {
+          const pnl = (position.currentPrice - position.avgCost) * position.shares;
+          totalPnL += pnl;
+          const pnlPercent = ((position.currentPrice - position.avgCost) / position.avgCost) * 100;
+          const plText = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)`;
+
+          // Add cash from sale
+          set((s) => ({
+            paperPortfolio: {
+              ...s.paperPortfolio,
+              cashBalance: s.paperPortfolio.cashBalance + position.totalValue,
+            },
+          }));
+
+          // Add trade record
+          state.addPaperTrade({
+            id: `trade-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            symbol: position.symbol,
+            type: 'sell',
+            shares: position.shares,
+            price: position.currentPrice,
+            total: position.totalValue,
+            date: new Date(),
+            notes: `Force Close | P/L: ${plText}`,
+          });
+          tradesExecuted++;
+        }
+
+        // Cover all short positions
+        for (const shortPos of (state.paperPortfolio.shortPositions || [])) {
+          const pnl = (shortPos.entryPrice - shortPos.currentPrice) * shortPos.shares;
+          totalPnL += pnl;
+          const pnlPercent = ((shortPos.entryPrice - shortPos.currentPrice) / shortPos.entryPrice) * 100;
+          const plText = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)`;
+
+          // Update cash (profit or loss from short)
+          set((s) => ({
+            paperPortfolio: {
+              ...s.paperPortfolio,
+              cashBalance: s.paperPortfolio.cashBalance + pnl,
+            },
+          }));
+
+          // Add trade record
+          state.addPaperTrade({
+            id: `trade-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            symbol: shortPos.symbol,
+            type: 'cover',
+            shares: shortPos.shares,
+            price: shortPos.currentPrice,
+            total: shortPos.shares * shortPos.currentPrice,
+            date: new Date(),
+            notes: `Force Close | P/L: ${plText}`,
+          });
+          tradesExecuted++;
+        }
+
+        // Clear all positions
+        set((s) => ({
+          paperPortfolio: {
+            ...s.paperPortfolio,
+            positions: [],
+            shortPositions: [],
+          },
+          // Disable auto-trading
+          autoTradeConfig: {
+            ...s.autoTradeConfig,
+            enabled: false,
+          },
+        }));
+
+        console.log(`\n${'='.repeat(60)}`);
+        console.log(`🛑 FORCE CLOSED ALL POSITIONS`);
+        console.log(`${'='.repeat(60)}`);
+        console.log(`   Trades executed: ${tradesExecuted}`);
+        console.log(`   Total P/L: ${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}`);
+        console.log(`   Auto-trading: DISABLED`);
+        console.log(`${'='.repeat(60)}\n`);
+
+        return { totalPnL, tradesExecuted };
+      },
 
       addPaperTrade: (trade) => {
         set((state) => ({
