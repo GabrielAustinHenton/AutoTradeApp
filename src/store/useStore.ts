@@ -1130,7 +1130,20 @@ export const useStore = create<AppState>()(
           });
 
           // Keep existing rules (preserves user's enabled/autoTrade settings) + add missing ones
-          merged.tradingRules = [...existingRules, ...missingRules];
+          // MIGRATION: Ensure all rules have stop-loss and trailing-stop settings for auto-sell
+          const migratedRules = existingRules.map(rule => {
+            const needsMigration = rule.stopLossPercent === undefined || rule.trailingStopPercent === undefined;
+            if (needsMigration) {
+              console.log(`[Store] Migrating rule "${rule.name}" - adding stop-loss/trailing-stop settings`);
+              return {
+                ...rule,
+                stopLossPercent: rule.stopLossPercent ?? 1,           // 1% stop loss
+                trailingStopPercent: rule.trailingStopPercent ?? 0.75, // 0.75% trailing stop
+              };
+            }
+            return rule;
+          });
+          merged.tradingRules = [...migratedRules, ...missingRules];
 
           // Preserve user data, only reset if not present
           // Ensure paper portfolio cash balance is preserved (don't reset to $10k!)
