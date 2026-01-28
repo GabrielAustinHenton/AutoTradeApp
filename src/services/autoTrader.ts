@@ -189,6 +189,18 @@ export async function executeAutoTrade(
             },
           }));
         }
+
+        // Add trade record for BUY
+        state.addPaperTrade({
+          id: crypto.randomUUID(),
+          symbol: alert.symbol,
+          type: 'buy',
+          shares: execution.shares,
+          price: execution.price,
+          total: execution.total,
+          date: new Date(),
+          notes: `Auto-trade: ${rule.name}`,
+        });
       } else if (rule.type === 'short') {
         // SHORT - Open a short position (profit when price goes DOWN)
         const success = state.openShortPosition(alert.symbol, execution.shares, execution.price);
