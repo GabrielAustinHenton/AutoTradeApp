@@ -331,6 +331,10 @@ async function executeAutoCover(
   }
 }
 
+// Track last log time to avoid spamming console
+let lastStatusLogTime = 0;
+const STATUS_LOG_INTERVAL = 30000; // Log status every 30 seconds
+
 /**
  * Scan positions and check targets
  */
@@ -338,16 +342,26 @@ async function scanPositions(): Promise<void> {
   const hasLongPositions = monitoredPositions.length > 0;
   const hasShortPositions = monitoredShortPositions.length > 0;
 
+  const store = useStore.getState();
+  const now = Date.now();
+
+  // Log status periodically even when no positions to confirm monitor is running
+  if (now - lastStatusLogTime > STATUS_LOG_INTERVAL) {
+    lastStatusLogTime = now;
+    if (!hasLongPositions && !hasShortPositions) {
+      console.log(`🔄 Position Monitor: Running, no positions registered for monitoring`);
+    } else {
+      console.log(`🔄 Position Monitor: Watching ${monitoredPositions.length} long + ${monitoredShortPositions.length} short positions`);
+    }
+  }
+
   if (!hasLongPositions && !hasShortPositions) {
     return;
   }
 
-  const store = useStore.getState();
   if (!store.autoTradeConfig.enabled || store.tradingMode !== 'paper') {
     return;
   }
-
-  logger.debug('PositionMonitor', `Scanning ${monitoredPositions.length} long + ${monitoredShortPositions.length} short positions`);
 
   for (const target of [...monitoredPositions]) {
     try {

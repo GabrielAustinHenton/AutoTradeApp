@@ -277,20 +277,39 @@ export async function executeAutoTrade(
     useStore.getState().updateTradingRule(rule.id, { lastExecutedAt: new Date() });
 
     // Register position for take-profit/stop-loss/trailing-stop monitoring
-    if (rule.type === 'buy' && (rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent)) {
-      const state = useStore.getState();
-      const position = state.paperPortfolio.positions.find((p) => p.symbol === alert.symbol);
-      if (position) {
-        registerPositionForMonitoring(position, rule);
+    if (rule.type === 'buy') {
+      if (rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent) {
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          const state = useStore.getState();
+          const position = state.paperPortfolio.positions.find((p) => p.symbol === alert.symbol);
+          if (position) {
+            console.log(`📊 Registering ${alert.symbol} for monitoring (TP: ${rule.takeProfitPercent || 'none'}%, SL: ${rule.stopLossPercent || 'none'}%, Trail: ${rule.trailingStopPercent || 'none'}%)`);
+            registerPositionForMonitoring(position, rule);
+          } else {
+            console.warn(`⚠️ Could not find position for ${alert.symbol} to register for monitoring`);
+          }
+        }, 100);
+      } else {
+        console.warn(`⚠️ Rule "${rule.name}" has no take-profit, stop-loss, or trailing-stop configured - position will NOT be auto-sold!`);
       }
     }
 
     // Register SHORT position for monitoring (stop loss and trailing stop work inversely)
-    if (rule.type === 'short' && (rule.stopLossPercent || rule.trailingStopPercent)) {
-      const state = useStore.getState();
-      const shortPosition = state.paperPortfolio.shortPositions?.find((p) => p.symbol === alert.symbol);
-      if (shortPosition) {
-        registerShortPositionForMonitoring(shortPosition, rule);
+    if (rule.type === 'short') {
+      if (rule.stopLossPercent || rule.trailingStopPercent) {
+        setTimeout(() => {
+          const state = useStore.getState();
+          const shortPosition = state.paperPortfolio.shortPositions?.find((p) => p.symbol === alert.symbol);
+          if (shortPosition) {
+            console.log(`📊 Registering SHORT ${alert.symbol} for monitoring (SL: ${rule.stopLossPercent || 'none'}%, Trail: ${rule.trailingStopPercent || 'none'}%)`);
+            registerShortPositionForMonitoring(shortPosition, rule);
+          } else {
+            console.warn(`⚠️ Could not find short position for ${alert.symbol} to register for monitoring`);
+          }
+        }, 100);
+      } else {
+        console.warn(`⚠️ Short rule "${rule.name}" has no stop-loss or trailing-stop configured - position will NOT be auto-covered!`);
       }
     }
   } catch (error) {
