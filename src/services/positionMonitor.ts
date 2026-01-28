@@ -157,12 +157,12 @@ async function executeAutoSell(
   );
 
   // Execute the sell in paper portfolio
+  const reasonDisplayName = reason === 'take_profit' ? 'Take Profit' : reason === 'trailing_stop' ? 'Trailing Stop' : 'Stop Loss';
   const executePaperSell = useStore.getState().executePaperSell;
-  const success = executePaperSell(target.symbol, sharesToSell, currentPrice);
+  const success = executePaperSell(target.symbol, sharesToSell, currentPrice, reasonDisplayName);
 
   if (success) {
     // Record the auto-trade execution
-    const reasonDisplayName = reason === 'take_profit' ? 'Take Profit' : reason === 'trailing_stop' ? 'Trailing Stop' : 'Stop Loss';
     const execution: AutoTradeExecution = {
       id: `exec-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       ruleId: target.ruleId,
@@ -300,10 +300,10 @@ async function executeAutoCover(
       `(${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)}, ${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(2)}%)`
   );
 
-  const success = coverShortPosition(target.symbol, sharesToCover, currentPrice);
+  const reasonDisplayName = reason === 'trailing_stop' ? 'Trailing Stop' : 'Stop Loss';
+  const success = coverShortPosition(target.symbol, sharesToCover, currentPrice, reasonDisplayName);
 
   if (success) {
-    const reasonDisplayName = reason === 'trailing_stop' ? 'Trailing Stop' : 'Stop Loss';
     const execution: AutoTradeExecution = {
       id: `exec-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       ruleId: target.ruleId,

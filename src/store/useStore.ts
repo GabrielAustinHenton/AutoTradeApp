@@ -321,11 +321,11 @@ interface AppState {
   addPaperTrade: (trade: Trade) => void;
   updatePaperPosition: (symbol: string, shares: number, avgCost: number, currentPrice: number) => void;
   updatePaperPositionPrices: (prices: Map<string, number>) => void;
-  executePaperSell: (symbol: string, shares: number, price: number) => boolean;
+  executePaperSell: (symbol: string, shares: number, price: number, notes?: string) => boolean;
   recordPortfolioSnapshot: () => void;
   // Short position actions
   openShortPosition: (symbol: string, shares: number, price: number) => boolean;
-  coverShortPosition: (symbol: string, shares: number, price: number) => boolean;
+  coverShortPosition: (symbol: string, shares: number, price: number, notes?: string) => boolean;
   updateShortPositionPrices: (prices: Map<string, number>) => void;
 
   // Actions - Auto-Trading
@@ -737,7 +737,7 @@ export const useStore = create<AppState>()(
           },
         })),
 
-      executePaperSell: (symbol, shares, price) => {
+      executePaperSell: (symbol, shares, price, notes) => {
         const state = useStore.getState();
         const position = state.paperPortfolio.positions.find((p) => p.symbol === symbol);
 
@@ -747,6 +747,11 @@ export const useStore = create<AppState>()(
 
         const total = shares * price;
         const newShares = position.shares - shares;
+
+        // Calculate P/L for the trade
+        const profitLoss = (price - position.avgCost) * shares;
+        const profitLossPercent = ((price - position.avgCost) / position.avgCost) * 100;
+        const plText = `${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)} (${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(1)}%)`;
 
         // Add cash from sale
         set((s) => ({
@@ -768,7 +773,7 @@ export const useStore = create<AppState>()(
           state.updatePaperPosition(symbol, newShares, position.avgCost, price);
         }
 
-        // Add trade record
+        // Add trade record with P/L info
         state.addPaperTrade({
           id: `trade-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           symbol,
@@ -777,7 +782,7 @@ export const useStore = create<AppState>()(
           price,
           total,
           date: new Date(),
-          notes: 'Auto-sell (take-profit/stop-loss)',
+          notes: notes ? `${notes} | P/L: ${plText}` : `Auto-sell | P/L: ${plText}`,
         });
 
         return true;
@@ -873,7 +878,7 @@ export const useStore = create<AppState>()(
         return true;
       },
 
-      coverShortPosition: (symbol, shares, price) => {
+      coverShortPosition: (symbol, shares, price, notes) => {
         const state = useStore.getState();
         const shortPos = state.paperPortfolio.shortPositions?.find((p) => p.symbol === symbol);
 
@@ -919,7 +924,9 @@ export const useStore = create<AppState>()(
           }));
         }
 
-        // Add trade record
+        // Add trade record with P/L info
+        const profitLossPercent = ((shortPos.entryPrice - price) / shortPos.entryPrice) * 100;
+        const plText = `${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)} (${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(1)}%)`;
         state.addPaperTrade({
           id: `trade-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           symbol,
@@ -928,7 +935,7 @@ export const useStore = create<AppState>()(
           price,
           total,
           date: new Date(),
-          notes: `Cover short (P/L: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)})`,
+          notes: notes ? `${notes} | P/L: ${plText}` : `Cover short | P/L: ${plText}`,
         });
 
         return true;
