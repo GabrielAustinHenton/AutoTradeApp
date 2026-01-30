@@ -1,8 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useMultipleQuotes } from '../hooks/useStockData';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
 import { AlertsPanel } from '../components/alerts/AlertsPanel';
+import { runBacktest } from '../services/backtester';
+import type { BacktestResult } from '../types';
 import {
   LineChart,
   Line,
@@ -29,6 +31,12 @@ export function Dashboard() {
     alertsEnabled,
     ibkrConnected,
   } = useStore();
+
+  // Backtest state
+  const [backtestRunning, setBacktestRunning] = useState(false);
+  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+  const [backtestError, setBacktestError] = useState<string | null>(null);
+  const [backtestSymbol, setBacktestSymbol] = useState('AAPL');
 
   // Use paper portfolio data when in paper mode
   const isPaperMode = tradingMode === 'paper';
@@ -90,6 +98,41 @@ export function Dashboard() {
   const startingBalance = isPaperMode ? (paperPortfolio?.startingBalance ?? 10000) : 10000;
   const totalPnL = totalPortfolioValue !== null ? totalPortfolioValue - startingBalance : null;
   const totalPnLPercent = totalPnL !== null ? (totalPnL / startingBalance) * 100 : null;
+
+  // Quick Backtest function
+  const runQuickBacktest = async () => {
+    setBacktestRunning(true);
+    setBacktestError(null);
+    setBacktestResult(null);
+
+    try {
+      const symbolRules = tradingRules.filter(
+        (r) => r.enabled && r.ruleType === 'pattern' && r.symbol.toUpperCase() === backtestSymbol.toUpperCase()
+      );
+
+      if (symbolRules.length === 0) {
+        throw new Error(`No enabled rules found for ${backtestSymbol}`);
+      }
+
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 3);
+
+      const result = await runBacktest({
+        symbol: backtestSymbol.toUpperCase(),
+        startDate,
+        endDate: new Date(),
+        initialCapital: 10000,
+        positionSize: 10,
+        rules: symbolRules,
+      });
+
+      setBacktestResult(result);
+    } catch (err) {
+      setBacktestError(err instanceof Error ? err.message : 'Backtest failed');
+    } finally {
+      setBacktestRunning(false);
+    }
+  };
 
   return (
     <div className="text-white">
@@ -317,6 +360,88 @@ export function Dashboard() {
                 <span className="text-slate-400">Total Rules</span>
                 <span>{tradingRules.length}</span>
               </div>
+            </div>
+          </div>
+
+          {/* Quick Backtest */}
+          <div className="bg-slate-800 rounded-xl p-6">
+            <h2 className="text-xl font-semibold mb-4">Quick Backtest</h2>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={backtestSymbol}
+                  onChange={(e) => setBacktestSymbol(e.target.value.toUpperCase())}
+                  placeholder="Symbol"
+                  className="flex-1 px-3 py-2 bg-slate-700 rounded-lg text-sm"
+                />
+                <button
+                  onClick={runQuickBacktest}
+                  disabled={backtestRunning}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+                >
+                  {backtestRunning ? 'Running...' : 'Run'}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">Tests last 3 months with your rules</p>
+
+              {backtestError && (
+                <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-sm text-red-300">
+                  {backtestError}
+                </div>
+              )}
+
+              {backtestResult && (
+                <div className="space-y-2 pt-2 border-t border-slate-700">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Total Trades</span>
+                    <span>{backtestResult.metrics.totalTrades}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Win Rate</span>
+                    <span className={backtestResult.metrics.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}>
+                      {backtestResult.metrics.winRate.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Total Return</span>
+                    <span className={backtestResult.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      {backtestResult.metrics.totalReturn >= 0 ? '+' : ''}${backtestResult.metrics.totalReturn.toFixed(2)}
+                      {' '}({backtestResult.metrics.totalReturnPercent >= 0 ? '+' : ''}{backtestResult.metrics.totalReturnPercent.toFixed(2)}%)
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Max Drawdown</span>
+                    <span className="text-red-400">-${backtestResult.metrics.maxDrawdown.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Profit Factor</span>
+                    <span>{backtestResult.metrics.profitFactor === Infinity ? '∞' : backtestResult.metrics.profitFactor.toFixed(2)}</span>
+                  </div>
+                  {backtestResult.trades.length > 0 && (
+                    <details className="pt-2">
+                      <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-300">
+                        View {backtestResult.trades.length} trades
+                      </summary>
+                      <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                        {backtestResult.trades.map((t, i) => (
+                          <div key={i} className="text-xs p-2 bg-slate-700/50 rounded">
+                            <div className="flex justify-between">
+                              <span>{t.ruleName}</span>
+                              <span className={t.profitLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                {t.profitLoss >= 0 ? '+' : ''}${t.profitLoss.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="text-slate-500">
+                              ${t.entryPrice.toFixed(2)} → ${t.exitPrice.toFixed(2)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
