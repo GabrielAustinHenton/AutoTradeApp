@@ -3,7 +3,10 @@ import { useStore } from '../store/useStore';
 import { getBinancePrice, getBinanceCandles } from '../services/binanceApi';
 import { useDCABot } from '../hooks/useDCABot';
 import { useGridBot } from '../hooks/useGridBot';
-import type { PriceHistory } from '../types';
+import { useCryptoPatternScanner } from '../hooks/useCryptoPatternScanner';
+import { useCryptoPositionMonitor } from '../hooks/useCryptoPositionMonitor';
+import { runCryptoBacktest } from '../services/cryptoBacktester';
+import type { PriceHistory, CryptoBacktestResult, CryptoPosition, CryptoTradingRule, DCAConfig, GridConfig, CryptoTrade as CryptoTradeType } from '../types';
 import {
   LineChart,
   Line,
@@ -48,6 +51,11 @@ export function CryptoTrade() {
     addGridConfig,
     updateGridConfig,
     removeGridConfig,
+    cryptoTradingRules,
+    cryptoAutoTradeConfig,
+    updateCryptoAutoTradeConfig,
+    toggleCryptoTradingRule,
+    alertsEnabled,
   } = useStore();
 
   const [selectedSymbol, setSelectedSymbol] = useState('BTC');
@@ -76,9 +84,20 @@ export function CryptoTrade() {
   const [gridLevels, setGridLevels] = useState('10');
   const [gridAmount, setGridAmount] = useState('100');
 
-  // Initialize bots
+  // Initialize bots and scanners
   const { enabledCount: dcaEnabledCount } = useDCABot();
   const { enabledCount: gridEnabledCount } = useGridBot();
+  const { scanNow: scanCryptoNow } = useCryptoPatternScanner();
+  const { registeredPositions } = useCryptoPositionMonitor();
+
+  // Backtest state
+  const [backtestRunning, setBacktestRunning] = useState(false);
+  const [backtestResult, setBacktestResult] = useState<CryptoBacktestResult | null>(null);
+  const [backtestError, setBacktestError] = useState<string | null>(null);
+  const [backtestSymbol, setBacktestSymbol] = useState('BTC');
+
+  // Show rules panel
+  const [showRules, setShowRules] = useState(false);
 
   // Fetch price
   const fetchPrice = useCallback(async () => {
@@ -154,7 +173,7 @@ export function CryptoTrade() {
         setCryptoUsdBalance(cryptoPortfolio.usdBalance - usdAmount);
 
         // Update or create position
-        const existingPosition = cryptoPortfolio.positions.find(p => p.symbol === selectedSymbol);
+        const existingPosition = cryptoPortfolio.positions.find((p: CryptoPosition) => p.symbol === selectedSymbol);
         if (existingPosition) {
           const newAmount = existingPosition.amount + cryptoAmount;
           const newAvgCost = ((existingPosition.avgCost * existingPosition.amount) + usdAmount) / newAmount;
@@ -179,7 +198,7 @@ export function CryptoTrade() {
           message: `Bought ${cryptoAmount.toFixed(6)} ${selectedSymbol} for $${usdAmount.toFixed(2)}`,
         });
       } else {
-        const position = cryptoPortfolio.positions.find(p => p.symbol === selectedSymbol);
+        const position = cryptoPortfolio.positions.find((p: CryptoPosition) => p.symbol === selectedSymbol);
         const cryptoToSell = usdAmount / quote.price;
 
         if (!position || position.amount < cryptoToSell) {
@@ -251,12 +270,121 @@ export function CryptoTrade() {
     setShowGridForm(false);
   };
 
-  const selectedCrypto = CRYPTO_SYMBOLS.find(c => c.symbol === selectedSymbol);
-  const position = cryptoPortfolio.positions.find(p => p.symbol === selectedSymbol);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _selectedCrypto = CRYPTO_SYMBOLS.find(c => c.symbol === selectedSymbol);
+  const position = cryptoPortfolio.positions.find((p: CryptoPosition) => p.symbol === selectedSymbol);
+
+  // Calculate crypto portfolio value
+  const positionsValue = cryptoPortfolio.positions.reduce(
+    (sum: number, p: CryptoPosition) => sum + p.amount * p.currentPrice,
+    0
+  );
+  const totalPortfolioValue = cryptoPortfolio.usdBalance + positionsValue;
+  const startingBalance = cryptoPortfolio.startingBalance || 10000;
+  const totalPnL = totalPortfolioValue - startingBalance;
+  const totalPnLPercent = (totalPnL / startingBalance) * 100;
+
+  // Count enabled rules for selected symbol
+  const enabledRulesCount = cryptoTradingRules.filter(
+    (r: CryptoTradingRule) => r.enabled && r.symbol === selectedSymbol
+  ).length;
+
+  // Quick backtest function
+  const runQuickBacktest = async () => {
+    setBacktestRunning(true);
+    setBacktestError(null);
+    setBacktestResult(null);
+
+    try {
+      const symbolRules = cryptoTradingRules.filter(
+        (r: CryptoTradingRule) => r.enabled && r.ruleType === 'pattern' && r.symbol === backtestSymbol
+      );
+
+      if (symbolRules.length === 0) {
+        throw new Error(`No enabled rules found for ${backtestSymbol}`);
+      }
+
+      // Backtest last 7 days (crypto data is available 24/7)
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 7);
+
+      const result = await runCryptoBacktest({
+        symbol: backtestSymbol,
+        startDate,
+        endDate: new Date(),
+        initialCapital: 10000,
+        positionSizePercent: 15,
+        rules: symbolRules,
+      });
+
+      setBacktestResult(result);
+    } catch (err) {
+      setBacktestError(err instanceof Error ? err.message : 'Backtest failed');
+    } finally {
+      setBacktestRunning(false);
+    }
+  };
 
   return (
     <div className="text-white">
-      <h1 className="text-3xl font-bold mb-6">Crypto Trade</h1>
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold">Crypto Trade</h1>
+          {cryptoAutoTradeConfig.enabled && (
+            <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-900 text-purple-300 animate-pulse">
+              AUTO-TRADE ON
+            </span>
+          )}
+          {registeredPositions > 0 && (
+            <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-900 text-blue-300">
+              {registeredPositions} position{registeredPositions > 1 ? 's' : ''} monitored
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => updateCryptoAutoTradeConfig({ enabled: !cryptoAutoTradeConfig.enabled })}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              cryptoAutoTradeConfig.enabled
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
+          >
+            {cryptoAutoTradeConfig.enabled ? 'Stop Auto-Trade' : 'Start Auto-Trade'}
+          </button>
+          <button
+            onClick={scanCryptoNow}
+            disabled={!alertsEnabled}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+          >
+            Scan Now
+          </button>
+        </div>
+      </div>
+
+      {/* Portfolio Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-slate-400 text-sm">Portfolio Value</h3>
+          <p className="text-xl font-bold">${totalPortfolioValue.toFixed(2)}</p>
+        </div>
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-slate-400 text-sm">USD Balance</h3>
+          <p className="text-xl font-bold">${cryptoPortfolio.usdBalance.toFixed(2)}</p>
+        </div>
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-slate-400 text-sm">Total P/L</h3>
+          <p className={`text-xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)} ({totalPnLPercent >= 0 ? '+' : ''}{totalPnLPercent.toFixed(1)}%)
+          </p>
+        </div>
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-slate-400 text-sm">Active Rules</h3>
+          <p className="text-xl font-bold text-emerald-400">
+            {cryptoTradingRules.filter((r: CryptoTradingRule) => r.enabled).length}
+          </p>
+        </div>
+      </div>
 
       {/* Symbol Selector & Price */}
       <div className="bg-slate-800 rounded-xl p-6 mb-6">
@@ -326,8 +454,8 @@ export function CryptoTrade() {
                     border: 'none',
                     borderRadius: '8px',
                   }}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, 'Price']}
-                  labelFormatter={(label, payload) => payload[0]?.payload?.fullDate || label}
+                  formatter={(value) => [`$${Number(value).toLocaleString()}`, 'Price']}
+                  labelFormatter={(label, payload) => (payload as unknown as Array<{ payload?: { fullDate?: string } }>)?.[0]?.payload?.fullDate || String(label)}
                 />
                 <Line
                   type="monotone"
@@ -443,7 +571,7 @@ export function CryptoTrade() {
             </div>
           ) : (
             <div className="space-y-3">
-              {cryptoPortfolio.positions.map((pos) => {
+              {cryptoPortfolio.positions.map((pos: CryptoPosition) => {
                 const value = pos.amount * pos.currentPrice;
                 const gain = value - (pos.amount * pos.avgCost);
                 const gainPercent = ((pos.currentPrice - pos.avgCost) / pos.avgCost) * 100;
@@ -550,7 +678,7 @@ export function CryptoTrade() {
             </div>
           ) : (
             <div className="space-y-2">
-              {dcaConfigs.map((config) => (
+              {dcaConfigs.map((config: DCAConfig) => (
                 <div
                   key={config.id}
                   className="flex items-center justify-between p-3 bg-slate-700 rounded-lg"
@@ -675,7 +803,7 @@ export function CryptoTrade() {
             </div>
           ) : (
             <div className="space-y-2">
-              {gridConfigs.map((config) => (
+              {gridConfigs.map((config: GridConfig) => (
                 <div
                   key={config.id}
                   className="flex items-center justify-between p-3 bg-slate-700 rounded-lg"
@@ -713,6 +841,204 @@ export function CryptoTrade() {
           )}
         </div>
       </div>
+
+      {/* Pattern Rules & Backtest Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Quick Backtest */}
+        <div className="bg-slate-800 rounded-xl p-6">
+          <h2 className="text-xl font-semibold mb-4">Quick Backtest</h2>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <select
+                value={backtestSymbol}
+                onChange={(e) => setBacktestSymbol(e.target.value)}
+                className="flex-1 px-3 py-2 bg-slate-700 rounded-lg text-sm"
+              >
+                {CRYPTO_SYMBOLS.map((c) => (
+                  <option key={c.symbol} value={c.symbol}>{c.symbol}</option>
+                ))}
+              </select>
+              <button
+                onClick={runQuickBacktest}
+                disabled={backtestRunning}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+              >
+                {backtestRunning ? 'Running...' : 'Run'}
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">Tests last 7 days with 1-hour candles</p>
+
+            {backtestError && (
+              <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-sm text-red-300">
+                {backtestError}
+              </div>
+            )}
+
+            {backtestResult && (
+              <div className="space-y-2 pt-2 border-t border-slate-700">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Total Trades</span>
+                  <span>{backtestResult.metrics.totalTrades}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Win Rate</span>
+                  <span className={backtestResult.metrics.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}>
+                    {backtestResult.metrics.winRate.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Total Return</span>
+                  <span className={backtestResult.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                    {backtestResult.metrics.totalReturn >= 0 ? '+' : ''}${backtestResult.metrics.totalReturn.toFixed(2)}
+                    {' '}({backtestResult.metrics.totalReturnPercent >= 0 ? '+' : ''}{backtestResult.metrics.totalReturnPercent.toFixed(2)}%)
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Max Drawdown</span>
+                  <span className="text-red-400">-${backtestResult.metrics.maxDrawdown.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Profit Factor</span>
+                  <span>{backtestResult.metrics.profitFactor === Infinity ? '∞' : backtestResult.metrics.profitFactor.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Avg Hold Time</span>
+                  <span>{backtestResult.metrics.averageHoldingPeriodHours.toFixed(1)} hours</span>
+                </div>
+                {backtestResult.trades.length > 0 && (
+                  <details className="pt-2">
+                    <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-300">
+                      View {backtestResult.trades.length} trades
+                    </summary>
+                    <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                      {backtestResult.trades.map((t, i) => (
+                        <div key={i} className="text-xs p-2 bg-slate-700/50 rounded">
+                          <div className="flex justify-between">
+                            <span>{t.ruleName}</span>
+                            <span className={(t.profitLoss || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                              {(t.profitLoss || 0) >= 0 ? '+' : ''}${(t.profitLoss || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="text-slate-500">
+                            ${t.entryPrice.toFixed(2)} → ${(t.exitPrice || 0).toFixed(2)} ({t.holdingPeriodHours}h)
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Trading Rules */}
+        <div className="bg-slate-800 rounded-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Pattern Rules</h2>
+            <button
+              onClick={() => setShowRules(!showRules)}
+              className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+            >
+              {showRules ? 'Hide' : 'Show'} Rules
+            </button>
+          </div>
+
+          <div className="space-y-2 mb-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Enabled Rules</span>
+              <span className="text-emerald-400">
+                {cryptoTradingRules.filter((r: CryptoTradingRule) => r.enabled).length} / {cryptoTradingRules.length}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Buy Rules (auto-trade)</span>
+              <span>{cryptoTradingRules.filter((r: CryptoTradingRule) => r.enabled && r.type === 'buy' && r.autoTrade).length}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Rules for {selectedSymbol}</span>
+              <span>{enabledRulesCount}</span>
+            </div>
+          </div>
+
+          {showRules && (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {cryptoTradingRules
+                .filter((r: CryptoTradingRule) => r.symbol === selectedSymbol)
+                .map((rule: CryptoTradingRule) => (
+                  <div
+                    key={rule.id}
+                    className={`flex items-center justify-between p-2 rounded-lg ${
+                      rule.enabled ? 'bg-slate-700' : 'bg-slate-700/50 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${
+                        rule.type === 'buy' ? 'bg-emerald-400' : 'bg-red-400'
+                      }`} />
+                      <span className="text-sm">{rule.name}</span>
+                      {rule.autoTrade && rule.type === 'buy' && (
+                        <span className="px-1.5 py-0.5 bg-purple-600 rounded text-xs">AUTO</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => toggleCryptoTradingRule(rule.id)}
+                      className={`px-2 py-1 rounded text-xs ${
+                        rule.enabled
+                          ? 'bg-emerald-600 hover:bg-emerald-700'
+                          : 'bg-slate-600 hover:bg-slate-500'
+                      }`}
+                    >
+                      {rule.enabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          <div className="mt-4 p-3 bg-slate-700/50 rounded-lg text-xs text-slate-400">
+            <p className="font-medium text-slate-300 mb-1">Auto-Trading Settings:</p>
+            <ul className="space-y-1">
+              <li>Take Profit: 8%</li>
+              <li>Stop Loss: 4%</li>
+              <li>Trailing Stop: 3%</li>
+              <li>Max Position: {cryptoAutoTradeConfig.maxPositionSizePercent}% of portfolio</li>
+              <li>Max Trades/Day: {cryptoAutoTradeConfig.maxTradesPerDay}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Trades */}
+      {cryptoPortfolio.trades.length > 0 && (
+        <div className="bg-slate-800 rounded-xl p-6 mt-6">
+          <h2 className="text-xl font-semibold mb-4">Recent Trades</h2>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {cryptoPortfolio.trades.slice(0, 10).map((trade: CryptoTradeType) => (
+              <div
+                key={trade.id}
+                className="flex justify-between items-center p-3 bg-slate-700 rounded-lg"
+              >
+                <div>
+                  <span className="font-medium">{trade.symbol}</span>
+                  <span className={`ml-2 text-sm ${
+                    trade.type === 'buy' ? 'text-emerald-400' : 'text-red-400'
+                  }`}>
+                    {trade.type.toUpperCase()}
+                  </span>
+                  <div className="text-xs text-slate-500">
+                    {new Date(trade.date).toLocaleString()}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm">{trade.amount.toFixed(6)} @ ${trade.price.toFixed(2)}</div>
+                  <div className="text-xs text-slate-400">${trade.total.toFixed(2)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

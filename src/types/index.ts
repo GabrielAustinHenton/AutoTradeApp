@@ -274,6 +274,42 @@ export interface CryptoPosition {
   amount: number;
   avgCost: number;
   currentPrice: number;
+  highestPrice?: number;  // Track highest price for trailing stop
+  openedAt?: Date;        // Track when position was opened for time-based exits
+}
+
+// Crypto Trading Rule - extends TradingRule concept for crypto
+export interface CryptoTradingRule {
+  id: string;
+  name: string;
+  symbol: string;  // BTC, ETH, SOL, etc.
+  enabled: boolean;
+  type: 'buy' | 'sell';
+  ruleType: 'pattern' | 'rsi';  // Crypto uses patterns and RSI (no MACD for now due to API limits)
+  pattern?: CandlestickPattern;
+  // RSI crossover settings
+  rsiSettings?: {
+    period: number;         // RSI period (default 14)
+    oversoldLevel: number;  // Buy when RSI crosses above this (default 30)
+    overboughtLevel: number; // Sell when RSI crosses below this (default 70)
+    crossoverType: 'oversold_exit' | 'overbought_exit';
+  };
+  createdAt: Date;
+  lastTriggered?: Date;
+  // Auto-trading fields
+  autoTrade: boolean;
+  cooldownMinutes: number;
+  lastExecutedAt?: Date;
+  // Risk management
+  takeProfitPercent?: number;
+  stopLossPercent?: number;
+  trailingStopPercent?: number;
+  // Filters
+  minConfidence?: number;
+  volumeFilter?: {
+    enabled: boolean;
+    minMultiplier: number;
+  };
 }
 
 export interface CryptoTrade {
@@ -290,6 +326,76 @@ export interface CryptoPortfolio {
   usdBalance: number;
   positions: CryptoPosition[];
   trades: CryptoTrade[];
+  startingBalance?: number;
+  history?: CryptoPortfolioSnapshot[];
+}
+
+export interface CryptoPortfolioSnapshot {
+  date: Date;
+  totalValue: number;
+  usdBalance: number;
+  positionsValue: number;
+}
+
+// Crypto Auto-Trading Configuration
+export interface CryptoAutoTradeConfig {
+  enabled: boolean;
+  maxTradesPerDay: number;
+  maxPositionSizePercent: number;  // % of portfolio per trade
+}
+
+// Crypto Backtest Types
+export interface CryptoBacktestConfig {
+  symbol: string;
+  startDate: Date;
+  endDate: Date;
+  initialCapital: number;
+  positionSizePercent: number;
+  rules: CryptoTradingRule[];
+}
+
+export interface CryptoBacktestTrade {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  pattern?: CandlestickPattern;
+  type: 'buy' | 'sell';
+  amount: number;
+  entryPrice: number;
+  entryDate: Date;
+  exitPrice?: number;
+  exitDate?: Date;
+  profitLoss?: number;
+  profitLossPercent?: number;
+  holdingPeriodHours?: number;
+}
+
+export interface CryptoBacktestResult {
+  id: string;
+  config: CryptoBacktestConfig;
+  trades: CryptoBacktestTrade[];
+  metrics: {
+    totalTrades: number;
+    winningTrades: number;
+    losingTrades: number;
+    winRate: number;
+    totalReturn: number;
+    totalReturnPercent: number;
+    maxDrawdown: number;
+    maxDrawdownPercent: number;
+    profitFactor: number;
+    averageWin: number;
+    averageLoss: number;
+    largestWin: number;
+    largestLoss: number;
+    averageHoldingPeriodHours: number;
+    finalCapital: number;
+  };
+  equityCurve: Array<{
+    date: Date;
+    equity: number;
+  }>;
+  runAt: Date;
 }
 
 // DCA (Dollar-Cost Averaging) Configuration
