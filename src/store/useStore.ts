@@ -54,12 +54,13 @@ const defaultCryptoPortfolio: CryptoPortfolio = {
 };
 
 // ============================================================================
-// DAY TRADING MOMENTUM RULES
-// Optimized for riding bullish breakouts and exiting when momentum slows
-// - Tight trailing stop (0.75%) to lock in gains without giving back profits
-// - Tight stop loss (1%) to cut losses quickly
-// - NO fixed take profit - let trailing stop capture the full move
-// - Pattern sells DISABLED - trailing stop handles all exits
+// SWING TRADING RULES - FIXED TARGETS (NO TRAILING STOP)
+// Analysis showed trailing stops exit winners too early (2-3% gains vs 10% target)
+// Strategy: Fixed take profit + stop loss only, no trailing stop
+// - Take profit: 5% (achievable target)
+// - Stop loss: 2% (tight risk management)
+// - Risk/Reward: 1:2.5 (need 40% win rate to break even)
+// - No trailing stop (was killing profitable trades)
 // ============================================================================
 
 // Bullish patterns for momentum entry
@@ -78,7 +79,7 @@ const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
   { pattern: 'bearish_breakout', name: 'Bearish Breakout' },
 ];
 
-// Create a BUY rule - optimized for steady profits
+// Create a BUY rule - fixed targets, no trailing stop
 const createPatternBuyRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -95,12 +96,12 @@ const createPatternBuyRule = (
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 5,
-  takeProfitPercent: 10,          // Take profit at 10% gain
-  stopLossPercent: 3,             // 3% stop loss - room to breathe
-  trailingStopPercent: 2,         // 2% trailing stop - lets winners run
-  minConfidence: 60,
-  rsiFilter: { enabled: true, maxRSI: 35 },  // Only buy when RSI < 35 (oversold)
-  volumeFilter: { enabled: true, minMultiplier: 2.0 },  // Require 2x average volume
+  takeProfitPercent: 5,           // 5% take profit (realistic target)
+  stopLossPercent: 2,             // 2% stop loss (tight risk management)
+  trailingStopPercent: undefined, // NO trailing stop - was exiting winners too early
+  minConfidence: 70,              // Higher confidence threshold (was 60)
+  rsiFilter: { enabled: true, maxRSI: 40 },  // RSI < 40 (slightly relaxed from 35)
+  volumeFilter: { enabled: true, minMultiplier: 1.5 },  // 1.5x average volume (relaxed)
 });
 
 // Create pattern ALERT rule (no auto-trade) - for manual decision making
@@ -124,7 +125,7 @@ const createPatternSellRule = (
   volumeFilter: { enabled: false, minMultiplier: 1.0 },
 });
 
-// Create a MACD buy rule - optimized for steady profits
+// Create a MACD buy rule - fixed targets, no trailing stop
 const createMACDBuyRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Buy`,
@@ -142,11 +143,11 @@ const createMACDBuyRule = (symbol: string): TradingRule => ({
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 5,
-  takeProfitPercent: 10,          // Take profit at 10% gain
-  stopLossPercent: 3,             // 3% stop loss
-  trailingStopPercent: 2,         // 2% trailing stop
-  rsiFilter: { enabled: true, maxRSI: 35 },  // Only buy when RSI < 35
-  volumeFilter: { enabled: true, minMultiplier: 2.0 },
+  takeProfitPercent: 5,           // 5% take profit
+  stopLossPercent: 2,             // 2% stop loss
+  trailingStopPercent: undefined, // NO trailing stop
+  rsiFilter: { enabled: true, maxRSI: 40 },
+  volumeFilter: { enabled: true, minMultiplier: 1.5 },
 });
 
 // Create a MACD sell ALERT (no auto-trade) - trailing stop handles exits
@@ -175,7 +176,7 @@ const createMACDSellRule = (symbol: string): TradingRule => ({
 // Open short on bearish patterns, cover (buy back) on bullish patterns
 // ============================================================================
 
-// Create a SHORT rule - optimized for steady profits on bearish moves
+// Create a SHORT rule - fixed targets, no trailing stop
 const createPatternShortRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -192,15 +193,15 @@ const createPatternShortRule = (
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 5,
-  takeProfitPercent: 10,          // Take profit at 10% gain (price drops 10%)
-  stopLossPercent: 3,             // 3% stop loss - if price rises 3%, cover
-  trailingStopPercent: 2,         // 2% trailing stop from lowest price
-  minConfidence: 60,
-  rsiFilter: { enabled: true, minRSI: 65 },  // Only short when RSI > 65 (overbought)
-  volumeFilter: { enabled: true, minMultiplier: 2.0 },
+  takeProfitPercent: 5,           // 5% take profit (price drops 5%)
+  stopLossPercent: 2,             // 2% stop loss - if price rises 2%, cover
+  trailingStopPercent: undefined, // NO trailing stop
+  minConfidence: 70,              // Higher confidence threshold
+  rsiFilter: { enabled: true, minRSI: 60 },  // Only short when RSI > 60 (overbought)
+  volumeFilter: { enabled: true, minMultiplier: 1.5 },
 });
 
-// Create MACD short rule - optimized for steady profits
+// Create MACD short rule - fixed targets, no trailing stop
 const createMACDShortRule = (symbol: string): TradingRule => ({
   id: crypto.randomUUID(),
   name: `${symbol} MACD Short`,
@@ -218,11 +219,11 @@ const createMACDShortRule = (symbol: string): TradingRule => ({
   createdAt: new Date(),
   autoTrade: true,
   cooldownMinutes: 5,
-  takeProfitPercent: 10,          // Take profit at 10% gain
-  stopLossPercent: 3,             // 3% stop loss
-  trailingStopPercent: 2,         // 2% trailing stop
-  rsiFilter: { enabled: true, minRSI: 65 },  // Only short when RSI > 65
-  volumeFilter: { enabled: true, minMultiplier: 2.0 },
+  takeProfitPercent: 5,           // 5% take profit
+  stopLossPercent: 2,             // 2% stop loss
+  trailingStopPercent: undefined, // NO trailing stop
+  rsiFilter: { enabled: true, minRSI: 60 },
+  volumeFilter: { enabled: true, minMultiplier: 1.5 },
 });
 
 // Generate all rules for a symbol
@@ -248,9 +249,18 @@ const defaultPatternRules: TradingRule[] = PERMANENT_WATCHLIST.flatMap(createRul
 // - Faster cooldowns (markets never close)
 // ============================================================================
 
-const CRYPTO_SYMBOLS = ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'DOT', 'AVAX', 'LINK', 'POL'];
+const CRYPTO_SYMBOLS = [
+  'BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'DOT', 'AVAX', 'LINK', 'POL',
+  'PEPE', 'SHIB', 'LTC', 'UNI', 'ATOM', 'FIL', 'APT', 'ARB', 'OP', 'SUI',
+];
 
-// Create a crypto BUY rule
+// Crypto patterns - breakouts only
+const CRYPTO_BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
+  { pattern: 'bullish_breakout', name: 'Bullish Breakout' },
+];
+
+// Create a crypto BUY rule - QUICK SCALP strategy
+// Take quick profits, cut losses fast
 const createCryptoPatternBuyRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -265,15 +275,16 @@ const createCryptoPatternBuyRule = (
   pattern,
   createdAt: new Date(),
   autoTrade: true,
-  cooldownMinutes: 15,  // Faster than stocks (crypto moves fast)
-  takeProfitPercent: 8,           // 8% take profit (crypto can move quick)
-  stopLossPercent: 4,             // 4% stop loss (wider for crypto volatility)
-  trailingStopPercent: 3,         // 3% trailing stop
-  minConfidence: 60,
-  volumeFilter: { enabled: true, minMultiplier: 1.5 },  // Lower volume threshold for crypto
+  cooldownMinutes: 60,            // 1 hour cooldown
+  takeProfitPercent: 3,           // 3% quick take profit
+  stopLossPercent: 2,             // 2% tight stop loss (1.5:1 ratio)
+  trailingStopPercent: undefined, // No trailing - fixed targets
+  minConfidence: 70,              // Higher confidence required
+  rsiFilter: { enabled: false },  // Disable RSI filter
+  volumeFilter: { enabled: false }, // Disable volume filter - more trades
 });
 
-// Create a crypto SELL rule
+// Create a crypto SELL rule (alert only - take profit/stop loss handle exits)
 const createCryptoPatternSellRule = (
   symbol: string,
   pattern: CandlestickPattern,
@@ -287,22 +298,23 @@ const createCryptoPatternSellRule = (
   ruleType: 'pattern',
   pattern,
   createdAt: new Date(),
-  autoTrade: false,  // Alert only - trailing stop handles exits
+  autoTrade: false,  // Alert only - take profit/stop loss handle exits
   cooldownMinutes: 15,
-  minConfidence: 60,
+  minConfidence: 60,              // Match buy rule threshold
   volumeFilter: { enabled: false, minMultiplier: 1.0 },
 });
 
-// Generate crypto rules for a symbol
+// Generate crypto rules for a symbol - ONLY momentum/breakout patterns
 const createCryptoRulesForSymbol = (symbol: string): CryptoTradingRule[] => [
-  // BUY on bullish patterns
-  ...BULLISH_PATTERNS.map(({ pattern, name }) => createCryptoPatternBuyRule(symbol, pattern, name)),
+  // BUY on breakout/momentum patterns only (reversal patterns don't work in crypto)
+  ...CRYPTO_BULLISH_PATTERNS.map(({ pattern, name }) => createCryptoPatternBuyRule(symbol, pattern, name)),
   // SELL alerts on bearish patterns (trailing stop handles actual exits)
   ...BEARISH_PATTERNS.map(({ pattern, name }) => createCryptoPatternSellRule(symbol, pattern, name)),
 ];
 
 // Default crypto rules for top coins
 const defaultCryptoRules: CryptoTradingRule[] = CRYPTO_SYMBOLS.flatMap(createCryptoRulesForSymbol);
+console.log(`[Store] Generated ${defaultCryptoRules.length} crypto rules for ${CRYPTO_SYMBOLS.length} symbols:`, CRYPTO_SYMBOLS);
 
 // Default crypto auto-trade config
 const defaultCryptoAutoTradeConfig: CryptoAutoTradeConfig = {
@@ -1378,8 +1390,10 @@ export const useStore = create<AppState>()(
           ),
         })),
 
-      resetCryptoTradingRules: () =>
-        set({ cryptoTradingRules: defaultCryptoRules }),
+      resetCryptoTradingRules: () => {
+        console.log(`[Store] Resetting crypto rules to ${defaultCryptoRules.length} rules for symbols:`, CRYPTO_SYMBOLS);
+        set({ cryptoTradingRules: defaultCryptoRules });
+      },
 
       // Crypto Auto-Trading actions
       updateCryptoAutoTradeConfig: (config) =>
@@ -1481,32 +1495,33 @@ export const useStore = create<AppState>()(
           });
 
           // Keep existing rules (preserves user's enabled/autoTrade settings) + add missing ones
-          // MIGRATION v2: Update all rules with improved settings for steady profits
+          // MIGRATION v3: Remove trailing stop, use fixed targets (5% TP, 2% SL)
+          // Analysis showed trailing stops were killing profits by exiting winners too early
           const migratedRules = existingRules.map(rule => {
             const isBuyRule = rule.type === 'buy';
             const isShortRule = rule.type === 'short';
 
-            // Check if rule needs migration to new settings
+            // Check if rule needs migration to v3 settings (no trailing stop)
             const needsMigration =
-              rule.takeProfitPercent === undefined ||
-              rule.stopLossPercent !== 3 ||
-              rule.trailingStopPercent !== 2 ||
-              !rule.rsiFilter?.enabled ||
-              !rule.volumeFilter?.enabled;
+              rule.trailingStopPercent !== undefined ||
+              rule.takeProfitPercent !== 5 ||
+              rule.stopLossPercent !== 2 ||
+              rule.minConfidence !== 70;
 
             if (needsMigration) {
-              console.log(`[Store] Migrating rule "${rule.name}" - updating to improved settings`);
+              console.log(`[Store] Migrating rule "${rule.name}" - removing trailing stop, using fixed targets`);
               return {
                 ...rule,
-                takeProfitPercent: rule.takeProfitPercent ?? 10,      // 10% take profit
-                stopLossPercent: 3,                                    // 3% stop loss (wider)
-                trailingStopPercent: 2,                                // 2% trailing stop (wider)
+                takeProfitPercent: 5,                                  // 5% take profit (achievable)
+                stopLossPercent: 2,                                    // 2% stop loss (tight)
+                trailingStopPercent: undefined,                        // NO trailing stop
+                minConfidence: 70,                                     // Higher confidence
                 rsiFilter: isBuyRule
-                  ? { enabled: true, maxRSI: 35 }                      // Buy when RSI < 35
+                  ? { enabled: true, maxRSI: 40 }                      // Buy when RSI < 40
                   : isShortRule
-                    ? { enabled: true, minRSI: 65 }                    // Short when RSI > 65
+                    ? { enabled: true, minRSI: 60 }                    // Short when RSI > 60
                     : rule.rsiFilter,
-                volumeFilter: { enabled: true, minMultiplier: 2.0 },   // Require 2x volume
+                volumeFilter: { enabled: true, minMultiplier: 1.5 },   // 1.5x volume
               };
             }
             return rule;
@@ -1541,6 +1556,7 @@ export const useStore = create<AppState>()(
           merged.gridConfigs = Array.isArray(persisted.gridConfigs) ? persisted.gridConfigs : [];
 
           // Preserve crypto trading rules - merge with defaults for new symbols
+          // MIGRATION v3: Remove trailing stop, use fixed targets (6% TP, 3% SL for crypto)
           const existingCryptoRules = Array.isArray(persisted.cryptoTradingRules)
             ? persisted.cryptoTradingRules.filter((r): r is CryptoTradingRule => r && typeof r === 'object' && 'symbol' in r)
             : [];
@@ -1551,7 +1567,25 @@ export const useStore = create<AppState>()(
             const key = `${r.symbol}-${r.ruleType || ''}-${r.pattern || ''}`;
             return !existingCryptoRuleKeys.has(key);
           });
-          merged.cryptoTradingRules = [...existingCryptoRules, ...missingCryptoRules];
+
+          // Migrate existing crypto rules to v6 settings (quick scalp)
+          const migratedCryptoRules = existingCryptoRules.map(rule => {
+            const isBuyRule = rule.type === 'buy';
+            if (isBuyRule) {
+              console.log(`[Store] Migrating crypto rule "${rule.name}" - quick scalp strategy`);
+              return {
+                ...rule,
+                takeProfitPercent: 3,                                  // 3% quick take profit
+                stopLossPercent: 2,                                    // 2% tight stop loss
+                trailingStopPercent: undefined,                        // No trailing
+                minConfidence: 70,
+                rsiFilter: { enabled: false },
+                volumeFilter: { enabled: false },
+              };
+            }
+            return rule;
+          });
+          merged.cryptoTradingRules = [...migratedCryptoRules, ...missingCryptoRules];
 
           // Preserve crypto auto-trade config and executions
           merged.cryptoAutoTradeConfig = persisted.cryptoAutoTradeConfig || defaultCryptoAutoTradeConfig;

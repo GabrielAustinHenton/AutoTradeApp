@@ -35,6 +35,7 @@ const candleRange = (candle: Candle) => candle.high - candle.low;
 /**
  * Hammer: Small body at top, long lower shadow (2x body), little/no upper shadow
  * Bullish reversal pattern - appears after downtrend
+ * v3: Tightened thresholds for higher quality signals
  */
 export function isHammer(candle: Candle): boolean {
   const body = bodySize(candle);
@@ -45,15 +46,17 @@ export function isHammer(candle: Candle): boolean {
   if (range === 0) return false;
 
   return (
-    lower >= body * 1.5 && // Long lower shadow (relaxed from 2x)
-    upper <= body * 0.8 && // Little upper shadow (relaxed from 0.5)
-    body <= range * 0.45 // Small body relative to range (relaxed from 0.35)
+    lower >= body * 2.0 && // Long lower shadow (strict: 2x body minimum)
+    upper <= body * 0.3 && // Very little upper shadow (strict)
+    body <= range * 0.35 && // Small body relative to range (strict)
+    body > 0 // Must have some body (not a doji)
   );
 }
 
 /**
  * Inverted Hammer: Small body at bottom, long upper shadow, little/no lower shadow
  * Bullish reversal pattern - appears after downtrend
+ * v3: Tightened thresholds for higher quality signals
  */
 export function isInvertedHammer(candle: Candle): boolean {
   const body = bodySize(candle);
@@ -64,9 +67,10 @@ export function isInvertedHammer(candle: Candle): boolean {
   if (range === 0) return false;
 
   return (
-    upper >= body * 1.5 && // Long upper shadow (relaxed from 2x)
-    lower <= body * 0.8 && // Little lower shadow (relaxed from 0.5)
-    body <= range * 0.45 // Small body relative to range (relaxed from 0.35)
+    upper >= body * 2.0 && // Long upper shadow (strict: 2x body minimum)
+    lower <= body * 0.3 && // Very little lower shadow (strict)
+    body <= range * 0.35 && // Small body relative to range (strict)
+    body > 0 // Must have some body (not a doji)
   );
 }
 
@@ -106,27 +110,37 @@ export function isGravestoneDoji(candle: Candle): boolean {
 
 /**
  * Bullish Engulfing: Bearish candle followed by larger bullish candle that engulfs it
+ * v3: Requires current body to be at least 1.5x previous body
  */
 export function isBullishEngulfing(current: Candle, previous: Candle): boolean {
+  const currentBody = bodySize(current);
+  const previousBody = bodySize(previous);
+
   return (
     isBearish(previous) &&
     isBullish(current) &&
     current.open <= previous.close &&
     current.close >= previous.open &&
-    bodySize(current) > bodySize(previous)
+    currentBody >= previousBody * 1.5 && // Must be significantly larger (strict)
+    previousBody > 0 // Previous must have a body
   );
 }
 
 /**
  * Bearish Engulfing: Bullish candle followed by larger bearish candle that engulfs it
+ * v3: Requires current body to be at least 1.5x previous body
  */
 export function isBearishEngulfing(current: Candle, previous: Candle): boolean {
+  const currentBody = bodySize(current);
+  const previousBody = bodySize(previous);
+
   return (
     isBullish(previous) &&
     isBearish(current) &&
     current.open >= previous.close &&
     current.close <= previous.open &&
-    bodySize(current) > bodySize(previous)
+    currentBody >= previousBody * 1.5 && // Must be significantly larger (strict)
+    previousBody > 0 // Previous must have a body
   );
 }
 
@@ -157,6 +171,7 @@ export function isEveningStar(
 /**
  * Bullish Breakout: Price closes above recent high with strong momentum
  * Looks for price breaking above the highest high of the lookback period
+ * v3: Requires 1% move (was 0.1% which caught noise)
  */
 export function isBullishBreakout(candles: Candle[], lookbackPeriod: number = 5): boolean {
   if (candles.length < lookbackPeriod + 1) return false;
@@ -171,14 +186,16 @@ export function isBullishBreakout(candles: Candle[], lookbackPeriod: number = 5)
   // and be a bullish candle (close > open)
   const closeAboveHigh = current.close > highestHigh;
   const bullishCandle = current.close > current.open;
-  const strongMove = (current.close - current.open) / current.open > 0.001; // At least 0.1% move (relaxed)
+  const strongMove = (current.close - current.open) / current.open > 0.01; // At least 1% move (strict)
+  const breakoutMargin = current.close > highestHigh * 1.005; // Close at least 0.5% above high
 
-  return closeAboveHigh && bullishCandle && strongMove;
+  return closeAboveHigh && bullishCandle && strongMove && breakoutMargin;
 }
 
 /**
  * Bearish Breakout: Price closes below recent low with strong momentum
  * Looks for price breaking below the lowest low of the lookback period
+ * v3: Requires 1% move (was 0.1% which caught noise)
  */
 export function isBearishBreakout(candles: Candle[], lookbackPeriod: number = 5): boolean {
   if (candles.length < lookbackPeriod + 1) return false;
@@ -193,9 +210,10 @@ export function isBearishBreakout(candles: Candle[], lookbackPeriod: number = 5)
   // and be a bearish candle (close < open)
   const closeBelowLow = current.close < lowestLow;
   const bearishCandle = current.close < current.open;
-  const strongMove = (current.open - current.close) / current.open > 0.001; // At least 0.1% move (relaxed)
+  const strongMove = (current.open - current.close) / current.open > 0.01; // At least 1% move (strict)
+  const breakoutMargin = current.close < lowestLow * 0.995; // Close at least 0.5% below low
 
-  return closeBelowLow && bearishCandle && strongMove;
+  return closeBelowLow && bearishCandle && strongMove && breakoutMargin;
 }
 
 /**

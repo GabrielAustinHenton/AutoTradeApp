@@ -1,5 +1,6 @@
 // Backtesting Service
 // Tests trading rules against historical data
+// v3: Now includes RSI and volume filter validation
 
 import type { TradingRule, BacktestConfig, BacktestResult, BacktestTrade, CandlestickPattern } from '../types';
 import { getDailyData } from './alphaVantage';
@@ -23,6 +24,47 @@ interface Position {
 export interface EquityPoint {
   date: Date;
   equity: number;
+}
+
+// Calculate RSI (Relative Strength Index)
+function calculateRSI(closes: number[], period: number = 14): number {
+  if (closes.length < period + 1) return 50; // Default to neutral if not enough data
+
+  let gains = 0;
+  let losses = 0;
+
+  // Calculate initial average gain/loss
+  for (let i = 1; i <= period; i++) {
+    const change = closes[i] - closes[i - 1];
+    if (change > 0) gains += change;
+    else losses -= change;
+  }
+
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+
+  // Calculate smoothed RSI using remaining data
+  for (let i = period + 1; i < closes.length; i++) {
+    const change = closes[i] - closes[i - 1];
+    if (change > 0) {
+      avgGain = (avgGain * (period - 1) + change) / period;
+      avgLoss = (avgLoss * (period - 1)) / period;
+    } else {
+      avgGain = (avgGain * (period - 1)) / period;
+      avgLoss = (avgLoss * (period - 1) - change) / period;
+    }
+  }
+
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+// Calculate average volume over a period
+function calculateAverageVolume(volumes: number[], period: number = 20): number {
+  if (volumes.length < period) return volumes.reduce((a, b) => a + b, 0) / volumes.length;
+  const recent = volumes.slice(-period);
+  return recent.reduce((a, b) => a + b, 0) / period;
 }
 
 export async function runBacktest(config: BacktestConfig): Promise<BacktestResult> {
@@ -76,6 +118,16 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
     // Detect patterns
     const patterns = detectPatterns(candles);
 
+    // Calculate RSI for filter validation (use last 20 closes for RSI calculation)
+    const closesForRSI = filteredData.slice(Math.max(0, i - 20), i + 1).map(d => d.close);
+    const currentRSI = calculateRSI(closesForRSI, 14);
+
+    // Calculate volume metrics for filter validation
+    const volumesForAvg = filteredData.slice(Math.max(0, i - 20), i).map(d => d.volume);
+    const avgVolume = calculateAverageVolume(volumesForAvg, 20);
+    const currentVolume = filteredData[i].volume;
+    const volumeMultiplier = avgVolume > 0 ? currentVolume / avgVolume : 1;
+
     // Check for pattern matches against rules
     for (const pattern of patterns) {
       const matchingRule = activeRules.find((r) => r.pattern === pattern.pattern);
@@ -85,7 +137,37 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
         const existingPosition = openPositions.find((p) => p.ruleId === matchingRule.id);
 
         if (!existingPosition && (matchingRule.type === 'buy' || matchingRule.type === 'short')) {
-          // Open a new position
+          // ===== FILTER VALIDATION (v3) =====
+
+          // Check confidence threshold
+          if (matchingRule.minConfidence && pattern.confidence < matchingRule.minConfidence) {
+            continue; // Skip - pattern confidence too low
+          }
+
+          // Check RSI filter
+          if (matchingRule.rsiFilter?.enabled) {
+            if (matchingRule.type === 'buy' && matchingRule.rsiFilter.maxRSI) {
+              if (currentRSI > matchingRule.rsiFilter.maxRSI) {
+                continue; // Skip - RSI too high for buy
+              }
+            }
+            if (matchingRule.type === 'short' && matchingRule.rsiFilter.minRSI) {
+              if (currentRSI < matchingRule.rsiFilter.minRSI) {
+                continue; // Skip - RSI too low for short
+              }
+            }
+          }
+
+          // Check volume filter
+          if (matchingRule.volumeFilter?.enabled && matchingRule.volumeFilter.minMultiplier) {
+            if (volumeMultiplier < matchingRule.volumeFilter.minMultiplier) {
+              continue; // Skip - volume too low
+            }
+          }
+
+          // ===== END FILTER VALIDATION =====
+
+          // Open a new position (all filters passed)
           const shares = Math.floor((capital * positionSize / 100) / currentPrice);
           if (shares > 0 && capital >= shares * currentPrice) {
             const position: Position = {

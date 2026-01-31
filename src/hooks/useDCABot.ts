@@ -80,6 +80,55 @@ export function useDCABot() {
     setCryptoUsdBalance,
   ]);
 
+  // Manual execution of a specific DCA config
+  const executeManualDCA = useCallback(async (config: typeof dcaConfigs[0]) => {
+    console.log(`DCA: Manual execution for ${config.symbol} - $${config.amount}`);
+
+    const existingPosition = cryptoPortfolio.positions.find(
+      p => p.symbol === config.symbol
+    );
+
+    const result = await executeDCA(
+      config,
+      cryptoPortfolio.usdBalance,
+      existingPosition
+    );
+
+    if (result.success && result.trade && result.position) {
+      addCryptoTrade(result.trade);
+      setCryptoUsdBalance(cryptoPortfolio.usdBalance - config.amount);
+
+      if (existingPosition) {
+        updateCryptoPosition(existingPosition.id, {
+          amount: result.position.amount,
+          avgCost: result.position.avgCost,
+          currentPrice: result.position.currentPrice,
+        });
+      } else {
+        addCryptoPosition(result.position);
+      }
+
+      const now = new Date();
+      updateDCAConfig(config.id, {
+        lastExecuted: now,
+        nextExecution: getNextExecutionTime(config.interval, now),
+      });
+
+      console.log(`DCA: Successfully bought ${result.trade.amount.toFixed(6)} ${config.symbol}`);
+      return { success: true };
+    } else {
+      console.error(`DCA failed for ${config.symbol}: ${result.error}`);
+      return { success: false, error: result.error };
+    }
+  }, [
+    cryptoPortfolio,
+    addCryptoTrade,
+    addCryptoPosition,
+    updateCryptoPosition,
+    setCryptoUsdBalance,
+    updateDCAConfig,
+  ]);
+
   // Run DCA check on interval
   useEffect(() => {
     // Initial check after a short delay
@@ -96,6 +145,7 @@ export function useDCABot() {
 
   return {
     runDCACheck,
+    executeDCA: executeManualDCA,
     enabledCount: dcaConfigs.filter(c => c.enabled).length,
   };
 }

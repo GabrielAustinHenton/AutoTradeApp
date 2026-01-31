@@ -306,6 +306,11 @@ export interface CryptoTradingRule {
   trailingStopPercent?: number;
   // Filters
   minConfidence?: number;
+  rsiFilter?: {
+    enabled: boolean;
+    maxRSI?: number;  // Buy when RSI < maxRSI (not overbought)
+    minRSI?: number;  // Sell when RSI > minRSI (not oversold)
+  };
   volumeFilter?: {
     enabled: boolean;
     minMultiplier: number;
