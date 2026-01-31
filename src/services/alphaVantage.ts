@@ -4,8 +4,9 @@ import type { PriceHistory } from '../types';
 
 const BASE_URL = 'https://www.alphavantage.co/query';
 const FINNHUB_URL = 'https://finnhub.io/api/v1';
-// Use Vite proxy to bypass CORS for Twelve Data
+// Use Vite proxy to bypass CORS
 const TWELVE_DATA_URL = '/api/twelvedata';
+const YAHOO_URL = '/api/yahoo';
 
 const getApiKey = () => {
   const key = import.meta.env.VITE_ALPHA_VANTAGE_API_KEY;
@@ -259,6 +260,105 @@ export async function getFinnhubCandles(
     return candles;
   } catch (error) {
     logger.error('API', `Finnhub candles error for ${symbol}`, error);
+    return [];
+  }
+}
+
+// Yahoo Finance daily data - FREE, no API key, generous limits
+// Best option for backtesting!
+export async function getYahooDaily(
+  symbol: string,
+  range: '1mo' | '3mo' | '6mo' | '1y' = '3mo'
+): Promise<IntradayData[]> {
+  try {
+    const response = await axios.get(`${YAHOO_URL}/v8/finance/chart/${symbol.toUpperCase()}`, {
+      params: {
+        interval: '1d',
+        range,
+      },
+    });
+
+    const data = response.data;
+    if (!data?.chart?.result?.[0]) {
+      logger.warn('API', `Yahoo Finance no data for ${symbol}`);
+      return [];
+    }
+
+    const result = data.chart.result[0];
+    const timestamps = result.timestamp;
+    const quotes = result.indicators.quote[0];
+
+    if (!timestamps || !quotes) {
+      logger.warn('API', `Yahoo Finance incomplete data for ${symbol}`);
+      return [];
+    }
+
+    const candles: IntradayData[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      // Skip if any OHLC value is null
+      if (quotes.open[i] == null || quotes.high[i] == null ||
+          quotes.low[i] == null || quotes.close[i] == null) {
+        continue;
+      }
+
+      candles.push({
+        timestamp: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+        open: quotes.open[i],
+        high: quotes.high[i],
+        low: quotes.low[i],
+        close: quotes.close[i],
+        volume: quotes.volume[i] || 0,
+      });
+    }
+
+    logger.info('API', `Yahoo Finance: ${symbol} - ${candles.length} days`);
+    return candles;
+  } catch (error) {
+    logger.error('API', `Yahoo Finance error for ${symbol}`, error);
+    return [];
+  }
+}
+
+// Twelve Data daily data - 800 calls/day, 8 calls/min on free tier
+// Better rate limits than Alpha Vantage (5/min) - use for backtesting!
+export async function getTwelveDataDaily(
+  symbol: string,
+  outputSize: number = 100
+): Promise<IntradayData[]> {
+  const apiKey = getTwelveDataApiKey();
+
+  try {
+    const response = await axios.get(`${TWELVE_DATA_URL}/time_series`, {
+      params: {
+        symbol: symbol.toUpperCase(),
+        interval: '1day',
+        outputsize: outputSize,
+        apikey: apiKey,
+      },
+    });
+
+    const data = response.data;
+    if (!data || data.status === 'error' || !data.values || data.values.length === 0) {
+      const errorMsg = data?.message || 'No data';
+      logger.warn('API', `Twelve Data no daily data for ${symbol}: ${errorMsg}`);
+      return [];
+    }
+
+    // Convert Twelve Data format to IntradayData format (same as Alpha Vantage)
+    // Note: Twelve Data returns newest first, so we reverse
+    const candles: IntradayData[] = data.values.map((v: any) => ({
+      timestamp: v.datetime, // Format: "2024-01-15"
+      open: parseFloat(v.open),
+      high: parseFloat(v.high),
+      low: parseFloat(v.low),
+      close: parseFloat(v.close),
+      volume: parseInt(v.volume) || 0,
+    })).reverse(); // Oldest first
+
+    logger.info('API', `Twelve Data daily: ${symbol} - ${candles.length} days`);
+    return candles;
+  } catch (error) {
+    logger.error('API', `Twelve Data daily error for ${symbol}`, error);
     return [];
   }
 }

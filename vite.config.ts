@@ -62,6 +62,14 @@ export const PERMANENT_WATCHLIST = [...PERMANENT_STOCKS];
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/twelvedata/, ''),
       },
+      '/api/yahoo': {
+        target: 'https://query1.finance.yahoo.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/yahoo/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      },
     },
   },
 })

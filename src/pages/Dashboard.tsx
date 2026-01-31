@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { useMultipleQuotes } from '../hooks/useStockData';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
 import { AlertsPanel } from '../components/alerts/AlertsPanel';
-import { runBacktest } from '../services/backtester';
+import { runBacktest, runRSIBacktest, runHybridBacktest } from '../services/backtester';
 import type { BacktestResult } from '../types';
 import {
   LineChart,
@@ -37,6 +37,7 @@ export function Dashboard() {
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
   const [backtestError, setBacktestError] = useState<string | null>(null);
   const [backtestSymbol, setBacktestSymbol] = useState('AAPL');
+  const [backtestStrategy, setBacktestStrategy] = useState<'hybrid' | 'rsi' | 'pattern'>('hybrid');
 
   // Use paper portfolio data when in paper mode
   const isPaperMode = tradingMode === 'paper';
@@ -106,25 +107,34 @@ export function Dashboard() {
     setBacktestResult(null);
 
     try {
-      const symbolRules = tradingRules.filter(
-        (r) => r.enabled && r.ruleType === 'pattern' && r.symbol.toUpperCase() === backtestSymbol.toUpperCase()
-      );
-
-      if (symbolRules.length === 0) {
-        throw new Error(`No enabled rules found for ${backtestSymbol}`);
-      }
-
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - 3);
 
-      const result = await runBacktest({
+      const config = {
         symbol: backtestSymbol.toUpperCase(),
         startDate,
         endDate: new Date(),
         initialCapital: 10000,
-        positionSize: 10,
-        rules: symbolRules,
-      });
+        positionSize: 20, // 20% of capital per trade
+        rules: tradingRules.filter(
+          (r) => r.enabled && r.ruleType === 'pattern' && r.symbol.toUpperCase() === backtestSymbol.toUpperCase()
+        ),
+      };
+
+      let result;
+      if (backtestStrategy === 'hybrid') {
+        // Hybrid Adaptive Strategy (recommended)
+        result = await runHybridBacktest(config);
+      } else if (backtestStrategy === 'rsi') {
+        // RSI Mean Reversion Strategy
+        result = await runRSIBacktest(config);
+      } else {
+        // Pattern-based Strategy
+        if (config.rules.length === 0) {
+          throw new Error(`No enabled pattern rules found for ${backtestSymbol}`);
+        }
+        result = await runBacktest(config);
+      }
 
       setBacktestResult(result);
     } catch (err) {
@@ -340,28 +350,6 @@ export function Dashboard() {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="space-y-6">
-          <AlertsPanel />
-
-          <WatchlistCard />
-
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Trading Rules</h2>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Active Rules</span>
-                <span className="font-semibold text-emerald-400">
-                  {tradingRules.filter((r) => r.enabled).length}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Total Rules</span>
-                <span>{tradingRules.length}</span>
-              </div>
-            </div>
-          </div>
 
           {/* Quick Backtest */}
           <div className="bg-slate-800 rounded-xl p-6">
@@ -373,8 +361,17 @@ export function Dashboard() {
                   value={backtestSymbol}
                   onChange={(e) => setBacktestSymbol(e.target.value.toUpperCase())}
                   placeholder="Symbol"
-                  className="flex-1 px-3 py-2 bg-slate-700 rounded-lg text-sm"
+                  className="w-24 px-3 py-2 bg-slate-700 rounded-lg text-sm"
                 />
+                <select
+                  value={backtestStrategy}
+                  onChange={(e) => setBacktestStrategy(e.target.value as 'hybrid' | 'rsi' | 'pattern')}
+                  className="flex-1 px-3 py-2 bg-slate-700 rounded-lg text-sm"
+                >
+                  <option value="hybrid">Trend Pullback (Long & Short)</option>
+                  <option value="rsi">RSI(14) Classic</option>
+                  <option value="pattern">Pattern Rules</option>
+                </select>
                 <button
                   onClick={runQuickBacktest}
                   disabled={backtestRunning}
@@ -383,7 +380,13 @@ export function Dashboard() {
                   {backtestRunning ? 'Running...' : 'Run'}
                 </button>
               </div>
-              <p className="text-xs text-slate-500">Tests last 3 months with your rules</p>
+              <p className="text-xs text-slate-500">
+                {backtestStrategy === 'hybrid'
+                  ? 'Uptrend: buy dips. Downtrend: short rallies. Trades WITH the trend.'
+                  : backtestStrategy === 'rsi'
+                  ? 'RSI(14) < 30 = Buy, RSI > 70 = Sell, 5% stop loss'
+                  : 'Tests last 3 months with your pattern rules'}
+              </p>
 
               {backtestError && (
                 <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-sm text-red-300">
@@ -442,6 +445,28 @@ export function Dashboard() {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <AlertsPanel />
+
+          <WatchlistCard />
+
+          <div className="bg-slate-800 rounded-xl p-6">
+            <h2 className="text-xl font-semibold mb-4">Trading Rules</h2>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Active Rules</span>
+                <span className="font-semibold text-emerald-400">
+                  {tradingRules.filter((r) => r.enabled).length}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Total Rules</span>
+                <span>{tradingRules.length}</span>
+              </div>
             </div>
           </div>
         </div>
