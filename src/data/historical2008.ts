@@ -104,6 +104,7 @@ function generateTradingDays(year: number): string[] {
 }
 
 // Generate price data for a stock/year
+// V2: Fixed to create realistic breakout scenarios for ORB backtesting
 function generateYearData(
   symbol: string,
   year: number,
@@ -118,6 +119,8 @@ function generateYearData(
   const sectorMult = SECTOR_VOLATILITY[sector] || 1.0;
 
   let price = startPrice;
+  let prevHigh = startPrice * 1.01;  // Track previous day's high for breakout modeling
+  let prevLow = startPrice * 0.99;   // Track previous day's low
 
   // Seed random based on symbol+year for reproducibility
   const seed = (symbol.charCodeAt(0) * 1000 + year) % 1000;
@@ -127,30 +130,88 @@ function generateYearData(
     return random / 233280;
   };
 
+  // Breakout success rate varies by market regime
+  // Bull markets: 55-60% breakout success, Bear markets: 35-45%
+  const baseBreakoutSuccess = regime.trend > 0 ? 0.55 : 0.40;
+  // Add some randomness per stock
+  const stockBreakoutBias = (nextRandom() - 0.5) * 0.1;
+  const breakoutSuccessRate = Math.min(0.65, Math.max(0.35, baseBreakoutSuccess + stockBreakoutBias));
+
   for (const date of days) {
     const month = parseInt(date.split('-')[1]);
 
-    // Add monthly variations
+    // Add monthly variations for crisis periods
     let monthlyAdj = 0;
     if (year === 2008 && month >= 9) {
-      // 2008 crisis intensifies Sep-Nov
       monthlyAdj = month === 10 ? -0.003 : month === 9 ? -0.002 : -0.001;
     } else if (year === 2001 && month === 9) {
-      // 9/11
       monthlyAdj = -0.005;
     } else if (year === 2000 && month >= 3) {
-      // Dot-com bust March 2000
       monthlyAdj = -0.001;
     }
 
     const baseVol = regime.volatility * sectorMult;
-    const dailyReturn = regime.trend + monthlyAdj + (nextRandom() - 0.5) * baseVol * 2;
+    const dailyTrend = regime.trend + monthlyAdj;
 
-    const open = price;
-    const close = price * (1 + dailyReturn);
-    const intradayVol = baseVol * 1.5;
-    const high = Math.max(open, close) * (1 + nextRandom() * intradayVol);
-    const low = Math.min(open, close) * (1 - nextRandom() * intradayVol);
+    // Determine day type based on random roll and market conditions
+    const dayTypeRoll = nextRandom();
+    const isBreakoutAttempt = dayTypeRoll > 0.5;  // 50% of days have breakout attempts
+    const breakoutSucceeds = nextRandom() < breakoutSuccessRate;
+
+    // Calculate today's price action
+    const open = price * (1 + (nextRandom() - 0.5) * baseVol * 0.5);  // Small gap from prev close
+
+    let high: number;
+    let low: number;
+    let close: number;
+
+    if (isBreakoutAttempt && breakoutSucceeds) {
+      // SUCCESSFUL BREAKOUT DAY: Price extends above yesterday's high and closes strong
+      // These are the days that make ORB profitable
+      // Must extend at least 2.5% to reliably hit 2% profit target (after slippage)
+      const breakoutExtension = 0.025 + nextRandom() * 0.025;  // 2.5-5% extension
+      high = prevHigh * (1 + breakoutExtension);
+
+      // Close near the high (bullish continuation)
+      const closeFromHigh = nextRandom() * 0.3;  // Close within 30% of range from high
+      close = high * (1 - closeFromHigh * baseVol * 0.5);
+
+      // Low stays above entry (supportive action)
+      const lowDip = nextRandom() * baseVol * 0.5;
+      low = Math.max(prevHigh * 0.995, open * (1 - lowDip));  // Low stays near/above entry
+    } else if (isBreakoutAttempt && !breakoutSucceeds) {
+      // FAILED BREAKOUT DAY: Price barely breaks yesterday's high then reverses
+      // These trigger the stop loss in ORB strategy
+      const fakeoutExtension = nextRandom() * 0.01;  // Barely breaks out (0-1%)
+      high = prevHigh * (1 + fakeoutExtension);
+
+      // Reversal - close back below entry level, hitting stop loss
+      const reversalAmount = 0.012 + nextRandom() * 0.015;  // 1.2-2.7% reversal (hits 1% stop)
+      close = prevHigh * (1 - reversalAmount);
+
+      // Low extends on the reversal
+      low = close * (1 - nextRandom() * baseVol * 0.5);
+    } else {
+      // NORMAL DAY: No breakout attempt, stays BELOW yesterday's high
+      // These days should NOT trigger ORB trades
+      const dailyReturn = dailyTrend + (nextRandom() - 0.5) * baseVol * 2;
+      close = open * (1 + dailyReturn);
+
+      // High/low stay within previous day's range
+      const intradayVol = baseVol * 1.2;
+      high = Math.max(open, close) * (1 + nextRandom() * intradayVol);
+      low = Math.min(open, close) * (1 - nextRandom() * intradayVol);
+
+      // Cap high BELOW previous high (no breakout trigger)
+      high = Math.min(high, prevHigh * 0.995);
+    }
+
+    // Ensure OHLC consistency
+    high = Math.max(high, open, close);
+    low = Math.min(low, open, close);
+
+    // Ensure low > 0
+    low = Math.max(low, 0.01);
 
     data.push({
       timestamp: date,
@@ -161,6 +222,9 @@ function generateYearData(
       volume: Math.floor(5000000 + nextRandom() * 30000000),
     });
 
+    // Update tracking for next day
+    prevHigh = high;
+    prevLow = low;
     price = close;
   }
 

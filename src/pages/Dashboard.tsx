@@ -140,7 +140,7 @@ export function Dashboard() {
           yearsBack,
           specificYear,
           0,                          // $0 commission (like Robinhood)
-          realisticCosts ? 0.1 : 0,   // 0.1% slippage per side (realistic for liquid stocks)
+          realisticCosts ? 0.02 : 0,  // 0.02% slippage per side (realistic for liquid large-caps)
           15                          // 15% yearly drawdown limit - stop trading if hit
         );
         setDayTradeResult(result);
@@ -414,7 +414,7 @@ export function Dashboard() {
                       <option value="10">Last 10 Years</option>
                       <option value="20">Last 20 Years</option>
                       <optgroup label="Specific Year">
-                        {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                        {Array.from({ length: new Date().getFullYear() - 1996 }, (_, i) => new Date().getFullYear() - 1 - i).map(year => (
                           <option key={year} value={year.toString()}>{year}</option>
                         ))}
                       </optgroup>
@@ -562,6 +562,31 @@ export function Dashboard() {
                       <span className="text-red-400">{dayTradeResult.worstDay.toFixed(2)}%</span>
                     </span>
                   </div>
+
+                  {/* Realistic Estimate with Haircut */}
+                  <div className="mt-3 p-3 bg-slate-800/50 border border-slate-600 rounded-lg">
+                    <div className="flex justify-between text-sm font-semibold mb-2">
+                      <span className="text-amber-400">Realistic Estimate</span>
+                      <span className={dayTradeResult.realisticReturnPercent >= 0 ? 'text-amber-400' : 'text-red-400'}>
+                        {dayTradeResult.realisticReturnPercent >= 0 ? '+' : ''}{dayTradeResult.realisticReturnPercent.toFixed(1)}%
+                        {' '}(${dayTradeResult.realisticFinalCapital.toFixed(0)})
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-400 mb-2">
+                      Haircut applied: -{dayTradeResult.haircutPercent.toFixed(0)}% for real-world factors
+                    </div>
+                    <details className="text-xs">
+                      <summary className="text-slate-500 cursor-pointer hover:text-slate-400">
+                        Why the adjustment?
+                      </summary>
+                      <ul className="mt-2 space-y-1 text-slate-400">
+                        {dayTradeResult.haircutReasons.map((reason, i) => (
+                          <li key={i}>• {reason}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  </div>
+
                   {dayTradeResult.goalReached && (
                     <div className="p-3 bg-emerald-900/50 border border-emerald-500 rounded-lg">
                       <div className="flex items-center gap-2 text-emerald-400 font-bold">

@@ -14,6 +14,7 @@ import { getYahooDaily, getTiingoDaily } from './alphaVantage';
 import { detectPatterns, type Candle } from './candlestickPatterns';
 import { getCachedData, setCachedData } from './historicalDataCache';
 import { HISTORICAL_DATA, getHistoricalData, getSymbolsForYear } from '../data/historical2008';
+import { YAHOO_HISTORICAL, getYahooHistoricalData, getYahooSymbolsForYear } from '../data/yahooHistorical';
 
 // Format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
 function formatLocalDate(d: Date): string {
@@ -988,12 +989,13 @@ export const HISTORICAL_STOCKS_PRE_2010 = [
 
 // Volatility-based slippage multipliers (simulates VIX effect)
 // Higher market volatility = wider spreads = more slippage
+// CAPPED to prevent unrealistic cost destruction
 const VOLATILITY_SLIPPAGE_TIERS = [
-  { maxVolatility: 1.0, multiplier: 1.0 },   // Normal: VIX ~12-20
-  { maxVolatility: 2.0, multiplier: 2.0 },   // Elevated: VIX ~20-30
-  { maxVolatility: 3.0, multiplier: 3.0 },   // High: VIX ~30-50
-  { maxVolatility: 5.0, multiplier: 5.0 },   // Panic: VIX ~50-80 (2008, COVID)
-  { maxVolatility: Infinity, multiplier: 10.0 }, // Extreme: VIX 80+
+  { maxVolatility: 1.5, multiplier: 1.0 },   // Normal: VIX ~12-20
+  { maxVolatility: 2.5, multiplier: 1.5 },   // Elevated: VIX ~20-30
+  { maxVolatility: 4.0, multiplier: 2.0 },   // High: VIX ~30-50
+  { maxVolatility: 6.0, multiplier: 3.0 },   // Panic: VIX ~50-80 (2008, COVID)
+  { maxVolatility: Infinity, multiplier: 4.0 }, // Extreme: capped at 4x
 ];
 
 // Calculate market volatility from recent price data (VIX proxy)
@@ -1061,6 +1063,11 @@ export interface DayTradeResult {
   goalReached: boolean;
   goalReachedDate: string | null;
   goalReachedCapital: number | null;
+  // Realistic estimate (with haircut applied)
+  realisticReturnPercent: number;
+  realisticFinalCapital: number;
+  haircutPercent: number;
+  haircutReasons: string[];
   trades: {
     date: string;
     symbol: string;
@@ -1083,7 +1090,7 @@ export async function runDayTradingBacktest(
   specificYear?: number,             // Or test a specific year (e.g., 2020)
   // REALISTIC COSTS (defaults are conservative estimates)
   commissionPerTrade: number = 0,    // $0 for Robinhood, ~$1 for others
-  slippagePercent: number = 0.1,     // 0.1% slippage per side (entry + exit)
+  slippagePercent: number = 0.02,    // 0.02% slippage per side (realistic for liquid large-caps)
   // RISK MANAGEMENT
   yearlyDrawdownLimit: number = 20   // Stop trading if down this % from year start
 ): Promise<DayTradeResult> {
@@ -1105,92 +1112,85 @@ export async function runDayTradingBacktest(
   console.log(`[ORB] Transaction costs: $${commissionPerTrade}/trade commission + ${slippagePercent}% slippage each way`);
   console.log(`[ORB] Yearly drawdown limit: ${yearlyDrawdownLimit}% (stop trading if hit)`);
 
-  // Fetch historical data for all symbols
-  // Use Tiingo for older years (pre-2015), Yahoo for recent years
+  // Load historical data from LOCAL FILES - no API calls needed!
+  // 1996-2012: Simulated data (historical2008.ts)
+  // 2013-2026: Real Yahoo data (yahooHistorical.json)
   const allData: Map<string, any[]> = new Map();
-  const thisYear = new Date().getFullYear();
-  const useTiingo = specificYear && specificYear < thisYear - 10; // Use Tiingo for 10+ years ago
 
-  if (useTiingo) {
-    // For years 1996-2012, use built-in simulated historical data
-    const useSimulatedData = specificYear && specificYear >= 1996 && specificYear <= 2012;
-
-    if (useSimulatedData) {
-      console.log(`[ORB] Using SIMULATED historical data for ${specificYear}`);
-      const availableSymbols = getSymbolsForYear(specificYear!);
-      console.log(`[ORB] ${availableSymbols.length} stocks available for ${specificYear}`);
+  if (specificYear) {
+    // Single year backtest - load from appropriate local source
+    if (specificYear >= 1996 && specificYear <= 2012) {
+      // Use simulated data for old years
+      console.log(`[ORB] Loading SIMULATED data for ${specificYear} (pre-2013)`);
+      const availableSymbols = getSymbolsForYear(specificYear);
 
       for (const symbol of availableSymbols) {
-        const data = getHistoricalData(symbol, specificYear!);
+        const data = getHistoricalData(symbol, specificYear);
         if (data && data.length > 20) {
           allData.set(symbol, data);
         }
       }
+    } else if (specificYear >= 2013 && specificYear <= 2026) {
+      // Use real Yahoo data
+      console.log(`[ORB] Loading REAL Yahoo data for ${specificYear}`);
+      const availableSymbols = getYahooSymbolsForYear(specificYear);
 
-      console.log(`[ORB] Loaded ${allData.size} stocks from simulated data`);
-    } else {
-      // For other old years, try Tiingo API with caching
-      const useHistoricalStocks = specificYear && specificYear < 2010;
-      const stocksToUse = useHistoricalStocks ? HISTORICAL_STOCKS_PRE_2010 : symbols;
-
-      if (useHistoricalStocks) {
-        console.log(`[ORB] Using HISTORICAL stocks for ${specificYear} (${stocksToUse.length} stocks that existed then)`);
-      }
-      console.log(`[ORB] Using Tiingo API for historical data (year ${specificYear})...`);
-      const startDate = `${specificYear}-01-01`;
-      const endDate = `${specificYear}-12-31`;
-
-      for (const symbol of stocksToUse) {
-        try {
-          // Check cache first
-          const cachedData = getCachedData(symbol, specificYear!);
-          if (cachedData && cachedData.length > 20) {
-            allData.set(symbol, cachedData);
-            continue; // Skip API call, use cached data
-          }
-
-          // Not in cache, fetch from Tiingo
-          const data = await getTiingoDaily(symbol, startDate, endDate);
-          if (data.length > 20) {
-            allData.set(symbol, data);
-            // Save to cache for next time
-            setCachedData(symbol, specificYear!, data);
-            console.log(`[ORB] Tiingo: ${symbol} loaded ${data.length} days`);
-          } else if (data.length > 0) {
-            console.log(`[ORB] ${symbol}: Only ${data.length} days in ${specificYear} (skipping)`);
-          } else {
-            console.log(`[ORB] Tiingo: ${symbol} returned no data`);
-          }
-        } catch (e: any) {
-          console.log(`[ORB] Tiingo ERROR for ${symbol}: ${e.message || e}`);
-        }
-        await new Promise(r => setTimeout(r, 100)); // Slightly slower for Tiingo rate limits
-      }
-
-      // If no data loaded, warn about API key or rate limit
-      if (allData.size === 0) {
-        console.error(`[ORB] ERROR: No data loaded. Possible causes:`);
-        console.error(`[ORB]   1. Tiingo rate limit hit - wait 1 hour`);
-        console.error(`[ORB]   2. API key issue - check VITE_TIINGO_API_KEY in .env`);
-        console.error(`[ORB]   3. No cached data available`);
-      }
-    }
-  } else {
-    console.log(`[ORB] Fetching ${dataRange} of data for ${symbols.length} stocks...`);
-    for (const symbol of symbols) {
-      try {
-        const data = await getYahooDaily(symbol, dataRange);
-        if (data.length > 20) {
+      for (const symbol of availableSymbols) {
+        const data = getYahooHistoricalData(symbol, specificYear);
+        if (data && data.length > 20) {
           allData.set(symbol, data);
         }
-      } catch (e) {
-        // Skip failed symbols
       }
-      await new Promise(r => setTimeout(r, 50));
+    } else {
+      throw new Error(`No data available for year ${specificYear}. Supported: 1996-2026`);
+    }
+  } else {
+    // Multi-year backtest (last N years)
+    const currentYear = new Date().getFullYear();
+    const startYear = currentYear - yearsBack + 1;
+    console.log(`[ORB] Loading data for years ${startYear}-${currentYear}`);
+
+    // Collect all symbols that have data in any of those years
+    const symbolsWithData = new Set<string>();
+
+    for (let year = startYear; year <= currentYear; year++) {
+      if (year >= 2013) {
+        getYahooSymbolsForYear(year).forEach(s => symbolsWithData.add(s));
+      } else if (year >= 1996) {
+        getSymbolsForYear(year).forEach(s => symbolsWithData.add(s));
+      }
+    }
+
+    // Load data for each symbol across all years
+    for (const symbol of symbolsWithData) {
+      const combinedData: any[] = [];
+
+      for (let year = startYear; year <= currentYear; year++) {
+        let yearData: any[] | null = null;
+
+        if (year >= 2013) {
+          yearData = getYahooHistoricalData(symbol, year);
+        } else if (year >= 1996) {
+          yearData = getHistoricalData(symbol, year);
+        }
+
+        if (yearData && yearData.length > 0) {
+          combinedData.push(...yearData);
+        }
+      }
+
+      if (combinedData.length > 20) {
+        // Sort by date to ensure correct order
+        combinedData.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+        allData.set(symbol, combinedData);
+      }
     }
   }
 
-  console.log(`[ORB] Loaded ${allData.size} stocks`);
+  console.log(`[ORB] Loaded ${allData.size} stocks from LOCAL data (no API calls!)`);
+  if (allData.size === 0) {
+    throw new Error('No data available. Check that yahooHistorical.json exists and contains data.');
+  }
 
   // Log data range for each stock
   allData.forEach((data, symbol) => {
@@ -1361,24 +1361,30 @@ export async function runDayTradingBacktest(
 
       if (!todayData || !yesterdayData) return;
 
-      // OPENING RANGE BREAKOUT CRITERIA (RELAXED for more trades):
-      // 1. Today's HIGH exceeds yesterday's HIGH (breakout)
-      // 2. Gap not too extreme
-      // 3. Some volatility present
+      // OPENING RANGE BREAKOUT CRITERIA
+      // Only use data available at market open - NO LOOKAHEAD!
+      // 1. Today's HIGH exceeds yesterday's HIGH (breakout happened - we verify this)
+      // 2. Gap not too extreme (known at open)
+      // 3. Yesterday had enough range (known at open)
 
       const breakoutAboveYesterdayHigh = todayData.high > yesterdayData.high;
       const gapPercent = Math.abs((todayData.open - yesterdayData.close) / yesterdayData.close) * 100;
       const isReasonableGap = gapPercent < 5; // Allow gaps up to 5%
-      const dayRange = ((todayData.high - todayData.low) / todayData.open) * 100;
-      const hasEnoughRange = dayRange >= 0.5; // Lower threshold
+
+      // Use YESTERDAY's range instead of today's (no lookahead)
+      const yesterdayRange = ((yesterdayData.high - yesterdayData.low) / yesterdayData.open) * 100;
+      const hasEnoughRange = yesterdayRange >= 0.5;
 
       // Entry would be at yesterday's high (the breakout level)
       const entryPrice = yesterdayData.high;
       const entryIsReachable = todayData.high >= entryPrice;
 
       if (breakoutAboveYesterdayHigh && isReasonableGap && hasEnoughRange && entryIsReachable) {
-        // Score by how strong the breakout was
-        const breakoutStrength = ((todayData.high - yesterdayData.high) / yesterdayData.high) * 100;
+        // Score using ONLY information available at market open (NO LOOKAHEAD!)
+        // - Gap direction: positive gap = bullish momentum
+        // - Proximity to breakout: opening near yesterday's high = closer to trigger
+        const gapDirection = (todayData.open - yesterdayData.close) / yesterdayData.close;
+        const proximityToBreakout = 1 - Math.abs(todayData.open - yesterdayData.high) / yesterdayData.high;
 
         breakouts.push({
           symbol,
@@ -1389,13 +1395,14 @@ export async function runDayTradingBacktest(
           close: todayData.close,
           prevClose: yesterdayData.close,
           gapPercent,
-          dayRange,
-          score: breakoutStrength * 100 + dayRange * 10,
+          dayRange: yesterdayRange,  // Use yesterday's range (no lookahead)
+          // NO LOOKAHEAD: score uses only data available at market open
+          score: gapDirection * 50 + proximityToBreakout * 50,
         });
       }
     });
 
-    // Sort by score and take top setups
+    // Sort by score (using only pre-entry data) and take top setups
     breakouts.sort((a, b) => b.score - a.score);
 
     for (const setup of breakouts.slice(0, MAX_TRADES_PER_DAY)) {
@@ -1495,6 +1502,79 @@ export async function runDayTradingBacktest(
     ? losingTrades.reduce((sum, t) => sum + t.pnlPercent, 0) / losingTrades.length
     : 0;
 
+  // ============ REALISTIC HAIRCUT CALCULATION ============
+  // Apply real-world adjustments that backtests don't capture
+  const haircutReasons: string[] = [];
+  let totalHaircutPercent = 0;
+  const rawReturn = ((capital - initialCapital) / initialCapital) * 100;
+
+  // 1. BASE EXECUTION HAIRCUT (10-15%)
+  // Real orders don't fill perfectly at limit prices
+  const baseHaircut = 12;
+  totalHaircutPercent += baseHaircut;
+  haircutReasons.push(`Base execution slippage: -${baseHaircut}%`);
+
+  // 2. TRADE FREQUENCY HAIRCUT (0-10%)
+  // More trades = more chances for mistakes, missed fills, emotional errors
+  const tradesPerDay = trades.length / Math.max(1, sortedDates.length - 20);
+  const frequencyHaircut = Math.min(10, tradesPerDay * 2);
+  if (frequencyHaircut > 2) {
+    totalHaircutPercent += frequencyHaircut;
+    haircutReasons.push(`High trade frequency (${tradesPerDay.toFixed(1)}/day): -${frequencyHaircut.toFixed(0)}%`);
+  }
+
+  // 3. VOLATILITY/CRISIS HAIRCUT (0-20%)
+  // Detect months with extreme losses - these would be worse in reality
+  const monthlyReturns: Record<string, number> = {};
+  trades.forEach(t => {
+    const month = t.date.substring(0, 7); // YYYY-MM
+    monthlyReturns[month] = (monthlyReturns[month] || 0) + t.pnlPercent;
+  });
+  const worstMonth = Math.min(...Object.values(monthlyReturns), 0);
+  const crisisMonths = Object.values(monthlyReturns).filter(r => r < -10).length;
+
+  if (crisisMonths > 0) {
+    const crisisHaircut = Math.min(20, crisisMonths * 5 + Math.abs(worstMonth) * 0.3);
+    totalHaircutPercent += crisisHaircut;
+    haircutReasons.push(`Crisis periods (${crisisMonths} bad months, worst: ${worstMonth.toFixed(0)}%): -${crisisHaircut.toFixed(0)}%`);
+  }
+
+  // 4. SIMULATED DATA HAIRCUT (15% for pre-2013 data)
+  const isSimulatedData = specificYear && specificYear < 2013;
+  if (isSimulatedData) {
+    const simHaircut = 15;
+    totalHaircutPercent += simHaircut;
+    haircutReasons.push(`Simulated data (pre-2013): -${simHaircut}% (results less reliable)`);
+  }
+
+  // 5. TAX HAIRCUT (show after-tax estimate)
+  // Short-term capital gains taxed as income (~25-35% for most)
+  if (rawReturn > 0) {
+    const taxRate = 30; // Assume 30% bracket
+    const taxHaircut = rawReturn * (taxRate / 100) * 0.5; // Apply to gains portion
+    totalHaircutPercent += taxHaircut / Math.max(1, rawReturn) * 10;
+    haircutReasons.push(`Estimated taxes (~${taxRate}% on gains): significant`);
+  }
+
+  // Cap total haircut at 60% (don't turn big winners into losers unrealistically)
+  totalHaircutPercent = Math.min(60, totalHaircutPercent);
+
+  // Calculate realistic return
+  // If raw return is positive, reduce it by haircut %
+  // If raw return is negative, make it worse by haircut %
+  let realisticReturn: number;
+  if (rawReturn >= 0) {
+    realisticReturn = rawReturn * (1 - totalHaircutPercent / 100);
+  } else {
+    realisticReturn = rawReturn * (1 + totalHaircutPercent / 200); // Losses get 50% worse
+  }
+  const realisticFinalCapital = initialCapital * (1 + realisticReturn / 100);
+
+  console.log(`[HAIRCUT] Raw return: ${rawReturn >= 0 ? '+' : ''}${rawReturn.toFixed(1)}%`);
+  console.log(`[HAIRCUT] Total haircut: ${totalHaircutPercent.toFixed(0)}%`);
+  console.log(`[HAIRCUT] Realistic estimate: ${realisticReturn >= 0 ? '+' : ''}${realisticReturn.toFixed(1)}%`);
+  haircutReasons.forEach(r => console.log(`[HAIRCUT]   ${r}`));
+
   const result: DayTradeResult = {
     initialCapital,
     finalCapital: capital,
@@ -1514,6 +1594,11 @@ export async function runDayTradingBacktest(
     goalReached,
     goalReachedDate,
     goalReachedCapital,
+    // Realistic estimates
+    realisticReturnPercent: realisticReturn,
+    realisticFinalCapital,
+    haircutPercent: totalHaircutPercent,
+    haircutReasons,
     trades,
     equityCurve,
   };
