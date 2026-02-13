@@ -113,16 +113,42 @@ export function usePatternScanner() {
 
     try {
       // Use Twelve Data for stocks (8 calls/min, 800/day free tier)
-      // Binance for crypto is disabled - crypto removed from app
+      // Falls back to Yahoo daily data when markets closed
       let data: PriceHistory[];
       if (isCryptoSymbol(symbol)) {
         data = await getBinanceCandles(symbol, '15min', 100);
       } else {
         data = await getTwelveDataCandles(symbol, '15min', 100);
+
+        // Fallback to Yahoo daily data if Twelve Data returns nothing (markets closed)
+        if (data.length < 3) {
+          const { getYahooDaily } = await import('../services/alphaVantage');
+          const dailyData = await getYahooDaily(symbol, '1y');
+          if (dailyData.length >= 10) {
+            // Convert IntradayData to PriceHistory format
+            data = dailyData.slice(-30).map(d => ({
+              date: new Date(d.timestamp),
+              open: d.open,
+              high: d.high,
+              low: d.low,
+              close: d.close,
+              volume: d.volume,
+            }));
+            if (symbol === 'AAPL') {
+              console.log(`📅 ${symbol}: Using daily data (markets closed) - ${data.length} days`);
+            }
+          }
+        }
       }
 
       if (data.length < 3) {
+        console.log(`⚠️ ${symbol}: Not enough data (${data.length} candles)`);
         return { alerts: newAlerts, rsi: null, prices: [], volumeData: null };
+      }
+
+      // Log data fetch success (only first symbol per batch to reduce noise)
+      if (symbol === 'AAPL') {
+        console.log(`📊 Data fetch OK: ${data.length} candles, last price: $${data[data.length-1]?.close.toFixed(2)}`);
       }
 
       // Extract close prices for RSI calculation
@@ -147,6 +173,14 @@ export function usePatternScanner() {
 
       // Detect patterns
       const patterns = detectPatterns(candles);
+
+      // Log pattern detection result for first symbol to help debug
+      if (symbol === 'AAPL' && patterns.length === 0) {
+        const lastCandle = candles[candles.length - 1];
+        const prevCandle = candles[candles.length - 2];
+        const change = ((lastCandle.close - prevCandle.close) / prevCandle.close * 100).toFixed(2);
+        console.log(`📉 AAPL: No patterns (last candle: O:${lastCandle.open.toFixed(2)} H:${lastCandle.high.toFixed(2)} L:${lastCandle.low.toFixed(2)} C:${lastCandle.close.toFixed(2)}, ${change}%)`);
+      }
 
       if (patterns.length > 0) {
         console.log(`✅ ${symbol}: Found ${patterns.length} pattern(s) -`, patterns.map(p => `${p.pattern} (${p.confidence}%)`).join(', '));
