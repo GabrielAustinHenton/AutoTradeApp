@@ -24,6 +24,11 @@ const defaultAutoTradeConfig: AutoTradeConfig = {
   maxTradesPerDay: 20,
   maxPositionSize: 10,
   tradingHoursOnly: true,
+  // Yearly drawdown protection - stop trading if down 15% from year start
+  yearlyDrawdownLimit: 15,
+  yearStartPortfolioValue: null,
+  drawdownStopTriggered: false,
+  drawdownStopTriggeredDate: null,
 };
 
 // Default paper portfolio

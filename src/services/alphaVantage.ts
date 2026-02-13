@@ -268,7 +268,7 @@ export async function getFinnhubCandles(
 // Best option for backtesting!
 export async function getYahooDaily(
   symbol: string,
-  range: '1mo' | '3mo' | '6mo' | '1y' = '3mo'
+  range: '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | '10y' | 'max' = '3mo'
 ): Promise<IntradayData[]> {
   try {
     const response = await axios.get(`${YAHOO_URL}/v8/finance/chart/${symbol.toUpperCase()}`, {
@@ -315,6 +315,67 @@ export async function getYahooDaily(
     return candles;
   } catch (error) {
     logger.error('API', `Yahoo Finance error for ${symbol}`, error);
+    return [];
+  }
+}
+
+// Tiingo API - Free tier: 500 requests/day, data back to 1970s!
+// Get your free API key at: https://www.tiingo.com/
+const TIINGO_URL = '/api/tiingo';
+
+const getTiingoApiKey = () => {
+  return import.meta.env.VITE_TIINGO_API_KEY || '';
+};
+
+export async function getTiingoDaily(
+  symbol: string,
+  startDate?: string,  // YYYY-MM-DD format
+  endDate?: string     // YYYY-MM-DD format
+): Promise<IntradayData[]> {
+  const apiKey = getTiingoApiKey();
+
+  if (!apiKey) {
+    logger.warn('API', 'Tiingo API key not set. Add VITE_TIINGO_API_KEY to .env (free at tiingo.com)');
+    return [];
+  }
+
+  try {
+    // Default to max historical data if no dates specified
+    const params: Record<string, string> = {
+      token: apiKey,
+    };
+
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+
+    const response = await axios.get(
+      `${TIINGO_URL}/tiingo/daily/${symbol.toLowerCase()}/prices`,
+      { params }
+    );
+
+    const data = response.data;
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      logger.warn('API', `Tiingo no data for ${symbol}`);
+      return [];
+    }
+
+    const candles: IntradayData[] = data.map((d: any) => ({
+      timestamp: d.date.split('T')[0],  // YYYY-MM-DD
+      open: d.adjOpen || d.open,
+      high: d.adjHigh || d.high,
+      low: d.adjLow || d.low,
+      close: d.adjClose || d.close,
+      volume: d.adjVolume || d.volume || 0,
+    }));
+
+    logger.info('API', `Tiingo: ${symbol} - ${candles.length} days (${candles[0]?.timestamp} to ${candles[candles.length - 1]?.timestamp})`);
+    return candles;
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      logger.warn('API', `Tiingo: ${symbol} not found`);
+    } else {
+      logger.error('API', `Tiingo error for ${symbol}`, error);
+    }
     return [];
   }
 }

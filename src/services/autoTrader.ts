@@ -21,6 +21,69 @@ export function isWithinTradingHours(): boolean {
   return timeInMinutes >= 570 && timeInMinutes <= 960;
 }
 
+// Calculate current portfolio value (cash + positions)
+function getCurrentPortfolioValue(): number {
+  const state = useStore.getState();
+  const { paperPortfolio } = state;
+
+  // Sum up all position values
+  const positionsValue = paperPortfolio.positions.reduce((sum, p) => {
+    return sum + (p.currentPrice || p.avgCost) * p.shares;
+  }, 0);
+
+  // Add short positions P&L (unrealized)
+  const shortPositionsValue = (paperPortfolio.shortPositions || []).reduce((sum, p) => {
+    // For shorts, profit = (entry - current) * shares
+    const unrealizedPnL = (p.entryPrice - (p.currentPrice || p.entryPrice)) * p.shares;
+    return sum + unrealizedPnL;
+  }, 0);
+
+  return paperPortfolio.cashBalance + positionsValue + shortPositionsValue;
+}
+
+// Check and update year-start portfolio value (called at start of each year)
+export function checkAndUpdateYearStart(): void {
+  const state = useStore.getState();
+  const { autoTradeConfig } = state;
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
+  // Check if we need to reset for new year
+  const lastYearStartDate = autoTradeConfig.drawdownStopTriggeredDate
+    ? new Date(autoTradeConfig.drawdownStopTriggeredDate).getFullYear()
+    : null;
+
+  // If it's a new year or we don't have year-start value, update it
+  if (autoTradeConfig.yearStartPortfolioValue === null ||
+      (lastYearStartDate && lastYearStartDate < currentYear)) {
+    const portfolioValue = getCurrentPortfolioValue();
+    state.updateAutoTradeConfig({
+      yearStartPortfolioValue: portfolioValue,
+      drawdownStopTriggered: false,
+      drawdownStopTriggeredDate: null,
+    });
+    console.log(`[RISK] New year ${currentYear}: Setting year-start portfolio value to $${portfolioValue.toFixed(2)}`);
+  }
+}
+
+// Check if yearly drawdown limit has been hit
+function checkDrawdownLimit(config: AutoTradeConfig): { exceeded: boolean; currentDrawdown: number } {
+  if (config.yearStartPortfolioValue === null) {
+    // First run - set year start value
+    checkAndUpdateYearStart();
+    return { exceeded: false, currentDrawdown: 0 };
+  }
+
+  const currentValue = getCurrentPortfolioValue();
+  const drawdownPercent = ((config.yearStartPortfolioValue - currentValue) / config.yearStartPortfolioValue) * 100;
+
+  return {
+    exceeded: drawdownPercent >= config.yearlyDrawdownLimit,
+    currentDrawdown: drawdownPercent,
+  };
+}
+
 // Check if a rule can be auto-executed
 export function canExecuteAutoTrade(
   rule: TradingRule,
@@ -40,6 +103,31 @@ export function canExecuteAutoTrade(
   const state = useStore.getState();
   if (state.tradingMode === 'live' && !state.ibkrConnected) {
     return { allowed: false, reason: 'Live mode requires IBKR connection. Switch to Paper mode or connect IBKR.' };
+  }
+
+  // Check yearly drawdown protection
+  if (config.drawdownStopTriggered) {
+    return { allowed: false, reason: `Yearly drawdown limit hit (${config.yearlyDrawdownLimit}%). Auto-trading paused until next year.` };
+  }
+
+  // Check if we're about to hit drawdown limit
+  const drawdownCheck = checkDrawdownLimit(config);
+  if (drawdownCheck.exceeded) {
+    // Trigger the stop
+    state.updateAutoTradeConfig({
+      drawdownStopTriggered: true,
+      drawdownStopTriggeredDate: new Date().toISOString(),
+    });
+    console.log(`\n${'!'.repeat(60)}`);
+    console.log(`⚠️  YEARLY DRAWDOWN LIMIT HIT - AUTO-TRADING PAUSED`);
+    console.log(`${'!'.repeat(60)}`);
+    console.log(`   Year-start value: $${config.yearStartPortfolioValue?.toFixed(2)}`);
+    console.log(`   Current value: $${getCurrentPortfolioValue().toFixed(2)}`);
+    console.log(`   Drawdown: ${drawdownCheck.currentDrawdown.toFixed(1)}%`);
+    console.log(`   Limit: ${config.yearlyDrawdownLimit}%`);
+    console.log(`   Auto-trading will resume on January 1st`);
+    console.log(`${'!'.repeat(60)}\n`);
+    return { allowed: false, reason: `Yearly drawdown limit hit (${drawdownCheck.currentDrawdown.toFixed(1)}%). Auto-trading paused until next year.` };
   }
 
   // Check trading hours if required

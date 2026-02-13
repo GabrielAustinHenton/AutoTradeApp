@@ -42,6 +42,8 @@ export function Dashboard() {
 
   // Day trading backtest state
   const [dayTradeResult, setDayTradeResult] = useState<DayTradeResult | null>(null);
+  const [backtestYears, setBacktestYears] = useState<string>('1'); // '1', '2', '5', '10', '20', or specific year like '2020'
+  const [realisticCosts, setRealisticCosts] = useState<boolean>(true); // Include slippage/fees
 
   // Use paper portfolio data when in paper mode
   const isPaperMode = tradingMode === 'paper';
@@ -124,12 +126,22 @@ export function Dashboard() {
     try {
       if (backtestStrategy === 'daytrade') {
         // Day Trading Strategy - scans ALL watchlist stocks
+        // Parse year selection
+        const isSpecificYear = backtestYears.length === 4 && !isNaN(parseInt(backtestYears));
+        const yearsBack = isSpecificYear ? 20 : parseInt(backtestYears);
+        const specificYear = isSpecificYear ? parseInt(backtestYears) : undefined;
+
         const result = await runDayTradingBacktest(
           PERMANENT_WATCHLIST,
-          1000,   // $1000 starting capital
-          3,      // 3% position size
+          25000,  // $25k starting capital (PDT minimum)
+          25,     // 25% position size (scales down as portfolio grows)
           2,      // 2% profit target
-          1       // 1% stop loss
+          1,      // 1% stop loss
+          yearsBack,
+          specificYear,
+          0,                          // $0 commission (like Robinhood)
+          realisticCosts ? 0.1 : 0,   // 0.1% slippage per side (realistic for liquid stocks)
+          15                          // 15% yearly drawdown limit - stop trading if hit
         );
         setDayTradeResult(result);
       } else {
@@ -379,7 +391,7 @@ export function Dashboard() {
           <div className="bg-slate-800 rounded-xl p-6">
             <h2 className="text-xl font-semibold mb-4">Quick Backtest</h2>
             <div className="space-y-3">
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {backtestStrategy !== 'daytrade' && (
                   <input
                     type="text"
@@ -388,6 +400,35 @@ export function Dashboard() {
                     placeholder="Symbol"
                     className="w-24 px-3 py-2 bg-slate-700 rounded-lg text-sm"
                   />
+                )}
+                {backtestStrategy === 'daytrade' && (
+                  <>
+                    <select
+                      value={backtestYears}
+                      onChange={(e) => setBacktestYears(e.target.value)}
+                      className="px-3 py-2 bg-slate-700 rounded-lg text-sm"
+                    >
+                      <option value="1">Last 1 Year</option>
+                      <option value="2">Last 2 Years</option>
+                      <option value="5">Last 5 Years</option>
+                      <option value="10">Last 10 Years</option>
+                      <option value="20">Last 20 Years</option>
+                      <optgroup label="Specific Year">
+                        {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                          <option key={year} value={year.toString()}>{year}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={realisticCosts}
+                        onChange={(e) => setRealisticCosts(e.target.checked)}
+                        className="rounded"
+                      />
+                      <span className="text-slate-400">Costs</span>
+                    </label>
+                  </>
                 )}
                 <select
                   value={backtestStrategy}
@@ -409,7 +450,7 @@ export function Dashboard() {
               </div>
               <p className="text-xs text-slate-500">
                 {backtestStrategy === 'daytrade'
-                  ? `ORB Strategy: Scans ${PERMANENT_WATCHLIST.length} stocks. 25% position, 2% target, 1% stop. Up to 5 trades/day. AGGRESSIVE.`
+                  ? `ORB Strategy: ${PERMANENT_WATCHLIST.length} stocks, ${backtestYears.length === 4 ? backtestYears : backtestYears + ' yr'}. 25% position, 2% target, 1% stop.${realisticCosts ? ' 0.2% slippage.' : ''} $25k start, scales down at $100k+, goal: $500k.`
                   : backtestStrategy === 'hybrid'
                   ? 'Long-only trend following with 200 MA filter'
                   : backtestStrategy === 'rsi'
@@ -507,6 +548,12 @@ export function Dashboard() {
                       <span className="text-red-400">{dayTradeResult.avgLossPercent.toFixed(2)}%</span>
                     </span>
                   </div>
+                  {dayTradeResult.totalCosts > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">Transaction Costs</span>
+                      <span className="text-orange-400">-${dayTradeResult.totalCosts.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">Best / Worst Day</span>
                     <span>
@@ -515,6 +562,34 @@ export function Dashboard() {
                       <span className="text-red-400">{dayTradeResult.worstDay.toFixed(2)}%</span>
                     </span>
                   </div>
+                  {dayTradeResult.goalReached && (
+                    <div className="p-3 bg-emerald-900/50 border border-emerald-500 rounded-lg">
+                      <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                        <span>Goal Reached: $500,000</span>
+                      </div>
+                      <div className="text-sm text-emerald-300 mt-2">
+                        Congratulations! You reached the $500k goal on {dayTradeResult.goalReachedDate}.
+                      </div>
+                      <div className="text-xs text-slate-300 mt-3 space-y-1">
+                        <div className="font-medium">Recommended next steps:</div>
+                        <div>1. Move 80% ($400k) to index funds (VOO, VTI) for long-term growth</div>
+                        <div>2. Keep 10% ($50k) for swing trading with larger positions</div>
+                        <div>3. Reserve 10% ($50k) as emergency cash buffer</div>
+                        <div>4. Consider consulting a financial advisor for tax optimization</div>
+                      </div>
+                    </div>
+                  )}
+                  {dayTradeResult.drawdownStopTriggered && !dayTradeResult.goalReached && (
+                    <div className="p-2 bg-yellow-900/30 border border-yellow-700 rounded-lg text-sm">
+                      <div className="flex items-center gap-2 text-yellow-400">
+                        <span>Drawdown Protection Triggered</span>
+                      </div>
+                      <div className="text-xs text-yellow-400/70 mt-1">
+                        Stopped trading on {dayTradeResult.drawdownStopDate} (down 15% from year start).
+                        Saved from {dayTradeResult.tradesSkippedDueToDrawdown} potential additional trades.
+                      </div>
+                    </div>
+                  )}
                   {dayTradeResult.trades.length > 0 && (
                     <details className="pt-2">
                       <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-300">

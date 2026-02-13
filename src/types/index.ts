@@ -192,6 +192,11 @@ export interface AutoTradeConfig {
   maxTradesPerDay: number;
   maxPositionSize: number;
   tradingHoursOnly: boolean;
+  // Yearly drawdown protection
+  yearlyDrawdownLimit: number;         // Max % loss from year start (default 20)
+  yearStartPortfolioValue: number | null;  // Portfolio value on Jan 1
+  drawdownStopTriggered: boolean;      // Whether stop was triggered this year
+  drawdownStopTriggeredDate: string | null; // When it was triggered
 }
 
 // Auto-Trade Execution Record

@@ -10,8 +10,10 @@
 // - Target: 60-70% win rate with positive expectancy on ANY stock
 
 import type { TradingRule, BacktestConfig, BacktestResult, BacktestTrade, CandlestickPattern } from '../types';
-import { getYahooDaily } from './alphaVantage';
+import { getYahooDaily, getTiingoDaily } from './alphaVantage';
 import { detectPatterns, type Candle } from './candlestickPatterns';
+import { getCachedData, setCachedData } from './historicalDataCache';
+import { HISTORICAL_DATA, getHistoricalData, getSymbolsForYear } from '../data/historical2008';
 
 // Format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
 function formatLocalDate(d: Date): string {
@@ -933,6 +935,111 @@ interface DayTradeSetup {
   score: number;           // Overall setup quality
 }
 
+// Realistic trading constraints
+export const TRADING_CONSTRAINTS = {
+  PDT_MINIMUM: 25000,           // Pattern Day Trader minimum
+  FULL_POSITION_LIMIT: 100000,  // Full 25% position size up to this
+  GOAL_AMOUNT: 500000,          // Stop day trading at this amount
+  MIN_POSITION_PERCENT: 5,      // Minimum position size at goal
+};
+
+// Historical stocks for backtesting years before 2010
+// Only includes stocks that were publicly traded and liquid in 2008
+export const HISTORICAL_STOCKS_PRE_2010 = [
+  // Tech (existed pre-2008)
+  'AAPL',   // 1980
+  'MSFT',   // 1986
+  'INTC',   // 1971
+  'ORCL',   // 1986
+  'CSCO',   // 1990
+  'IBM',    // 1911
+  'HPQ',    // 1957 (HP)
+  'DELL',   // 1988
+  // Financials
+  'JPM',    // 1969
+  'BAC',    // 1998
+  'GS',     // 1999
+  'WFC',    // 1852
+  'C',      // 1998 (Citigroup)
+  // Healthcare
+  'JNJ',    // 1944
+  'PFE',    // 1942
+  'MRK',    // 1891
+  'ABT',    // 1929
+  // Consumer
+  'KO',     // 1919
+  'PEP',    // 1919
+  'WMT',    // 1972
+  'HD',     // 1981
+  'MCD',    // 1965
+  'NKE',    // 1980
+  'PG',     // 1837
+  // Energy
+  'XOM',    // 1920s
+  'CVX',    // 1926
+  // Industrial
+  'GE',     // 1892
+  'CAT',    // 1929
+  'MMM',    // 1946
+  'BA',     // 1934
+  // Entertainment
+  'DIS',    // 1957
+];
+
+// Volatility-based slippage multipliers (simulates VIX effect)
+// Higher market volatility = wider spreads = more slippage
+const VOLATILITY_SLIPPAGE_TIERS = [
+  { maxVolatility: 1.0, multiplier: 1.0 },   // Normal: VIX ~12-20
+  { maxVolatility: 2.0, multiplier: 2.0 },   // Elevated: VIX ~20-30
+  { maxVolatility: 3.0, multiplier: 3.0 },   // High: VIX ~30-50
+  { maxVolatility: 5.0, multiplier: 5.0 },   // Panic: VIX ~50-80 (2008, COVID)
+  { maxVolatility: Infinity, multiplier: 10.0 }, // Extreme: VIX 80+
+];
+
+// Calculate market volatility from recent price data (VIX proxy)
+// Returns a multiplier: 1.0 = normal, 2.0+ = elevated, 5.0+ = panic
+function calculateMarketVolatility(
+  allData: Map<string, any[]>,
+  currentDate: string,
+  lookbackDays: number = 20
+): number {
+  let totalVolatility = 0;
+  let stockCount = 0;
+
+  allData.forEach((data) => {
+    // Find current date index
+    const currentIndex = data.findIndex(d => d.timestamp === currentDate);
+    if (currentIndex < lookbackDays) return;
+
+    // Calculate average daily range over lookback period
+    let sumDailyRange = 0;
+    for (let i = currentIndex - lookbackDays; i < currentIndex; i++) {
+      const dayRange = (data[i].high - data[i].low) / data[i].close;
+      sumDailyRange += dayRange;
+    }
+    const avgDailyRange = sumDailyRange / lookbackDays;
+
+    // Normal daily range is about 1-2% for most stocks
+    // Normalize so 1.5% average range = 1.0 volatility
+    const normalizedVolatility = avgDailyRange / 0.015;
+    totalVolatility += normalizedVolatility;
+    stockCount++;
+  });
+
+  if (stockCount === 0) return 1.0;
+
+  const avgVolatility = totalVolatility / stockCount;
+
+  // Find the appropriate slippage multiplier
+  for (const tier of VOLATILITY_SLIPPAGE_TIERS) {
+    if (avgVolatility <= tier.maxVolatility) {
+      return tier.multiplier;
+    }
+  }
+
+  return 10.0; // Extreme volatility
+}
+
 export interface DayTradeResult {
   initialCapital: number;
   finalCapital: number;
@@ -945,6 +1052,15 @@ export interface DayTradeResult {
   avgLossPercent: number;
   bestDay: number;
   worstDay: number;
+  totalCosts: number;  // Total transaction costs paid
+  // Drawdown protection info
+  drawdownStopTriggered: boolean;
+  drawdownStopDate: string | null;
+  tradesSkippedDueToDrawdown: number;
+  // Goal reached info
+  goalReached: boolean;
+  goalReachedDate: string | null;
+  goalReachedCapital: number | null;
   trades: {
     date: string;
     symbol: string;
@@ -962,47 +1078,279 @@ export async function runDayTradingBacktest(
   initialCapital: number = 1000,
   positionSizePercent: number = 25,  // 25% of capital per trade - AGGRESSIVE
   profitTargetPercent: number = 2.0, // Take profit at 2%
-  stopLossPercent: number = 1.0      // Stop loss at 1% (2:1 R/R)
+  stopLossPercent: number = 1.0,     // Stop loss at 1% (2:1 R/R)
+  yearsBack: number = 1,             // How many years to backtest (1, 2, 5, 10, 20)
+  specificYear?: number,             // Or test a specific year (e.g., 2020)
+  // REALISTIC COSTS (defaults are conservative estimates)
+  commissionPerTrade: number = 0,    // $0 for Robinhood, ~$1 for others
+  slippagePercent: number = 0.1,     // 0.1% slippage per side (entry + exit)
+  // RISK MANAGEMENT
+  yearlyDrawdownLimit: number = 20   // Stop trading if down this % from year start
 ): Promise<DayTradeResult> {
-  console.log(`[ORB] Starting Opening Range Breakout backtest with $${initialCapital}`);
-  console.log(`[ORB] Position size: ${positionSizePercent}%, Target: +${profitTargetPercent}%, Stop: -${stopLossPercent}%`);
+  // Determine data range to fetch
+  let dataRange: '1y' | '2y' | '5y' | '10y' | 'max' = '1y';
+  if (yearsBack >= 20 || specificYear) {
+    dataRange = 'max';
+  } else if (yearsBack >= 10) {
+    dataRange = '10y';
+  } else if (yearsBack >= 5) {
+    dataRange = '5y';
+  } else if (yearsBack >= 2) {
+    dataRange = '2y';
+  }
 
-  // Fetch 1 year of data for all symbols
+  const periodLabel = specificYear ? `Year ${specificYear}` : `Last ${yearsBack} year(s)`;
+  console.log(`[ORB] Starting Opening Range Breakout backtest - ${periodLabel}`);
+  console.log(`[ORB] Capital: $${initialCapital}, Position: ${positionSizePercent}%, Target: +${profitTargetPercent}%, Stop: -${stopLossPercent}%`);
+  console.log(`[ORB] Transaction costs: $${commissionPerTrade}/trade commission + ${slippagePercent}% slippage each way`);
+  console.log(`[ORB] Yearly drawdown limit: ${yearlyDrawdownLimit}% (stop trading if hit)`);
+
+  // Fetch historical data for all symbols
+  // Use Tiingo for older years (pre-2015), Yahoo for recent years
   const allData: Map<string, any[]> = new Map();
+  const thisYear = new Date().getFullYear();
+  const useTiingo = specificYear && specificYear < thisYear - 10; // Use Tiingo for 10+ years ago
 
-  for (const symbol of symbols) {
-    try {
-      const data = await getYahooDaily(symbol, '1y');
-      if (data.length > 20) {
-        allData.set(symbol, data);
+  if (useTiingo) {
+    // For years 1996-2012, use built-in simulated historical data
+    const useSimulatedData = specificYear && specificYear >= 1996 && specificYear <= 2012;
+
+    if (useSimulatedData) {
+      console.log(`[ORB] Using SIMULATED historical data for ${specificYear}`);
+      const availableSymbols = getSymbolsForYear(specificYear!);
+      console.log(`[ORB] ${availableSymbols.length} stocks available for ${specificYear}`);
+
+      for (const symbol of availableSymbols) {
+        const data = getHistoricalData(symbol, specificYear!);
+        if (data && data.length > 20) {
+          allData.set(symbol, data);
+        }
       }
-    } catch (e) {
-      // Skip failed symbols
+
+      console.log(`[ORB] Loaded ${allData.size} stocks from simulated data`);
+    } else {
+      // For other old years, try Tiingo API with caching
+      const useHistoricalStocks = specificYear && specificYear < 2010;
+      const stocksToUse = useHistoricalStocks ? HISTORICAL_STOCKS_PRE_2010 : symbols;
+
+      if (useHistoricalStocks) {
+        console.log(`[ORB] Using HISTORICAL stocks for ${specificYear} (${stocksToUse.length} stocks that existed then)`);
+      }
+      console.log(`[ORB] Using Tiingo API for historical data (year ${specificYear})...`);
+      const startDate = `${specificYear}-01-01`;
+      const endDate = `${specificYear}-12-31`;
+
+      for (const symbol of stocksToUse) {
+        try {
+          // Check cache first
+          const cachedData = getCachedData(symbol, specificYear!);
+          if (cachedData && cachedData.length > 20) {
+            allData.set(symbol, cachedData);
+            continue; // Skip API call, use cached data
+          }
+
+          // Not in cache, fetch from Tiingo
+          const data = await getTiingoDaily(symbol, startDate, endDate);
+          if (data.length > 20) {
+            allData.set(symbol, data);
+            // Save to cache for next time
+            setCachedData(symbol, specificYear!, data);
+            console.log(`[ORB] Tiingo: ${symbol} loaded ${data.length} days`);
+          } else if (data.length > 0) {
+            console.log(`[ORB] ${symbol}: Only ${data.length} days in ${specificYear} (skipping)`);
+          } else {
+            console.log(`[ORB] Tiingo: ${symbol} returned no data`);
+          }
+        } catch (e: any) {
+          console.log(`[ORB] Tiingo ERROR for ${symbol}: ${e.message || e}`);
+        }
+        await new Promise(r => setTimeout(r, 100)); // Slightly slower for Tiingo rate limits
+      }
+
+      // If no data loaded, warn about API key or rate limit
+      if (allData.size === 0) {
+        console.error(`[ORB] ERROR: No data loaded. Possible causes:`);
+        console.error(`[ORB]   1. Tiingo rate limit hit - wait 1 hour`);
+        console.error(`[ORB]   2. API key issue - check VITE_TIINGO_API_KEY in .env`);
+        console.error(`[ORB]   3. No cached data available`);
+      }
     }
-    await new Promise(r => setTimeout(r, 50));
+  } else {
+    console.log(`[ORB] Fetching ${dataRange} of data for ${symbols.length} stocks...`);
+    for (const symbol of symbols) {
+      try {
+        const data = await getYahooDaily(symbol, dataRange);
+        if (data.length > 20) {
+          allData.set(symbol, data);
+        }
+      } catch (e) {
+        // Skip failed symbols
+      }
+      await new Promise(r => setTimeout(r, 50));
+    }
   }
 
   console.log(`[ORB] Loaded ${allData.size} stocks`);
+
+  // Log data range for each stock
+  allData.forEach((data, symbol) => {
+    if (data.length > 0) {
+      const firstDate = data[0].timestamp;
+      const lastDate = data[data.length - 1].timestamp;
+      console.log(`[ORB] ${symbol}: ${data.length} days (${firstDate} to ${lastDate})`);
+    }
+  });
 
   // Find all unique trading dates
   const allDates = new Set<string>();
   allData.forEach(data => {
     data.forEach(d => allDates.add(d.timestamp));
   });
-  const sortedDates = Array.from(allDates).sort();
+  let sortedDates = Array.from(allDates).sort();
 
-  console.log(`[ORB] Trading period: ${sortedDates[20]} to ${sortedDates[sortedDates.length - 1]}`);
+  // Filter dates based on yearsBack or specificYear
+  if (specificYear) {
+    // Only include dates from the specific year
+    sortedDates = sortedDates.filter(d => d.startsWith(`${specificYear}-`));
+
+    // Count stocks that have data for this year
+    let stocksWithData = 0;
+    allData.forEach((data, symbol) => {
+      const yearData = data.filter(d => d.timestamp.startsWith(`${specificYear}-`));
+      if (yearData.length > 20) {
+        stocksWithData++;
+        console.log(`[ORB] ${symbol} has ${yearData.length} days in ${specificYear}`);
+      } else {
+        console.log(`[ORB] ${symbol} has NO DATA for ${specificYear} (only ${yearData.length} days)`);
+      }
+    });
+
+    console.log(`[ORB] Filtering to year ${specificYear}: ${sortedDates.length} trading days, ${stocksWithData} stocks have data`);
+  } else if (yearsBack < 20) {
+    // Filter to last N years
+    const cutoffDate = new Date();
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - yearsBack);
+    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+    sortedDates = sortedDates.filter(d => d >= cutoffStr);
+  }
+
+  if (sortedDates.length < 30) {
+    // For old years, data source might not have data - give helpful error
+    const stocksWithOldData = Array.from(allData.entries())
+      .filter(([_, data]) => data.some(d => specificYear ? d.timestamp.startsWith(`${specificYear}-`) : true))
+      .map(([symbol]) => symbol);
+
+    const dataSource = useTiingo ? 'Tiingo' : 'Yahoo Finance';
+    throw new Error(
+      `Not enough trading days for backtest: ${sortedDates.length} days found. ` +
+      `${specificYear ? `${dataSource} may not have data for ${specificYear}. ` : ''}` +
+      `${useTiingo ? 'Check your VITE_TIINGO_API_KEY in .env. ' : ''}` +
+      `Stocks with data: ${stocksWithOldData.join(', ') || 'none'}. ` +
+      `Try a more recent year (2015+) or use stocks that existed then.`
+    );
+  }
+
+  console.log(`[ORB] Trading period: ${sortedDates[20]} to ${sortedDates[sortedDates.length - 1]} (${sortedDates.length - 20} days)`);
 
   let capital = initialCapital;
+  let totalCostsPaid = 0;  // Track all transaction costs
   const trades: DayTradeResult['trades'] = [];
   const equityCurve: DayTradeResult['equityCurve'] = [];
   const MAX_TRADES_PER_DAY = 5;  // More trades = more compounding
 
+  // Yearly drawdown protection tracking
+  let currentYear: string | null = null;
+  let yearStartCapital = initialCapital;
+  let drawdownStopTriggered = false;
+  let drawdownStopDate: string | null = null;
+  let tradesSkippedDueToDrawdown = 0;
+
+  // Goal tracking
+  let goalReached = false;
+  let goalReachedDate: string | null = null;
+  let goalReachedCapital: number | null = null;
+
+  // Helper function to calculate dynamic position size based on capital
+  // Full size up to $100k, then gradually reduce to avoid market impact
+  function getEffectivePositionSize(currentCapital: number): number {
+    if (currentCapital <= TRADING_CONSTRAINTS.FULL_POSITION_LIMIT) {
+      return positionSizePercent; // Full 25%
+    }
+    // Scale down linearly from 25% at $100k to 5% at $500k
+    const scale = (TRADING_CONSTRAINTS.GOAL_AMOUNT - currentCapital) /
+                  (TRADING_CONSTRAINTS.GOAL_AMOUNT - TRADING_CONSTRAINTS.FULL_POSITION_LIMIT);
+    const scaledSize = TRADING_CONSTRAINTS.MIN_POSITION_PERCENT +
+                       (positionSizePercent - TRADING_CONSTRAINTS.MIN_POSITION_PERCENT) * Math.max(0, scale);
+    return Math.max(TRADING_CONSTRAINTS.MIN_POSITION_PERCENT, scaledSize);
+  }
+
   // Start from day 20 to have some history
+  // Track volatility for logging
+  let lastLoggedVolatility = 0;
+
   for (let dayIndex = 20; dayIndex < sortedDates.length; dayIndex++) {
     const today = sortedDates[dayIndex];
     const yesterday = sortedDates[dayIndex - 1];
     let tradesToday = 0;
+
+    // Calculate dynamic slippage based on market volatility (VIX proxy)
+    const volatilityMultiplier = calculateMarketVolatility(allData, today, 20);
+    const dynamicSlippage = slippagePercent * volatilityMultiplier;
+
+    // Log when volatility changes significantly
+    if (Math.abs(volatilityMultiplier - lastLoggedVolatility) >= 1.0) {
+      const volatilityLevel = volatilityMultiplier <= 1.5 ? 'NORMAL' :
+                              volatilityMultiplier <= 2.5 ? 'ELEVATED' :
+                              volatilityMultiplier <= 4.0 ? 'HIGH' : 'PANIC';
+      console.log(`[ORB] ${today}: Market volatility ${volatilityLevel} (${volatilityMultiplier.toFixed(1)}x) - Slippage: ${dynamicSlippage.toFixed(2)}%`);
+      lastLoggedVolatility = volatilityMultiplier;
+    }
+
+    // Check if goal reached
+    if (!goalReached && capital >= TRADING_CONSTRAINTS.GOAL_AMOUNT) {
+      goalReached = true;
+      goalReachedDate = today;
+      goalReachedCapital = capital;
+      console.log(`\n${'🎉'.repeat(20)}`);
+      console.log(`[ORB] GOAL REACHED on ${today}! Capital: $${capital.toFixed(2)}`);
+      console.log(`[ORB] Day trading strategy complete. Time to transition to long-term investing.`);
+      console.log(`${'🎉'.repeat(20)}\n`);
+    }
+
+    // Stop trading if goal reached
+    if (goalReached) {
+      equityCurve.push({ date: today, equity: capital });
+      continue;
+    }
+
+    // Track year changes for drawdown protection
+    const todayYear = today.substring(0, 4);
+    if (currentYear !== todayYear) {
+      // New year - reset drawdown tracking
+      currentYear = todayYear;
+      yearStartCapital = capital;
+      drawdownStopTriggered = false;
+      drawdownStopDate = null;
+      console.log(`[ORB] New year ${todayYear}: Starting capital $${capital.toFixed(2)}, drawdown limit ${yearlyDrawdownLimit}%`);
+    }
+
+    // Check if drawdown limit hit
+    if (!drawdownStopTriggered) {
+      const drawdownPercent = ((yearStartCapital - capital) / yearStartCapital) * 100;
+      if (drawdownPercent >= yearlyDrawdownLimit) {
+        drawdownStopTriggered = true;
+        drawdownStopDate = today;
+        console.log(`[ORB] DRAWDOWN STOP TRIGGERED on ${today}: Down ${drawdownPercent.toFixed(1)}% from year start ($${yearStartCapital.toFixed(2)} -> $${capital.toFixed(2)})`);
+      }
+    }
+
+    // Skip trading if drawdown stop is active
+    if (drawdownStopTriggered) {
+      // Still record equity curve but don't trade
+      equityCurve.push({ date: today, equity: capital });
+      tradesSkippedDueToDrawdown += MAX_TRADES_PER_DAY; // Estimate of potential trades skipped
+      continue;
+    }
 
     // Find ALL breakout setups for today
     const breakouts: DayTradeSetup[] = [];
@@ -1058,9 +1406,11 @@ export async function runDayTradingBacktest(
       if (!yesterdayData) continue;
 
       const entryPrice = yesterdayData.high;
-      const positionDollars = capital * (positionSizePercent / 100);
+      // Use dynamic position size based on capital (scales down as portfolio grows)
+      const effectivePositionPercent = getEffectivePositionSize(capital);
+      const positionDollars = capital * (effectivePositionPercent / 100);
 
-      if (positionDollars < 10) continue; // Need at least $10 to trade
+      if (positionDollars < 100) continue; // Need at least $100 to trade (realistic minimum)
 
       const profitTarget = entryPrice * (1 + profitTargetPercent / 100);
       const stopLoss = entryPrice * (1 - stopLossPercent / 100);
@@ -1094,8 +1444,23 @@ export async function runDayTradingBacktest(
       }
 
       // Use dollar-based P&L (not share-based) for accurate calculation
-      const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
-      const pnlDollars = positionDollars * (pnlPercent / 100);
+      // THEN subtract realistic transaction costs
+      const grossPnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
+      const grossPnlDollars = positionDollars * (grossPnlPercent / 100);
+
+      // Transaction costs:
+      // 1. Commission per trade (buy + sell = 2 commissions)
+      const totalCommission = commissionPerTrade * 2;
+      // 2. Slippage: you buy at slightly higher, sell at slightly lower
+      //    Uses DYNAMIC slippage based on market volatility (higher in panic conditions)
+      //    Entry slippage: lose dynamicSlippage on entry
+      //    Exit slippage: lose dynamicSlippage on exit
+      const slippageCost = positionDollars * (dynamicSlippage / 100) * 2; // both entry and exit
+
+      const totalCosts = totalCommission + slippageCost;
+      totalCostsPaid += totalCosts;  // Track cumulative costs
+      const pnlDollars = grossPnlDollars - totalCosts;
+      const pnlPercent = (pnlDollars / positionDollars) * 100;
 
       capital += pnlDollars;
       tradesToday++;
@@ -1142,6 +1507,13 @@ export async function runDayTradingBacktest(
     avgLossPercent,
     bestDay: trades.length > 0 ? Math.max(...trades.map(t => t.pnlPercent)) : 0,
     worstDay: trades.length > 0 ? Math.min(...trades.map(t => t.pnlPercent)) : 0,
+    totalCosts: totalCostsPaid,
+    drawdownStopTriggered,
+    drawdownStopDate,
+    tradesSkippedDueToDrawdown,
+    goalReached,
+    goalReachedDate,
+    goalReachedCapital,
     trades,
     equityCurve,
   };
@@ -1156,6 +1528,13 @@ export async function runDayTradingBacktest(
   console.log(`[DAY TRADE] Avg Loss: ${avgLossPercent.toFixed(2)}%`);
   console.log(`[DAY TRADE] Best Day: +${result.bestDay.toFixed(2)}%`);
   console.log(`[DAY TRADE] Worst Day: ${result.worstDay.toFixed(2)}%`);
+  console.log(`[DAY TRADE] Total Transaction Costs: $${totalCostsPaid.toFixed(2)} (${((totalCostsPaid / initialCapital) * 100).toFixed(0)}% of initial capital)`);
+  if (goalReached) {
+    console.log(`[DAY TRADE] 🎉 GOAL REACHED on ${goalReachedDate}! Capital: $${goalReachedCapital?.toFixed(2)}`);
+  }
+  if (drawdownStopTriggered) {
+    console.log(`[DAY TRADE] DRAWDOWN PROTECTION: Stopped trading on ${drawdownStopDate} (saved from further losses)`);
+  }
   console.log(`[DAY TRADE] ==============================\n`);
 
   return result;
