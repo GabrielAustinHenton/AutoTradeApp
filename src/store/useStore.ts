@@ -23,7 +23,7 @@ const defaultAutoTradeConfig: AutoTradeConfig = {
   enabled: true,
   maxTradesPerDay: 20,
   maxPositionSize: 10,
-  tradingHoursOnly: true,
+  tradingHoursOnly: false,  // Allow paper trading outside market hours
   // Yearly drawdown protection - stop trading if down 15% from year start
   yearlyDrawdownLimit: 15,
   yearStartPortfolioValue: null,
@@ -31,15 +31,15 @@ const defaultAutoTradeConfig: AutoTradeConfig = {
   drawdownStopTriggeredDate: null,
 };
 
-// Default paper portfolio
+// Default paper portfolio - $25k to meet PDT requirements
 const defaultPaperPortfolio: PaperPortfolio = {
-  cashBalance: 10000,
+  cashBalance: 25000,
   positions: [],
   shortPositions: [],  // Short positions for bearish trades
   trades: [],
-  startingBalance: 10000,
+  startingBalance: 25000,
   createdAt: new Date(),
-  history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
+  history: [{ date: new Date(), totalValue: 25000, cashBalance: 25000, positionsValue: 0 }],
 };
 
 
@@ -624,7 +624,7 @@ export const useStore = create<AppState>()(
       // Trading Mode actions
       setTradingMode: (mode) => set({ tradingMode: mode }),
 
-      resetPaperPortfolio: (initialBalance = 10000) =>
+      resetPaperPortfolio: (initialBalance = 25000) =>
         set({
           paperPortfolio: {
             cashBalance: initialBalance,
