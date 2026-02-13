@@ -216,16 +216,12 @@ const createMACDShortRule = (symbol: string): TradingRule => ({
   volumeFilter: { enabled: true, minMultiplier: 1.5 },
 });
 
-// Generate all rules for a symbol
-// Buy rules for bullish patterns, Short rules for bearish patterns
+// Generate all rules for a symbol (LONG-ONLY - no shorting)
 const createRulesForSymbol = (symbol: string): TradingRule[] => [
   // BUY on bullish patterns
   ...BULLISH_PATTERNS.map(({ pattern, name }) => createPatternBuyRule(symbol, pattern, name)),
-  // SHORT on bearish patterns (profit when price drops)
-  ...BEARISH_PATTERNS.map(({ pattern, name }) => createPatternShortRule(symbol, pattern, name)),
-  // MACD rules - buy on bullish crossover, short on bearish crossover
+  // MACD buy rule only
   createMACDBuyRule(symbol),
-  createMACDShortRule(symbol),
 ];
 
 // Generate all rules for all watchlist stocks
@@ -292,7 +288,7 @@ interface AppState {
   updateTradingRule: (id: string, updates: Partial<TradingRule>) => void;
   removeTradingRule: (id: string) => void;
   toggleTradingRule: (id: string) => void;
-  resetTradingRules: () => void; // Reset to default rules (includes short selling rules)
+  resetTradingRules: () => void; // Reset to default rules (long-only, no shorts)
 
   // Actions - Journal
   addJournalEntry: (entry: JournalEntry) => void;

@@ -292,20 +292,20 @@ export function Settings() {
             <div className="border-t border-slate-600 pt-4 mt-4">
               <h3 className="font-semibold mb-2">Trading Rules</h3>
               <p className="text-sm text-slate-400 mb-2">
-                Reset all trading rules to defaults. This includes SHORT rules for bearish patterns.
+                Reset all trading rules to defaults (long-only BUY rules for bullish patterns).
               </p>
               <button
                 onClick={() => {
-                  if (confirm('Reset all trading rules to defaults? This will delete your custom rules and create new ones with BUY rules for bullish patterns and SHORT rules for bearish patterns.')) {
+                  if (confirm('Reset all trading rules to defaults? This will delete your custom rules and create new BUY rules for bullish patterns.')) {
                     resetTradingRules();
                   }
                 }}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm"
               >
-                Reset Rules (Include Shorts)
+                Reset Rules
               </button>
               <p className="text-xs text-purple-400 mt-2">
-                Current rules: {tradingRules.length} total, {tradingRules.filter(r => r.type === 'short').length} short rules
+                Current rules: {tradingRules.length} total
               </p>
             </div>
           </div>
