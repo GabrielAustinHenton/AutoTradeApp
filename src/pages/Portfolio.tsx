@@ -123,7 +123,7 @@ export function Portfolio() {
   ].filter((d) => d.value > 0);
 
   const handleResetPaper = () => {
-    resetPaperPortfolio(10000);
+    resetPaperPortfolio(25000);  // PDT minimum
     setShowResetConfirm(false);
   };
 
