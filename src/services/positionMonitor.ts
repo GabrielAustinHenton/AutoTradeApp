@@ -365,10 +365,10 @@ async function scanPositions(): Promise<void> {
   // Log status periodically even when no positions to confirm monitor is running
   if (now - lastStatusLogTime > STATUS_LOG_INTERVAL) {
     lastStatusLogTime = now;
-    if (!hasLongPositions && !hasShortPositions) {
-      console.log(`🔄 Position Monitor: Running, no positions registered for monitoring`);
+    if (!hasLongPositions) {
+      console.log(`🔄 Position Monitor: Running, no positions to monitor`);
     } else {
-      console.log(`🔄 Position Monitor: Watching ${monitoredPositions.length} long + ${monitoredShortPositions.length} short positions`);
+      console.log(`🔄 Position Monitor: Watching ${monitoredPositions.length} position(s)`);
     }
   }
 
@@ -578,6 +578,18 @@ export function unregisterPosition(positionId: string): void {
   if (removedShort) {
     monitoredShortPositions = monitoredShortPositions.filter((p) => p.positionId !== positionId);
     logger.info('PositionMonitor', `Stopped monitoring SHORT position ${removedShort.symbol}`);
+  }
+}
+
+/**
+ * Clear all monitored positions (called when portfolio is reset)
+ */
+export function clearAllMonitoredPositions(): void {
+  const count = monitoredPositions.length + monitoredShortPositions.length;
+  monitoredPositions = [];
+  monitoredShortPositions = [];
+  if (count > 0) {
+    console.log(`🔄 Position Monitor: Cleared ${count} monitored position(s)`);
   }
 }
 

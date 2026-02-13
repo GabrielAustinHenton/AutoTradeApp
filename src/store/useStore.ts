@@ -17,6 +17,7 @@ import type {
 } from '../types';
 import { ibkr, type IBKRConfig } from '../services/ibkr';
 import { PERMANENT_WATCHLIST } from '../config/watchlist';
+import { clearAllMonitoredPositions } from '../services/positionMonitor';
 
 // Default auto-trade configuration
 const defaultAutoTradeConfig: AutoTradeConfig = {
@@ -620,7 +621,8 @@ export const useStore = create<AppState>()(
       // Trading Mode actions
       setTradingMode: (mode) => set({ tradingMode: mode }),
 
-      resetPaperPortfolio: (initialBalance = 25000) =>
+      resetPaperPortfolio: (initialBalance = 25000) => {
+        clearAllMonitoredPositions();  // Clear position monitor when portfolio is reset
         set({
           paperPortfolio: {
             cashBalance: initialBalance,
@@ -629,7 +631,8 @@ export const useStore = create<AppState>()(
             startingBalance: initialBalance,
             createdAt: new Date(),
           },
-        }),
+        });
+      },
 
       forceCloseAllPositions: () => {
         const state = useStore.getState();
