@@ -288,7 +288,7 @@ describe('Portfolio', () => {
 
       expect(screen.getByText('Reset Paper Portfolio?')).toBeInTheDocument();
       expect(
-        screen.getByText('This will clear all paper positions and trades, and reset your balance to $10,000.')
+        screen.getByText('This will clear all paper positions and trades, and reset your balance to $25,000 (PDT minimum).')
       ).toBeInTheDocument();
     });
 

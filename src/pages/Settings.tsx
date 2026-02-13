@@ -279,10 +279,10 @@ export function Settings() {
                   $1,000
                 </button>
                 <button
-                  onClick={() => resetPaperPortfolio(10000)}
-                  className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                  onClick={() => resetPaperPortfolio(25000)}
+                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-sm"
                 >
-                  $10,000
+                  $25,000 (PDT)
                 </button>
               </div>
               <p className="text-xs text-red-400 mt-2">Warning: This will clear all positions and trade history</p>
