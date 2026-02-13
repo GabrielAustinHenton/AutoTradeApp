@@ -3,8 +3,9 @@ import { useStore } from '../store/useStore';
 import { useMultipleQuotes } from '../hooks/useStockData';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
 import { AlertsPanel } from '../components/alerts/AlertsPanel';
-import { runBacktest, runRSIBacktest, runHybridBacktest } from '../services/backtester';
+import { runBacktest, runRSIBacktest, runHybridBacktest, runDayTradingBacktest, type DayTradeResult } from '../services/backtester';
 import type { BacktestResult } from '../types';
+import { PERMANENT_WATCHLIST } from '../config/watchlist';
 import {
   LineChart,
   Line,
@@ -37,7 +38,10 @@ export function Dashboard() {
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
   const [backtestError, setBacktestError] = useState<string | null>(null);
   const [backtestSymbol, setBacktestSymbol] = useState('AAPL');
-  const [backtestStrategy, setBacktestStrategy] = useState<'hybrid' | 'rsi' | 'pattern'>('hybrid');
+  const [backtestStrategy, setBacktestStrategy] = useState<'hybrid' | 'rsi' | 'pattern' | 'daytrade'>('daytrade');
+
+  // Day trading backtest state
+  const [dayTradeResult, setDayTradeResult] = useState<DayTradeResult | null>(null);
 
   // Use paper portfolio data when in paper mode
   const isPaperMode = tradingMode === 'paper';
@@ -46,11 +50,21 @@ export function Dashboard() {
   const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : (isLiveNotConnected ? null : cashBalance);
   const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : (isLiveNotConnected ? [] : trades);
 
-  // Get unique symbols from positions
-  const positionSymbols = displayPositions.filter(p => p.shares > 0).map((p) => p.symbol);
+  // Get unique symbols from positions - memoize to prevent infinite loops
+  const positionSymbols = useMemo(
+    () => displayPositions.filter(p => p.shares > 0).map((p) => p.symbol),
+    [displayPositions]
+  );
   const { quotes, loading: quotesLoading } = useMultipleQuotes(positionSymbols, true);
 
   // Update position prices when quotes change
+  // Use quotes.size as dependency instead of quotes object to avoid infinite loops
+  const quotesJson = useMemo(() => {
+    const obj: Record<string, number> = {};
+    quotes.forEach((q, symbol) => { obj[symbol] = q.price; });
+    return JSON.stringify(obj);
+  }, [quotes]);
+
   useEffect(() => {
     if (quotes.size > 0) {
       const priceMap = new Map<string, number>();
@@ -64,7 +78,7 @@ export function Dashboard() {
         updatePositionPrices(priceMap);
       }
     }
-  }, [quotes, updatePositionPrices, updatePaperPositionPrices, isPaperMode]);
+  }, [quotesJson, updatePositionPrices, updatePaperPositionPrices, isPaperMode]);
 
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
   const totalPortfolioValue = isLiveNotConnected ? null : totalPositionValue + (displayCash ?? 0);
@@ -105,38 +119,48 @@ export function Dashboard() {
     setBacktestRunning(true);
     setBacktestError(null);
     setBacktestResult(null);
+    setDayTradeResult(null);
 
     try {
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - 3);
-
-      const config = {
-        symbol: backtestSymbol.toUpperCase(),
-        startDate,
-        endDate: new Date(),
-        initialCapital: 10000,
-        positionSize: 20, // 20% of capital per trade
-        rules: tradingRules.filter(
-          (r) => r.enabled && r.ruleType === 'pattern' && r.symbol.toUpperCase() === backtestSymbol.toUpperCase()
-        ),
-      };
-
-      let result;
-      if (backtestStrategy === 'hybrid') {
-        // Hybrid Adaptive Strategy (recommended)
-        result = await runHybridBacktest(config);
-      } else if (backtestStrategy === 'rsi') {
-        // RSI Mean Reversion Strategy
-        result = await runRSIBacktest(config);
+      if (backtestStrategy === 'daytrade') {
+        // Day Trading Strategy - scans ALL watchlist stocks
+        const result = await runDayTradingBacktest(
+          PERMANENT_WATCHLIST,
+          1000,   // $1000 starting capital
+          3,      // 3% position size
+          2,      // 2% profit target
+          1       // 1% stop loss
+        );
+        setDayTradeResult(result);
       } else {
-        // Pattern-based Strategy
-        if (config.rules.length === 0) {
-          throw new Error(`No enabled pattern rules found for ${backtestSymbol}`);
-        }
-        result = await runBacktest(config);
-      }
+        const startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 6);
 
-      setBacktestResult(result);
+        const config = {
+          symbol: backtestSymbol.toUpperCase(),
+          startDate,
+          endDate: new Date(),
+          initialCapital: 10000,
+          positionSize: 20,
+          rules: tradingRules.filter(
+            (r) => r.enabled && r.ruleType === 'pattern' && r.symbol.toUpperCase() === backtestSymbol.toUpperCase()
+          ),
+        };
+
+        let result;
+        if (backtestStrategy === 'hybrid') {
+          result = await runHybridBacktest(config);
+        } else if (backtestStrategy === 'rsi') {
+          result = await runRSIBacktest(config);
+        } else {
+          if (config.rules.length === 0) {
+            throw new Error(`No enabled pattern rules found for ${backtestSymbol}`);
+          }
+          result = await runBacktest(config);
+        }
+
+        setBacktestResult(result);
+      }
     } catch (err) {
       setBacktestError(err instanceof Error ? err.message : 'Backtest failed');
     } finally {
@@ -356,19 +380,22 @@ export function Dashboard() {
             <h2 className="text-xl font-semibold mb-4">Quick Backtest</h2>
             <div className="space-y-3">
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={backtestSymbol}
-                  onChange={(e) => setBacktestSymbol(e.target.value.toUpperCase())}
-                  placeholder="Symbol"
-                  className="w-24 px-3 py-2 bg-slate-700 rounded-lg text-sm"
-                />
+                {backtestStrategy !== 'daytrade' && (
+                  <input
+                    type="text"
+                    value={backtestSymbol}
+                    onChange={(e) => setBacktestSymbol(e.target.value.toUpperCase())}
+                    placeholder="Symbol"
+                    className="w-24 px-3 py-2 bg-slate-700 rounded-lg text-sm"
+                  />
+                )}
                 <select
                   value={backtestStrategy}
-                  onChange={(e) => setBacktestStrategy(e.target.value as 'hybrid' | 'rsi' | 'pattern')}
+                  onChange={(e) => setBacktestStrategy(e.target.value as 'hybrid' | 'rsi' | 'pattern' | 'daytrade')}
                   className="flex-1 px-3 py-2 bg-slate-700 rounded-lg text-sm"
                 >
-                  <option value="hybrid">Trend Pullback (Long & Short)</option>
+                  <option value="daytrade">Day Trading (All Stocks)</option>
+                  <option value="hybrid">Trend Following</option>
                   <option value="rsi">RSI(14) Classic</option>
                   <option value="pattern">Pattern Rules</option>
                 </select>
@@ -381,11 +408,13 @@ export function Dashboard() {
                 </button>
               </div>
               <p className="text-xs text-slate-500">
-                {backtestStrategy === 'hybrid'
-                  ? 'Uptrend: buy dips. Downtrend: short rallies. Trades WITH the trend.'
+                {backtestStrategy === 'daytrade'
+                  ? `ORB Strategy: Scans ${PERMANENT_WATCHLIST.length} stocks. 25% position, 2% target, 1% stop. Up to 5 trades/day. AGGRESSIVE.`
+                  : backtestStrategy === 'hybrid'
+                  ? 'Long-only trend following with 200 MA filter'
                   : backtestStrategy === 'rsi'
                   ? 'RSI(14) < 30 = Buy, RSI > 70 = Sell, 5% stop loss'
-                  : 'Tests last 3 months with your pattern rules'}
+                  : 'Tests with your pattern rules'}
               </p>
 
               {backtestError && (
@@ -438,6 +467,70 @@ export function Dashboard() {
                             <div className="text-slate-500">
                               ${t.entryPrice.toFixed(2)} → ${t.exitPrice.toFixed(2)}
                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              {dayTradeResult && (
+                <div className="space-y-2 pt-2 border-t border-slate-700">
+                  <div className="flex justify-between text-sm font-semibold">
+                    <span className="text-slate-300">Day Trading Results</span>
+                    <span className={dayTradeResult.totalReturnPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      ${dayTradeResult.initialCapital.toFixed(0)} → ${dayTradeResult.finalCapital.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Total Return</span>
+                    <span className={dayTradeResult.totalReturnPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      {dayTradeResult.totalReturnPercent >= 0 ? '+' : ''}{dayTradeResult.totalReturnPercent.toFixed(2)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Total Trades</span>
+                    <span>{dayTradeResult.totalTrades}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Win Rate</span>
+                    <span className={dayTradeResult.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}>
+                      {dayTradeResult.winRate.toFixed(1)}% ({dayTradeResult.winningTrades}W / {dayTradeResult.losingTrades}L)
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Avg Win / Loss</span>
+                    <span>
+                      <span className="text-emerald-400">+{dayTradeResult.avgWinPercent.toFixed(2)}%</span>
+                      {' / '}
+                      <span className="text-red-400">{dayTradeResult.avgLossPercent.toFixed(2)}%</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Best / Worst Day</span>
+                    <span>
+                      <span className="text-emerald-400">+{dayTradeResult.bestDay.toFixed(2)}%</span>
+                      {' / '}
+                      <span className="text-red-400">{dayTradeResult.worstDay.toFixed(2)}%</span>
+                    </span>
+                  </div>
+                  {dayTradeResult.trades.length > 0 && (
+                    <details className="pt-2">
+                      <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-300">
+                        View {dayTradeResult.trades.length} trades
+                      </summary>
+                      <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
+                        {dayTradeResult.trades.slice(-50).map((t, i) => (
+                          <div key={i} className="text-xs p-2 bg-slate-700/50 rounded flex justify-between">
+                            <span>
+                              <span className="text-slate-500">{t.date}</span>
+                              {' '}
+                              <span className="font-medium">{t.symbol}</span>
+                            </span>
+                            <span className={t.outcome === 'WIN' ? 'text-emerald-400' : t.outcome === 'LOSS' ? 'text-red-400' : 'text-slate-400'}>
+                              {t.pnlPercent >= 0 ? '+' : ''}{t.pnlPercent.toFixed(2)}% (${t.pnlDollars.toFixed(2)})
+                            </span>
                           </div>
                         ))}
                       </div>

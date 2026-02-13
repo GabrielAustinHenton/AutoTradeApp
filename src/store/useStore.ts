@@ -14,13 +14,6 @@ import type {
   AutoTradeConfig,
   AutoTradeExecution,
   BacktestResult,
-  CryptoPortfolio,
-  CryptoTrade,
-  CryptoPosition,
-  CryptoTradingRule,
-  CryptoAutoTradeConfig,
-  DCAConfig,
-  GridConfig,
 } from '../types';
 import { ibkr, type IBKRConfig } from '../services/ibkr';
 import { PERMANENT_WATCHLIST } from '../config/watchlist';
@@ -44,14 +37,6 @@ const defaultPaperPortfolio: PaperPortfolio = {
   history: [{ date: new Date(), totalValue: 10000, cashBalance: 10000, positionsValue: 0 }],
 };
 
-// Default crypto portfolio
-const defaultCryptoPortfolio: CryptoPortfolio = {
-  usdBalance: 10000,
-  positions: [],
-  trades: [],
-  startingBalance: 10000,
-  history: [{ date: new Date(), totalValue: 10000, usdBalance: 10000, positionsValue: 0 }],
-};
 
 // ============================================================================
 // SWING TRADING RULES - FIXED TARGETS (NO TRAILING STOP)
@@ -242,87 +227,6 @@ const createRulesForSymbol = (symbol: string): TradingRule[] => [
 const defaultPatternRules: TradingRule[] = PERMANENT_WATCHLIST.flatMap(createRulesForSymbol);
 
 // ============================================================================
-// CRYPTO TRADING RULES
-// Optimized for 24/7 crypto markets with higher volatility
-// - Wider stops (crypto is more volatile than stocks)
-// - No trading hours restriction
-// - Faster cooldowns (markets never close)
-// ============================================================================
-
-const CRYPTO_SYMBOLS = [
-  'BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'DOT', 'AVAX', 'LINK', 'POL',
-  'PEPE', 'SHIB', 'LTC', 'UNI', 'ATOM', 'FIL', 'APT', 'ARB', 'OP', 'SUI',
-];
-
-// Crypto patterns - breakouts only
-const CRYPTO_BULLISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
-  { pattern: 'bullish_breakout', name: 'Bullish Breakout' },
-];
-
-// Create a crypto BUY rule - QUICK SCALP strategy
-// Take quick profits, cut losses fast
-const createCryptoPatternBuyRule = (
-  symbol: string,
-  pattern: CandlestickPattern,
-  patternName: string
-): CryptoTradingRule => ({
-  id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Buy`,
-  symbol,
-  enabled: true,
-  type: 'buy',
-  ruleType: 'pattern',
-  pattern,
-  createdAt: new Date(),
-  autoTrade: true,
-  cooldownMinutes: 60,            // 1 hour cooldown
-  takeProfitPercent: 3,           // 3% quick take profit
-  stopLossPercent: 2,             // 2% tight stop loss (1.5:1 ratio)
-  trailingStopPercent: undefined, // No trailing - fixed targets
-  minConfidence: 70,              // Higher confidence required
-  rsiFilter: { enabled: false },  // Disable RSI filter
-  volumeFilter: { enabled: false }, // Disable volume filter - more trades
-});
-
-// Create a crypto SELL rule (alert only - take profit/stop loss handle exits)
-const createCryptoPatternSellRule = (
-  symbol: string,
-  pattern: CandlestickPattern,
-  patternName: string
-): CryptoTradingRule => ({
-  id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Sell`,
-  symbol,
-  enabled: true,
-  type: 'sell',
-  ruleType: 'pattern',
-  pattern,
-  createdAt: new Date(),
-  autoTrade: false,  // Alert only - take profit/stop loss handle exits
-  cooldownMinutes: 15,
-  minConfidence: 60,              // Match buy rule threshold
-  volumeFilter: { enabled: false, minMultiplier: 1.0 },
-});
-
-// Generate crypto rules for a symbol - ONLY momentum/breakout patterns
-const createCryptoRulesForSymbol = (symbol: string): CryptoTradingRule[] => [
-  // BUY on breakout/momentum patterns only (reversal patterns don't work in crypto)
-  ...CRYPTO_BULLISH_PATTERNS.map(({ pattern, name }) => createCryptoPatternBuyRule(symbol, pattern, name)),
-  // SELL alerts on bearish patterns (trailing stop handles actual exits)
-  ...BEARISH_PATTERNS.map(({ pattern, name }) => createCryptoPatternSellRule(symbol, pattern, name)),
-];
-
-// Default crypto rules for top coins
-const defaultCryptoRules: CryptoTradingRule[] = CRYPTO_SYMBOLS.flatMap(createCryptoRulesForSymbol);
-console.log(`[Store] Generated ${defaultCryptoRules.length} crypto rules for ${CRYPTO_SYMBOLS.length} symbols:`, CRYPTO_SYMBOLS);
-
-// Default crypto auto-trade config
-const defaultCryptoAutoTradeConfig: CryptoAutoTradeConfig = {
-  enabled: true,
-  maxTradesPerDay: 30,  // More trades allowed (24/7 market)
-  maxPositionSizePercent: 15,  // 15% of portfolio per trade
-};
-
 interface AppState {
   // Portfolio
   positions: Position[];
@@ -361,14 +265,6 @@ interface AppState {
 
   // Pattern Scanning
   scanRequestTimestamp: number | null;
-
-  // Crypto Trading
-  cryptoPortfolio: CryptoPortfolio;
-  cryptoTradingRules: CryptoTradingRule[];
-  cryptoAutoTradeConfig: CryptoAutoTradeConfig;
-  cryptoAutoTradeExecutions: AutoTradeExecution[];
-  dcaConfigs: DCAConfig[];
-  gridConfigs: GridConfig[];
 
   // Actions - Portfolio
   addPosition: (position: Position) => void;
@@ -438,37 +334,6 @@ interface AppState {
   // Actions - Pattern Scanning
   requestScan: () => void;
 
-  // Actions - Crypto Trading
-  addCryptoTrade: (trade: CryptoTrade) => void;
-  addCryptoPosition: (position: CryptoPosition) => void;
-  updateCryptoPosition: (id: string, updates: Partial<CryptoPosition>) => void;
-  updateCryptoPositionPrices: (prices: Map<string, number>) => void;
-  executeCryptoSell: (symbol: string, amount: number, price: number, notes?: string) => boolean;
-  setCryptoUsdBalance: (amount: number) => void;
-  resetCryptoPortfolio: (initialBalance?: number) => void;
-  recordCryptoPortfolioSnapshot: () => void;
-
-  // Actions - Crypto Trading Rules
-  addCryptoTradingRule: (rule: CryptoTradingRule) => void;
-  updateCryptoTradingRule: (id: string, updates: Partial<CryptoTradingRule>) => void;
-  removeCryptoTradingRule: (id: string) => void;
-  toggleCryptoTradingRule: (id: string) => void;
-  resetCryptoTradingRules: () => void;
-
-  // Actions - Crypto Auto-Trading
-  updateCryptoAutoTradeConfig: (config: Partial<CryptoAutoTradeConfig>) => void;
-  addCryptoAutoTradeExecution: (execution: AutoTradeExecution) => void;
-  getTodayCryptoAutoTradeCount: () => number;
-
-  // Actions - DCA
-  addDCAConfig: (config: DCAConfig) => void;
-  updateDCAConfig: (id: string, updates: Partial<DCAConfig>) => void;
-  removeDCAConfig: (id: string) => void;
-
-  // Actions - Grid Trading
-  addGridConfig: (config: GridConfig) => void;
-  updateGridConfig: (id: string, updates: Partial<GridConfig>) => void;
-  removeGridConfig: (id: string) => void;
 }
 
 const initialPortfolioSummary: PortfolioSummary = {
@@ -511,14 +376,6 @@ export const useStore = create<AppState>()(
 
       // Pattern Scanning
       scanRequestTimestamp: null,
-
-      // Crypto Trading
-      cryptoPortfolio: defaultCryptoPortfolio,
-      cryptoTradingRules: defaultCryptoRules,
-      cryptoAutoTradeConfig: defaultCryptoAutoTradeConfig,
-      cryptoAutoTradeExecutions: [],
-      dcaConfigs: [],
-      gridConfigs: [],
 
       // Portfolio actions
       addPosition: (position) =>
@@ -1214,257 +1071,6 @@ export const useStore = create<AppState>()(
       // Pattern Scanning
       requestScan: () => set({ scanRequestTimestamp: Date.now() }),
 
-      // Crypto Trading actions
-      addCryptoTrade: (trade) =>
-        set((state) => ({
-          cryptoPortfolio: {
-            ...state.cryptoPortfolio,
-            trades: [trade, ...state.cryptoPortfolio.trades],
-          },
-        })),
-
-      addCryptoPosition: (position) =>
-        set((state) => ({
-          cryptoPortfolio: {
-            ...state.cryptoPortfolio,
-            positions: [...state.cryptoPortfolio.positions, {
-              ...position,
-              openedAt: position.openedAt || new Date(),
-              highestPrice: position.highestPrice || position.avgCost,
-            }],
-          },
-        })),
-
-      updateCryptoPosition: (id, updates) =>
-        set((state) => {
-          const newPositions = state.cryptoPortfolio.positions
-            .map((p) => (p.id === id ? { ...p, ...updates } : p))
-            .filter((p) => p.amount > 0); // Remove positions with 0 amount
-
-          return {
-            cryptoPortfolio: {
-              ...state.cryptoPortfolio,
-              positions: newPositions,
-            },
-          };
-        }),
-
-      updateCryptoPositionPrices: (prices) =>
-        set((state) => ({
-          cryptoPortfolio: {
-            ...state.cryptoPortfolio,
-            positions: state.cryptoPortfolio.positions.map((p) => {
-              const newPrice = prices.get(p.symbol);
-              if (newPrice === undefined) return p;
-              // Track highest price for trailing stop
-              const highestPrice = Math.max(newPrice, p.highestPrice || p.avgCost);
-              return {
-                ...p,
-                currentPrice: newPrice,
-                highestPrice,
-              };
-            }),
-          },
-        })),
-
-      executeCryptoSell: (symbol, amount, price, notes) => {
-        const state = useStore.getState();
-        const position = state.cryptoPortfolio.positions.find((p) => p.symbol === symbol);
-
-        if (!position || position.amount < amount) {
-          return false;
-        }
-
-        const total = amount * price;
-        const newAmount = position.amount - amount;
-
-        // Calculate P/L for the trade
-        const profitLoss = (price - position.avgCost) * amount;
-        const profitLossPercent = ((price - position.avgCost) / position.avgCost) * 100;
-        const plText = `${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)} (${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(1)}%)`;
-
-        // Add USD from sale
-        set((s) => ({
-          cryptoPortfolio: {
-            ...s.cryptoPortfolio,
-            usdBalance: s.cryptoPortfolio.usdBalance + total,
-          },
-        }));
-
-        // Update or remove position
-        if (newAmount <= 0.00000001) {
-          set((s) => ({
-            cryptoPortfolio: {
-              ...s.cryptoPortfolio,
-              positions: s.cryptoPortfolio.positions.filter((p) => p.symbol !== symbol),
-            },
-          }));
-        } else {
-          state.updateCryptoPosition(position.id, {
-            amount: newAmount,
-            currentPrice: price,
-          });
-        }
-
-        // Add trade record with P/L info
-        state.addCryptoTrade({
-          id: crypto.randomUUID(),
-          symbol,
-          type: 'sell',
-          amount,
-          price,
-          total,
-          date: new Date(),
-        });
-
-        console.log(`[Crypto] SELL ${amount.toFixed(6)} ${symbol} @ $${price.toFixed(2)} | ${notes || 'Manual'} | P/L: ${plText}`);
-
-        // Record snapshot after trade
-        setTimeout(() => useStore.getState().recordCryptoPortfolioSnapshot(), 100);
-
-        return true;
-      },
-
-      setCryptoUsdBalance: (amount) =>
-        set((state) => ({
-          cryptoPortfolio: {
-            ...state.cryptoPortfolio,
-            usdBalance: amount,
-          },
-        })),
-
-      resetCryptoPortfolio: (initialBalance = 10000) =>
-        set({
-          cryptoPortfolio: {
-            usdBalance: initialBalance,
-            positions: [],
-            trades: [],
-            startingBalance: initialBalance,
-            history: [{ date: new Date(), totalValue: initialBalance, usdBalance: initialBalance, positionsValue: 0 }],
-          },
-        }),
-
-      recordCryptoPortfolioSnapshot: () => {
-        const state = useStore.getState();
-        const positionsValue = state.cryptoPortfolio.positions.reduce(
-          (sum, p) => sum + p.amount * p.currentPrice,
-          0
-        );
-        const totalValue = state.cryptoPortfolio.usdBalance + positionsValue;
-
-        const snapshot = {
-          date: new Date(),
-          totalValue,
-          usdBalance: state.cryptoPortfolio.usdBalance,
-          positionsValue,
-        };
-
-        set((s) => ({
-          cryptoPortfolio: {
-            ...s.cryptoPortfolio,
-            history: [...(s.cryptoPortfolio.history || []), snapshot].slice(-100),
-          },
-        }));
-      },
-
-      // Crypto Trading Rules actions
-      addCryptoTradingRule: (rule) =>
-        set((state) => ({ cryptoTradingRules: [...state.cryptoTradingRules, rule] })),
-
-      updateCryptoTradingRule: (id, updates) =>
-        set((state) => ({
-          cryptoTradingRules: state.cryptoTradingRules.map((r) =>
-            r.id === id ? { ...r, ...updates } : r
-          ),
-        })),
-
-      removeCryptoTradingRule: (id) =>
-        set((state) => ({
-          cryptoTradingRules: state.cryptoTradingRules.filter((r) => r.id !== id),
-        })),
-
-      toggleCryptoTradingRule: (id) =>
-        set((state) => ({
-          cryptoTradingRules: state.cryptoTradingRules.map((r) =>
-            r.id === id ? { ...r, enabled: !r.enabled } : r
-          ),
-        })),
-
-      resetCryptoTradingRules: () => {
-        console.log(`[Store] Resetting crypto rules to ${defaultCryptoRules.length} rules for symbols:`, CRYPTO_SYMBOLS);
-        set({ cryptoTradingRules: defaultCryptoRules });
-      },
-
-      // Crypto Auto-Trading actions
-      updateCryptoAutoTradeConfig: (config) =>
-        set((state) => {
-          const newConfig = { ...state.cryptoAutoTradeConfig, ...config };
-
-          // When global auto-trade is toggled, update all crypto rules accordingly
-          if ('enabled' in config) {
-            const updatedRules = state.cryptoTradingRules.map(rule => ({
-              ...rule,
-              enabled: config.enabled,
-              autoTrade: rule.type === 'buy' ? config.enabled : rule.autoTrade,  // Only buy rules auto-trade
-            }));
-            return {
-              cryptoAutoTradeConfig: newConfig,
-              cryptoTradingRules: updatedRules,
-            };
-          }
-
-          return { cryptoAutoTradeConfig: newConfig };
-        }),
-
-      addCryptoAutoTradeExecution: (execution) =>
-        set((state) => ({
-          cryptoAutoTradeExecutions: [execution, ...state.cryptoAutoTradeExecutions].slice(0, 500),
-        })),
-
-      getTodayCryptoAutoTradeCount: (): number => {
-        const state = useStore.getState();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return state.cryptoAutoTradeExecutions.filter(
-          (e) => new Date(e.timestamp) >= today && e.status === 'executed'
-        ).length;
-      },
-
-      // DCA actions
-      addDCAConfig: (config) =>
-        set((state) => ({
-          dcaConfigs: [...state.dcaConfigs, config],
-        })),
-
-      updateDCAConfig: (id, updates) =>
-        set((state) => ({
-          dcaConfigs: state.dcaConfigs.map((c) =>
-            c.id === id ? { ...c, ...updates } : c
-          ),
-        })),
-
-      removeDCAConfig: (id) =>
-        set((state) => ({
-          dcaConfigs: state.dcaConfigs.filter((c) => c.id !== id),
-        })),
-
-      // Grid Trading actions
-      addGridConfig: (config) =>
-        set((state) => ({
-          gridConfigs: [...state.gridConfigs, config],
-        })),
-
-      updateGridConfig: (id, updates) =>
-        set((state) => ({
-          gridConfigs: state.gridConfigs.map((c) =>
-            c.id === id ? { ...c, ...updates } : c
-          ),
-        })),
-
-      removeGridConfig: (id) =>
-        set((state) => ({
-          gridConfigs: state.gridConfigs.filter((c) => c.id !== id),
-        })),
     }),
     {
       name: 'tradeapp-storage',
@@ -1549,49 +1155,6 @@ export const useStore = create<AppState>()(
           merged.autoTradeExecutions = Array.isArray(persisted.autoTradeExecutions) ? persisted.autoTradeExecutions : [];
           merged.journalEntries = Array.isArray(persisted.journalEntries) ? persisted.journalEntries : [];
           merged.backtestResults = Array.isArray(persisted.backtestResults) ? persisted.backtestResults : [];
-
-          // Preserve crypto state
-          merged.cryptoPortfolio = persisted.cryptoPortfolio || defaultCryptoPortfolio;
-          merged.dcaConfigs = Array.isArray(persisted.dcaConfigs) ? persisted.dcaConfigs : [];
-          merged.gridConfigs = Array.isArray(persisted.gridConfigs) ? persisted.gridConfigs : [];
-
-          // Preserve crypto trading rules - merge with defaults for new symbols
-          // MIGRATION v3: Remove trailing stop, use fixed targets (6% TP, 3% SL for crypto)
-          const existingCryptoRules = Array.isArray(persisted.cryptoTradingRules)
-            ? persisted.cryptoTradingRules.filter((r): r is CryptoTradingRule => r && typeof r === 'object' && 'symbol' in r)
-            : [];
-          const existingCryptoRuleKeys = new Set(
-            existingCryptoRules.map(r => `${r.symbol}-${r.ruleType || ''}-${r.pattern || ''}`)
-          );
-          const missingCryptoRules = defaultCryptoRules.filter(r => {
-            const key = `${r.symbol}-${r.ruleType || ''}-${r.pattern || ''}`;
-            return !existingCryptoRuleKeys.has(key);
-          });
-
-          // Migrate existing crypto rules to v6 settings (quick scalp)
-          const migratedCryptoRules = existingCryptoRules.map(rule => {
-            const isBuyRule = rule.type === 'buy';
-            if (isBuyRule) {
-              console.log(`[Store] Migrating crypto rule "${rule.name}" - quick scalp strategy`);
-              return {
-                ...rule,
-                takeProfitPercent: 3,                                  // 3% quick take profit
-                stopLossPercent: 2,                                    // 2% tight stop loss
-                trailingStopPercent: undefined,                        // No trailing
-                minConfidence: 70,
-                rsiFilter: { enabled: false },
-                volumeFilter: { enabled: false },
-              };
-            }
-            return rule;
-          });
-          merged.cryptoTradingRules = [...migratedCryptoRules, ...missingCryptoRules];
-
-          // Preserve crypto auto-trade config and executions
-          merged.cryptoAutoTradeConfig = persisted.cryptoAutoTradeConfig || defaultCryptoAutoTradeConfig;
-          merged.cryptoAutoTradeExecutions = Array.isArray(persisted.cryptoAutoTradeExecutions)
-            ? persisted.cryptoAutoTradeExecutions
-            : [];
 
           return merged as AppState;
         } catch (error) {

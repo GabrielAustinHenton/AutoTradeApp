@@ -1,18 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import type { Alert } from '../../types';
 
 export function AlertToast() {
   const { alerts, markAlertRead, dismissAlert } = useStore();
   const [visibleAlerts, setVisibleAlerts] = useState<Alert[]>([]);
+  const processedIdsRef = useRef<Set<string>>(new Set());
 
   // Show new unread alerts as toasts
   useEffect(() => {
     const newAlerts = alerts.filter(
-      (a) => !a.read && !a.dismissed && !visibleAlerts.find((v) => v.id === a.id)
+      (a) => !a.read && !a.dismissed && !processedIdsRef.current.has(a.id)
     );
 
     if (newAlerts.length > 0) {
+      // Mark these as processed to avoid re-processing
+      newAlerts.forEach(a => processedIdsRef.current.add(a.id));
+
       setVisibleAlerts((prev) => [...newAlerts.slice(0, 3), ...prev].slice(0, 5));
 
       // Auto-dismiss after 10 seconds
@@ -23,7 +27,7 @@ export function AlertToast() {
         }, 10000);
       });
     }
-  }, [alerts, markAlertRead, visibleAlerts]);
+  }, [alerts, markAlertRead]);
 
   const handleDismiss = (id: string) => {
     dismissAlert(id);

@@ -13,6 +13,11 @@ import type { TradingRule, BacktestConfig, BacktestResult, BacktestTrade, Candle
 import { getYahooDaily } from './alphaVantage';
 import { detectPatterns, type Candle } from './candlestickPatterns';
 
+// Format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
+function formatLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 interface Position {
   ruleId: string;
   ruleName: string;
@@ -143,7 +148,7 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
   const { symbol, startDate, endDate, initialCapital, positionSize, rules } = config;
 
   // Fetch historical data using Twelve Data (better rate limits than Alpha Vantage)
-  const historicalData = await getYahooDaily(symbol, '3mo');
+  const historicalData = await getYahooDaily(symbol, '6mo');
 
   if (historicalData.length === 0) {
     throw new Error(`No historical data returned for ${symbol}. Check your API key or wait for rate limit to reset.`);
@@ -153,11 +158,15 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
     throw new Error(`Insufficient historical data for ${symbol}. Only ${historicalData.length} days available.`);
   }
 
+  // Convert dates to YYYY-MM-DD strings for reliable comparison
+  const startDateStr = formatLocalDate(startDate);
+  const endDateStr = formatLocalDate(endDate);
+
   // Filter data to the specified date range
   const filteredData = historicalData.filter((d) => {
-    const date = new Date(d.timestamp);
-    return date >= startDate && date <= endDate;
-  }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    // d.timestamp is already in YYYY-MM-DD format from Yahoo
+    return d.timestamp >= startDateStr && d.timestamp <= endDateStr;
+  }).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
   if (filteredData.length < 10) {
     throw new Error('Insufficient data in the selected date range');
@@ -425,16 +434,19 @@ export async function runRSIBacktest(config: BacktestConfig): Promise<BacktestRe
   const STOP_LOSS_PERCENT = 5;  // 5% stop loss
   const RSI_PERIOD = 14;
 
-  const historicalData = await getYahooDaily(symbol, '3mo');
+  const historicalData = await getYahooDaily(symbol, '6mo');
 
   if (historicalData.length === 0) {
     throw new Error(`No historical data returned for ${symbol}.`);
   }
 
+  // Convert dates to YYYY-MM-DD strings for reliable comparison
+  const startDateStr = formatLocalDate(startDate);
+  const endDateStr = formatLocalDate(endDate);
+
   const filteredData = historicalData.filter((d) => {
-    const date = new Date(d.timestamp);
-    return date >= startDate && date <= endDate;
-  }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return d.timestamp >= startDateStr && d.timestamp <= endDateStr;
+  }).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
   if (filteredData.length < 20) {
     throw new Error('Insufficient data in the selected date range');
@@ -572,37 +584,60 @@ export async function runRSIBacktest(config: BacktestConfig): Promise<BacktestRe
 }
 
 /**
- * TREND-ADAPTIVE PULLBACK STRATEGY
- * Trades WITH the trend using pullback entries.
+ * SIMPLE TREND FOLLOWING STRATEGY
+ * The simplest possible approach: just ride the trend, don't try to time entries.
  *
- * UPTREND (price > 20 SMA): BUY after 2 down days (buy the dip)
- * DOWNTREND (price < 20 SMA): SHORT after 2 up days (sell the rally)
- *
- * This ensures we always trade in the direction of the trend.
+ * RULES:
+ * - Price > 50 MA → GO LONG (buy and hold until MA crosses)
+ * - Price < 50 MA → GO SHORT (short and hold until MA crosses)
+ * - Only trade on MA crossovers, NOT on pullbacks
+ * - Let winners run!
  */
 export async function runHybridBacktest(config: BacktestConfig): Promise<BacktestResult> {
   const { symbol, startDate, endDate, initialCapital, positionSize } = config;
 
-  const STOP_LOSS_PERCENT = 3;
-  const SMA_PERIOD = 20;
+  // Conservative long-term trend parameters
+  const TREND_MA = 200;           // 200-day MA - only trade clear long-term uptrends
+  const ADX_PERIOD = 14;          // ADX for trend strength
+  const ADX_THRESHOLD = 20;       // Slightly lower threshold for 200 MA
+  const MAX_HOLD_DAYS = 999;      // No time limit - ride the trend
 
-  const historicalData = await getYahooDaily(symbol, '3mo');
+  const historicalData = await getYahooDaily(symbol, '1y');
 
-  console.log(`[Trend] Raw data: ${historicalData.length} days`);
+  console.log(`[TREND] Raw data: ${historicalData.length} days`);
 
   if (historicalData.length === 0) {
     throw new Error(`No historical data returned for ${symbol}.`);
   }
 
+  // Convert dates to YYYY-MM-DD strings for reliable comparison
+  // (avoids timezone issues between local Date objects and UTC timestamps)
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
+
+  console.log(`[Adaptive] Date range: ${startDateStr} to ${endDateStr}`);
+  if (historicalData.length > 0) {
+    console.log(`[Adaptive] Data range: ${historicalData[0].timestamp} to ${historicalData[historicalData.length - 1].timestamp}`);
+  }
+
   const filteredData = historicalData.filter((d) => {
-    const date = new Date(d.timestamp);
-    return date >= startDate && date <= endDate;
-  }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    // d.timestamp is already in YYYY-MM-DD format from Yahoo
+    return d.timestamp >= startDateStr && d.timestamp <= endDateStr;
+  }).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
-  console.log(`[Trend] Filtered: ${filteredData.length} days`);
+  console.log(`[Adaptive] Filtered: ${filteredData.length} days`);
 
-  if (filteredData.length < 10) {
-    throw new Error(`Insufficient data: only ${filteredData.length} days in range`);
+  // For 200 MA, we need to use ALL data for indicator calculation
+  // but only trade in the filtered date range
+  if (historicalData.length < TREND_MA + 10) {
+    throw new Error(`Insufficient data: need at least ${TREND_MA + 10} days, got ${historicalData.length}`);
+  }
+
+  // Find the start index in the full data that corresponds to our filtered date range
+  const tradingStartIndex = historicalData.findIndex(d => d.timestamp >= startDateStr);
+  if (tradingStartIndex < TREND_MA) {
+    // Not enough history before our trading window - adjust start
+    console.log(`[TREND] Note: Starting from day ${TREND_MA} (need ${TREND_MA} days for MA)`);
   }
 
   let capital = initialCapital;
@@ -613,101 +648,98 @@ export async function runHybridBacktest(config: BacktestConfig): Promise<Backtes
     shares: number;
     entryPrice: number;
     entryDate: Date;
-    stopLossPrice: number;
     direction: 'long' | 'short';
     daysHeld: number;
   } | null = null;
 
-  const firstPrice = filteredData[0].close;
-  const lastPrice = filteredData[filteredData.length - 1].close;
+  // Stats for logging
+  const regimeStats = { ranging: 0, uptrend: 0, downtrend: 0 };
+
+  // Use full historical data for calculations, but track trading range
+  const actualStartIndex = Math.max(TREND_MA, tradingStartIndex);
+  const firstPrice = historicalData[actualStartIndex].close;
+  const lastPrice = historicalData[historicalData.length - 1].close;
   const buyAndHoldReturn = ((lastPrice - firstPrice) / firstPrice) * 100;
-  console.log(`[Trend] ${symbol}: $${firstPrice.toFixed(2)} → $${lastPrice.toFixed(2)} (Buy&Hold: ${buyAndHoldReturn >= 0 ? '+' : ''}${buyAndHoldReturn.toFixed(1)}%)`);
+  console.log(`[TREND] ${symbol}: $${firstPrice.toFixed(2)} → $${lastPrice.toFixed(2)} (Buy&Hold: ${buyAndHoldReturn >= 0 ? '+' : ''}${buyAndHoldReturn.toFixed(1)}%)`);
 
-  for (let i = 2; i < filteredData.length; i++) {
-    const currentDate = new Date(filteredData[i].timestamp);
-    const currentPrice = filteredData[i].close;
-    const prevPrice = filteredData[i - 1].close;
-    const prev2Price = filteredData[i - 2].close;
+  // Start after enough data for MA
+  const startIndex = actualStartIndex;
 
-    // Calculate SMA for trend
-    const closes = filteredData.slice(0, i + 1).map(d => d.close);
-    const sma = calculateSMA(closes, Math.min(SMA_PERIOD, closes.length));
-    const isUptrend = currentPrice > sma;
-    const isDowntrend = currentPrice < sma;
+  // Track previous trend state for crossover detection
+  let prevIsUptrend: boolean | null = null;
 
-    // Check for 2 consecutive down/up days
-    const downDay1 = prevPrice < prev2Price;
-    const downDay2 = currentPrice < prevPrice;
-    const twoDownDays = downDay1 && downDay2;
+  for (let i = startIndex; i < historicalData.length; i++) {
+    const currentDate = new Date(historicalData[i].timestamp);
+    const currentPrice = historicalData[i].close;
 
-    const upDay1 = prevPrice > prev2Price;
-    const upDay2 = currentPrice > prevPrice;
-    const twoUpDays = upDay1 && upDay2;
+    // Skip if outside our trading date range
+    if (historicalData[i].timestamp > endDateStr) break;
 
-    const upDay = currentPrice > prevPrice;
-    const downDay = currentPrice < prevPrice;
+    // Calculate indicators using FULL history up to this point
+    const closes = historicalData.slice(0, i + 1).map(d => d.close);
+    const highs = historicalData.slice(0, i + 1).map(d => d.high);
+    const lows = historicalData.slice(0, i + 1).map(d => d.low);
 
-    let newDirection: 'long' | 'short' | null = null;
-    let reason = '';
+    const trendMA = calculateSMA(closes, TREND_MA);
+    const adx = calculateADX(highs, lows, closes, ADX_PERIOD);
 
-    if (isUptrend && twoDownDays) {
-      // Uptrend + pullback = buy the dip
-      newDirection = 'long';
-      reason = 'UPTREND: 2 down days - buy dip';
-    } else if (isDowntrend && twoUpDays) {
-      // Downtrend + rally = short the rally
-      newDirection = 'short';
-      reason = 'DOWNTREND: 2 up days - short rally';
-    }
+    // Simple trend: price vs MA
+    const isUptrend = currentPrice > trendMA;
+    const isDowntrend = currentPrice < trendMA;
+    const isTrending = adx > ADX_THRESHOLD; // Only trade clear trends
 
-    // Check exit conditions for existing position
+    // Track regime (only count as trend if ADX confirms)
+    if (isTrending && isUptrend) regimeStats.uptrend++;
+    else if (isTrending && isDowntrend) regimeStats.downtrend++;
+    else regimeStats.ranging++;
+
+    // Detect MA CROSSOVER (trend change)
+    const trendJustChangedToUp = isUptrend && prevIsUptrend === false;
+    const trendJustChangedToDown = isDowntrend && prevIsUptrend === true;
+    prevIsUptrend = isUptrend;
+
+    // SIMPLE RULE: On crossover, switch position
+    // - Price crosses ABOVE MA → close short, go long
+    // - Price crosses BELOW MA → close long, go short
+
+    // First, check if we need to EXIT current position due to trend change
     if (position !== null) {
       position.daysHeld++;
       let shouldExit = false;
       let exitReason = '';
 
-      if (position.direction === 'long') {
-        const isProfitable = currentPrice > position.entryPrice;
-        // Exit LONG on up day if profitable
-        if (upDay && isProfitable) {
-          shouldExit = true;
-          exitReason = 'Take Profit';
-        } else if (currentPrice <= position.stopLossPrice) {
-          shouldExit = true;
-          exitReason = 'Stop Loss';
-        } else if (position.daysHeld >= 5) {
-          shouldExit = true;
-          exitReason = 'Time Exit';
-        }
-      } else {
-        // SHORT position
-        const isProfitable = currentPrice < position.entryPrice;
-        // Exit SHORT on down day if profitable
-        if (downDay && isProfitable) {
-          shouldExit = true;
-          exitReason = 'Take Profit';
-        } else if (currentPrice >= position.stopLossPrice) {
-          shouldExit = true;
-          exitReason = 'Stop Loss';
-        } else if (position.daysHeld >= 5) {
-          shouldExit = true;
-          exitReason = 'Time Exit';
-        }
+      const profitPct = position.direction === 'long'
+        ? ((currentPrice - position.entryPrice) / position.entryPrice) * 100
+        : ((position.entryPrice - currentPrice) / position.entryPrice) * 100;
+
+      // Exit long if trend turns down (price crosses below MA)
+      if (trendJustChangedToDown) {
+        shouldExit = true;
+        exitReason = `MA Crossover DOWN (${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(1)}%)`;
+      }
+      // Exit if trend weakens (ADX drops below threshold) - avoid getting stuck in chop
+      else if (!isTrending && position.daysHeld > 5) {
+        shouldExit = true;
+        exitReason = `Trend Weakening ADX=${adx.toFixed(0)} (${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(1)}%)`;
+      }
+
+      // No time-based exit - ride the trend!
+      if (position.daysHeld >= MAX_HOLD_DAYS) {
+        shouldExit = true;
+        exitReason = 'Time Exit';
       }
 
       if (shouldExit) {
         const profitLoss = position.direction === 'long'
           ? (currentPrice - position.entryPrice) * position.shares
           : (position.entryPrice - currentPrice) * position.shares;
-        const profitLossPercent = position.direction === 'long'
-          ? ((currentPrice - position.entryPrice) / position.entryPrice) * 100
-          : ((position.entryPrice - currentPrice) / position.entryPrice) * 100;
-        const holdingDays = Math.floor((currentDate.getTime() - position.entryDate.getTime()) / (1000 * 60 * 60 * 24));
+        const profitLossPercent = profitPct;
+        const holdingDays = position.daysHeld;
 
         trades.push({
           id: crypto.randomUUID(),
-          ruleId: `hybrid-${position.direction}`,
-          ruleName: `${position.direction.toUpperCase()} (${exitReason})`,
+          ruleId: `trend-${position.direction}`,
+          ruleName: `TREND ${position.direction.toUpperCase()} (${exitReason})`,
           type: position.direction === 'long' ? 'buy' : 'short',
           shares: position.shares,
           entryPrice: position.entryPrice,
@@ -725,33 +757,34 @@ export async function runHybridBacktest(config: BacktestConfig): Promise<Backtes
           capital += profitLoss;
         }
 
-        console.log(`[Trend] EXIT ${position.direction.toUpperCase()}: $${currentPrice.toFixed(2)}, P/L=${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(1)}% (${exitReason})`);
+        console.log(`[TREND] EXIT ${position.direction.toUpperCase()}: $${currentPrice.toFixed(2)}, P/L=${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(1)}% (${exitReason})`);
         position = null;
       }
     }
 
-    // Enter new position if we have a signal and no position
-    if (position === null && newDirection) {
-      const maxShares = Math.floor((capital * positionSize / 100) / currentPrice);
-      if (maxShares > 0) {
-        const stopLoss = newDirection === 'long'
-          ? currentPrice * (1 - STOP_LOSS_PERCENT / 100)
-          : currentPrice * (1 + STOP_LOSS_PERCENT / 100);
-
-        position = {
-          shares: maxShares,
-          entryPrice: currentPrice,
-          entryDate: currentDate,
-          stopLossPrice: stopLoss,
-          direction: newDirection,
-          daysHeld: 0,
-        };
-
-        if (newDirection === 'long') {
+    // LONG-ONLY STRATEGY: Only go long in uptrends, stay in cash otherwise
+    // This avoids the dangerous whipsaw from shorting
+    if (position === null && isTrending && isUptrend) {
+      if (trendJustChangedToUp || (i === startIndex && isUptrend)) {
+        const maxShares = Math.floor((capital * positionSize / 100) / currentPrice);
+        if (maxShares > 0) {
+          position = {
+            shares: maxShares,
+            entryPrice: currentPrice,
+            entryDate: currentDate,
+            direction: 'long',
+            daysHeld: 0,
+          };
           capital -= maxShares * currentPrice;
+          console.log(`[TREND] LONG: ${maxShares} @ $${currentPrice.toFixed(2)} (ADX=${adx.toFixed(0)}, Price > ${TREND_MA}MA)`);
         }
-
-        console.log(`[Trend] ${newDirection.toUpperCase()}: ${maxShares} @ $${currentPrice.toFixed(2)} (${reason})`);
+      }
+    } else if (position === null) {
+      // Log when we're staying in cash
+      if (trendJustChangedToUp && !isTrending) {
+        console.log(`[TREND] SKIP: ADX=${adx.toFixed(0)} < ${ADX_THRESHOLD} (weak trend)`);
+      } else if (trendJustChangedToDown || (i === startIndex && isDowntrend)) {
+        console.log(`[TREND] CASH: Downtrend detected, staying in cash (no shorting)`);
       }
     }
 
@@ -771,23 +804,19 @@ export async function runHybridBacktest(config: BacktestConfig): Promise<Backtes
     });
   }
 
-  // Close any open position at end
+  // Close any open position at end (long-only strategy)
   if (position) {
-    const finalPrice = filteredData[filteredData.length - 1].close;
-    const finalDate = new Date(filteredData[filteredData.length - 1].timestamp);
-    const profitLoss = position.direction === 'long'
-      ? (finalPrice - position.entryPrice) * position.shares
-      : (position.entryPrice - finalPrice) * position.shares;
-    const profitLossPercent = position.direction === 'long'
-      ? ((finalPrice - position.entryPrice) / position.entryPrice) * 100
-      : ((position.entryPrice - finalPrice) / position.entryPrice) * 100;
+    const finalPrice = historicalData[historicalData.length - 1].close;
+    const finalDate = new Date(historicalData[historicalData.length - 1].timestamp);
+    const profitLoss = (finalPrice - position.entryPrice) * position.shares;
+    const profitLossPercent = ((finalPrice - position.entryPrice) / position.entryPrice) * 100;
     const holdingDays = Math.floor((finalDate.getTime() - position.entryDate.getTime()) / (1000 * 60 * 60 * 24));
 
     trades.push({
       id: crypto.randomUUID(),
-      ruleId: `hybrid-${position.direction}`,
-      ruleName: `${position.direction.toUpperCase()} (End of Period)`,
-      type: position.direction === 'long' ? 'buy' : 'short',
+      ruleId: `trend-long`,
+      ruleName: `LONG (End of Period)`,
+      type: 'buy',
       shares: position.shares,
       entryPrice: position.entryPrice,
       entryDate: position.entryDate,
@@ -798,16 +827,15 @@ export async function runHybridBacktest(config: BacktestConfig): Promise<Backtes
       holdingPeriodDays: holdingDays,
     });
 
-    if (position.direction === 'long') {
-      capital += position.shares * finalPrice;
-    } else {
-      capital += profitLoss;
-    }
+    capital += position.shares * finalPrice;
+    console.log(`[TREND] EXIT LONG: $${finalPrice.toFixed(2)}, P/L=${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toFixed(1)}% (End of Period)`);
   }
 
   const metrics = calculateMetrics(trades, initialCapital, capital, equityCurve);
 
-  console.log(`[Trend] DONE: ${trades.length} trades, ${metrics.winRate.toFixed(0)}% win, ${metrics.totalReturnPercent >= 0 ? '+' : ''}${metrics.totalReturnPercent.toFixed(1)}% return`);
+  const totalDays = regimeStats.ranging + regimeStats.uptrend + regimeStats.downtrend;
+  console.log(`[TREND] Regime: Uptrend ${regimeStats.uptrend} (${(regimeStats.uptrend/totalDays*100).toFixed(0)}%), Downtrend ${regimeStats.downtrend} (${(regimeStats.downtrend/totalDays*100).toFixed(0)}%), Ranging/Choppy ${regimeStats.ranging} (${(regimeStats.ranging/totalDays*100).toFixed(0)}%)`);
+  console.log(`[TREND] DONE: ${trades.length} trades, ${metrics.winRate.toFixed(0)}% win, ${metrics.totalReturnPercent >= 0 ? '+' : ''}${metrics.totalReturnPercent.toFixed(1)}% return (Buy&Hold: ${buyAndHoldReturn >= 0 ? '+' : ''}${buyAndHoldReturn.toFixed(1)}%)`);
 
   return {
     id: crypto.randomUUID(),
@@ -874,4 +902,261 @@ export function calculateMetrics(
       : 0,
     finalCapital,
   };
+}
+
+/**
+ * OPENING RANGE BREAKOUT (ORB) DAY TRADING SYSTEM
+ * Based on proven strategy with 74% win rate
+ * Source: https://tradethatswing.com/opening-range-breakout-strategy
+ *
+ * Rules:
+ * 1. Look for stocks breaking above yesterday's high (breakout)
+ * 2. Enter when today's price exceeds yesterday's high
+ * 3. Profit target: 1.5% (half the typical daily range)
+ * 4. Stop loss: 0.75% (tight risk management)
+ * 5. Risk/Reward: 2:1
+ * 6. Position size: 10% of capital (more aggressive)
+ * 7. Take up to 3 trades per day across different stocks
+ * 8. Exit by close - ALWAYS in cash overnight
+ */
+
+interface DayTradeSetup {
+  symbol: string;
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  prevClose: number;
+  gapPercent: number;      // How much it gapped from prev close
+  dayRange: number;        // (high - low) / open as %
+  score: number;           // Overall setup quality
+}
+
+export interface DayTradeResult {
+  initialCapital: number;
+  finalCapital: number;
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  winRate: number;
+  totalReturnPercent: number;
+  avgWinPercent: number;
+  avgLossPercent: number;
+  bestDay: number;
+  worstDay: number;
+  trades: {
+    date: string;
+    symbol: string;
+    entry: number;
+    exit: number;
+    pnlPercent: number;
+    pnlDollars: number;
+    outcome: 'WIN' | 'LOSS' | 'SCRATCH';
+  }[];
+  equityCurve: { date: string; equity: number }[];
+}
+
+export async function runDayTradingBacktest(
+  symbols: string[],
+  initialCapital: number = 1000,
+  positionSizePercent: number = 25,  // 25% of capital per trade - AGGRESSIVE
+  profitTargetPercent: number = 2.0, // Take profit at 2%
+  stopLossPercent: number = 1.0      // Stop loss at 1% (2:1 R/R)
+): Promise<DayTradeResult> {
+  console.log(`[ORB] Starting Opening Range Breakout backtest with $${initialCapital}`);
+  console.log(`[ORB] Position size: ${positionSizePercent}%, Target: +${profitTargetPercent}%, Stop: -${stopLossPercent}%`);
+
+  // Fetch 1 year of data for all symbols
+  const allData: Map<string, any[]> = new Map();
+
+  for (const symbol of symbols) {
+    try {
+      const data = await getYahooDaily(symbol, '1y');
+      if (data.length > 20) {
+        allData.set(symbol, data);
+      }
+    } catch (e) {
+      // Skip failed symbols
+    }
+    await new Promise(r => setTimeout(r, 50));
+  }
+
+  console.log(`[ORB] Loaded ${allData.size} stocks`);
+
+  // Find all unique trading dates
+  const allDates = new Set<string>();
+  allData.forEach(data => {
+    data.forEach(d => allDates.add(d.timestamp));
+  });
+  const sortedDates = Array.from(allDates).sort();
+
+  console.log(`[ORB] Trading period: ${sortedDates[20]} to ${sortedDates[sortedDates.length - 1]}`);
+
+  let capital = initialCapital;
+  const trades: DayTradeResult['trades'] = [];
+  const equityCurve: DayTradeResult['equityCurve'] = [];
+  const MAX_TRADES_PER_DAY = 5;  // More trades = more compounding
+
+  // Start from day 20 to have some history
+  for (let dayIndex = 20; dayIndex < sortedDates.length; dayIndex++) {
+    const today = sortedDates[dayIndex];
+    const yesterday = sortedDates[dayIndex - 1];
+    let tradesToday = 0;
+
+    // Find ALL breakout setups for today
+    const breakouts: DayTradeSetup[] = [];
+
+    allData.forEach((data, symbol) => {
+      const todayData = data.find(d => d.timestamp === today);
+      const yesterdayData = data.find(d => d.timestamp === yesterday);
+
+      if (!todayData || !yesterdayData) return;
+
+      // OPENING RANGE BREAKOUT CRITERIA (RELAXED for more trades):
+      // 1. Today's HIGH exceeds yesterday's HIGH (breakout)
+      // 2. Gap not too extreme
+      // 3. Some volatility present
+
+      const breakoutAboveYesterdayHigh = todayData.high > yesterdayData.high;
+      const gapPercent = Math.abs((todayData.open - yesterdayData.close) / yesterdayData.close) * 100;
+      const isReasonableGap = gapPercent < 5; // Allow gaps up to 5%
+      const dayRange = ((todayData.high - todayData.low) / todayData.open) * 100;
+      const hasEnoughRange = dayRange >= 0.5; // Lower threshold
+
+      // Entry would be at yesterday's high (the breakout level)
+      const entryPrice = yesterdayData.high;
+      const entryIsReachable = todayData.high >= entryPrice;
+
+      if (breakoutAboveYesterdayHigh && isReasonableGap && hasEnoughRange && entryIsReachable) {
+        // Score by how strong the breakout was
+        const breakoutStrength = ((todayData.high - yesterdayData.high) / yesterdayData.high) * 100;
+
+        breakouts.push({
+          symbol,
+          date: today,
+          open: todayData.open,
+          high: todayData.high,
+          low: todayData.low,
+          close: todayData.close,
+          prevClose: yesterdayData.close,
+          gapPercent,
+          dayRange,
+          score: breakoutStrength * 100 + dayRange * 10,
+        });
+      }
+    });
+
+    // Sort by score and take top setups
+    breakouts.sort((a, b) => b.score - a.score);
+
+    for (const setup of breakouts.slice(0, MAX_TRADES_PER_DAY)) {
+      if (tradesToday >= MAX_TRADES_PER_DAY) break;
+
+      // Entry at the breakout level (yesterday's high)
+      const yesterdayData = allData.get(setup.symbol)?.find(d => d.timestamp === yesterday);
+      if (!yesterdayData) continue;
+
+      const entryPrice = yesterdayData.high;
+      const positionDollars = capital * (positionSizePercent / 100);
+
+      if (positionDollars < 10) continue; // Need at least $10 to trade
+
+      const profitTarget = entryPrice * (1 + profitTargetPercent / 100);
+      const stopLoss = entryPrice * (1 - stopLossPercent / 100);
+
+      // Simulate: did we hit profit target or stop loss?
+      let exitPrice: number;
+      let outcome: 'WIN' | 'LOSS' | 'SCRATCH';
+
+      const hitProfit = setup.high >= profitTarget;
+      const hitStop = setup.low <= stopLoss;
+
+      if (hitProfit && !hitStop) {
+        exitPrice = profitTarget;
+        outcome = 'WIN';
+      } else if (hitStop && !hitProfit) {
+        exitPrice = stopLoss;
+        outcome = 'LOSS';
+      } else if (hitProfit && hitStop) {
+        // Both possible - use close direction as hint
+        if (setup.close > entryPrice) {
+          exitPrice = profitTarget;
+          outcome = 'WIN';
+        } else {
+          exitPrice = stopLoss;
+          outcome = 'LOSS';
+        }
+      } else {
+        // Neither hit - exit at close
+        exitPrice = setup.close;
+        outcome = exitPrice > entryPrice ? 'WIN' : exitPrice < entryPrice ? 'LOSS' : 'SCRATCH';
+      }
+
+      // Use dollar-based P&L (not share-based) for accurate calculation
+      const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
+      const pnlDollars = positionDollars * (pnlPercent / 100);
+
+      capital += pnlDollars;
+      tradesToday++;
+
+      trades.push({
+        date: today,
+        symbol: setup.symbol,
+        entry: entryPrice,
+        exit: exitPrice,
+        pnlPercent,
+        pnlDollars,
+        outcome,
+      });
+
+      if (trades.length <= 15 || trades.length % 100 === 0) {
+        console.log(`[ORB] ${today} ${setup.symbol}: ${outcome} ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% ($${pnlDollars.toFixed(2)}) | Capital: $${capital.toFixed(2)}`);
+      }
+    }
+
+    // Record equity curve
+    equityCurve.push({ date: today, equity: capital });
+  }
+
+  // Calculate final statistics
+  const winningTrades = trades.filter(t => t.outcome === 'WIN');
+  const losingTrades = trades.filter(t => t.outcome === 'LOSS');
+
+  const avgWinPercent = winningTrades.length > 0
+    ? winningTrades.reduce((sum, t) => sum + t.pnlPercent, 0) / winningTrades.length
+    : 0;
+  const avgLossPercent = losingTrades.length > 0
+    ? losingTrades.reduce((sum, t) => sum + t.pnlPercent, 0) / losingTrades.length
+    : 0;
+
+  const result: DayTradeResult = {
+    initialCapital,
+    finalCapital: capital,
+    totalTrades: trades.length,
+    winningTrades: winningTrades.length,
+    losingTrades: losingTrades.length,
+    winRate: trades.length > 0 ? (winningTrades.length / trades.length) * 100 : 0,
+    totalReturnPercent: ((capital - initialCapital) / initialCapital) * 100,
+    avgWinPercent,
+    avgLossPercent,
+    bestDay: trades.length > 0 ? Math.max(...trades.map(t => t.pnlPercent)) : 0,
+    worstDay: trades.length > 0 ? Math.min(...trades.map(t => t.pnlPercent)) : 0,
+    trades,
+    equityCurve,
+  };
+
+  console.log(`\n[DAY TRADE] ========== RESULTS ==========`);
+  console.log(`[DAY TRADE] Initial Capital: $${initialCapital.toFixed(2)}`);
+  console.log(`[DAY TRADE] Final Capital: $${capital.toFixed(2)}`);
+  console.log(`[DAY TRADE] Total Return: ${result.totalReturnPercent >= 0 ? '+' : ''}${result.totalReturnPercent.toFixed(2)}%`);
+  console.log(`[DAY TRADE] Total Trades: ${trades.length}`);
+  console.log(`[DAY TRADE] Win Rate: ${result.winRate.toFixed(1)}% (${winningTrades.length}W / ${losingTrades.length}L)`);
+  console.log(`[DAY TRADE] Avg Win: +${avgWinPercent.toFixed(2)}%`);
+  console.log(`[DAY TRADE] Avg Loss: ${avgLossPercent.toFixed(2)}%`);
+  console.log(`[DAY TRADE] Best Day: +${result.bestDay.toFixed(2)}%`);
+  console.log(`[DAY TRADE] Worst Day: ${result.worstDay.toFixed(2)}%`);
+  console.log(`[DAY TRADE] ==============================\n`);
+
+  return result;
 }
