@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { useAuth } from '../../contexts/AuthContext';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: '📊' },
@@ -16,6 +17,15 @@ const navItems = [
 
 export function Sidebar() {
   const { ibkrConnected } = useStore();
+  const { user, userProfile, logOut, isConfigured } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await logOut();
+    } catch (err) {
+      console.error('Failed to sign out:', err);
+    }
+  };
 
   return (
     <aside className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col">
@@ -62,6 +72,29 @@ export function Sidebar() {
           </NavLink>
         )}
       </div>
+
+      {/* User Account */}
+      {isConfigured && user && (
+        <div className="mt-3 p-3 bg-slate-800 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-sm font-bold">
+              {(userProfile?.displayName || user.email || '?')[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">
+                {userProfile?.displayName || 'User'}
+              </p>
+              <p className="text-xs text-slate-400 truncate">{user.email}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleSignOut}
+            className="w-full text-xs text-slate-400 hover:text-red-400 py-1 transition-colors"
+          >
+            Sign Out
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

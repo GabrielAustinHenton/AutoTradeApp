@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { ibkr } from '../services/ibkr';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
+import { useAuth } from '../contexts/AuthContext';
+import { saveToFirestore } from '../services/firestoreSync';
 import type { Alert } from '../types';
 
 export function Settings() {
+  const { user, userProfile, logOut, updateUserProfile, isConfigured } = useAuth();
   const {
     ibkrConnected,
     ibkrAccountId,
@@ -730,6 +733,81 @@ export function Settings() {
           </div>
         </div>
       </div>
+
+      {/* User Account */}
+      {isConfigured && user && (
+        <div className="bg-slate-800 rounded-xl p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-6">Your Account</h2>
+
+          <div className="flex items-center gap-4 mb-6 p-4 bg-slate-700/50 rounded-lg">
+            <div className="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center text-2xl font-bold">
+              {(userProfile?.displayName || user.email || '?')[0].toUpperCase()}
+            </div>
+            <div>
+              <p className="text-lg font-medium">{userProfile?.displayName || 'User'}</p>
+              <p className="text-sm text-slate-400">{user.email}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Member since {userProfile?.createdAt ? new Date(userProfile.createdAt).toLocaleDateString() : 'N/A'}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {/* Sync to Cloud */}
+            <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <div>
+                <h3 className="font-medium">Sync Data to Cloud</h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Save your portfolio, trades, and settings to Firestore for access on any device
+                </p>
+              </div>
+              <button
+                onClick={() => saveToFirestore(user.uid)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                Sync Now
+              </button>
+            </div>
+
+            {/* Save IBKR settings to user profile */}
+            {ibkrConnected && ibkrAccountId && (
+              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+                <div>
+                  <h3 className="font-medium">Save IBKR Config to Profile</h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Store your IBKR account ID ({ibkrAccountId}) in your user profile for quick reconnection
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateUserProfile({
+                    ibkrAccountId,
+                    ibkrGatewayUrl: gatewayUrl,
+                  })}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            )}
+
+            {/* Sign Out */}
+            <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <div>
+                <h3 className="font-medium">Sign Out</h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Sign out of your account. Your data is saved locally and in the cloud.
+                </p>
+              </div>
+              <button
+                onClick={logOut}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* About Section */}
       <div className="bg-slate-800 rounded-xl p-6">

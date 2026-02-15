@@ -1,0 +1,32 @@
+// ============================================================================
+// Firebase Configuration
+// ============================================================================
+// Replace these values with your Firebase project config.
+// Get them from: Firebase Console > Project Settings > General > Your apps
+//
+// For first-time setup:
+// 1. Go to https://console.firebase.google.com
+// 2. Create a new project (or use existing)
+// 3. Enable Authentication (Email/Password provider)
+// 4. Enable Cloud Firestore
+// 5. Copy your web app config values below
+// 6. Set up Firebase Hosting: npx firebase init hosting
+// ============================================================================
+
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+};
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export default app;
