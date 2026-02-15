@@ -10,6 +10,7 @@ import { Rules } from './pages/Rules';
 import { Backtest } from './pages/Backtest';
 import { Journal } from './pages/Journal';
 import { Settings } from './pages/Settings';
+import { SwingTrader } from './pages/SwingTrader';
 import { AlertToast } from './components/alerts/AlertToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePatternScanner } from './hooks/usePatternScanner';
@@ -45,6 +46,7 @@ function AppContent() {
           <Route path="history" element={<ErrorBoundary section="Trade History"><TradeHistory /></ErrorBoundary>} />
           <Route path="charts" element={<ErrorBoundary section="Charts"><Charts /></ErrorBoundary>} />
           <Route path="rules" element={<ErrorBoundary section="Rules"><Rules /></ErrorBoundary>} />
+          <Route path="swing-trader" element={<ErrorBoundary section="Swing Trader"><SwingTrader /></ErrorBoundary>} />
           <Route path="backtest" element={<ErrorBoundary section="Backtest"><Backtest /></ErrorBoundary>} />
           <Route path="journal" element={<ErrorBoundary section="Journal"><Journal /></ErrorBoundary>} />
           <Route path="settings" element={<ErrorBoundary section="Settings"><Settings /></ErrorBoundary>} />

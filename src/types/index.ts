@@ -408,6 +408,130 @@ export interface CryptoBacktestResult {
   runAt: Date;
 }
 
+// ============================================================================
+// Swing Trader Types
+// ============================================================================
+
+// Market regime detected by analyzing price action, moving averages, and ADX
+export type MarketRegime = 'uptrend' | 'downtrend' | 'sideways';
+
+// Configuration for the swing trader system
+export interface SwingTraderConfig {
+  enabled: boolean;
+  initialCapital: number;           // Starting capital (default $5,000)
+  goalCapital: number;              // Target capital (default $10,000)
+  goalMonths: number;               // Target months to reach goal (default 24)
+  maxPositions: number;             // Max concurrent positions (default 3)
+  maxPositionSizePercent: number;   // Max % of portfolio per position (default 20)
+  symbols: string[];                // Symbols to trade
+  regimeDetection: RegimeDetectionConfig;
+  uptrendStrategy: SwingStrategyConfig;
+  downtrendStrategy: SwingStrategyConfig;
+  sidewaysStrategy: SwingStrategyConfig;
+}
+
+// Settings for how market regime is detected
+export interface RegimeDetectionConfig {
+  smaFastPeriod: number;   // Fast SMA period (default 20)
+  smaSlowPeriod: number;   // Slow SMA period (default 50)
+  adxPeriod: number;       // ADX period (default 14)
+  adxTrendThreshold: number; // ADX above this = trending (default 25)
+  rsiPeriod: number;       // RSI period (default 14)
+  lookbackDays: number;    // Days of data to analyze (default 60)
+}
+
+// Strategy configuration per market regime
+export interface SwingStrategyConfig {
+  enabled: boolean;
+  direction: 'long' | 'short' | 'both';  // Which direction to trade
+  entryRules: SwingEntryRule;
+  exitRules: SwingExitRule;
+  positionSizePercent: number;  // % of capital per trade
+}
+
+// Entry rules for swing trades
+export interface SwingEntryRule {
+  useRSI: boolean;
+  rsiOversold: number;     // Buy when RSI drops below (default 30)
+  rsiOverbought: number;   // Short when RSI rises above (default 70)
+  useSMACross: boolean;    // Use SMA crossover for entry
+  useMACD: boolean;        // Use MACD crossover for entry
+  useBollinger: boolean;   // Use Bollinger Band touches for mean reversion
+  bollingerPeriod: number; // Bollinger Band period (default 20)
+  bollingerStdDev: number; // Standard deviations (default 2)
+  minConfidence: number;   // Min confidence score (0-100)
+}
+
+// Exit rules for swing trades
+export interface SwingExitRule {
+  takeProfitPercent: number;  // Take profit target
+  stopLossPercent: number;    // Stop loss target
+  trailingStopPercent: number | null; // Optional trailing stop
+  timeStopDays: number | null;  // Max days to hold position
+}
+
+// A single swing trade record
+export interface SwingTrade {
+  id: string;
+  symbol: string;
+  direction: 'long' | 'short';
+  regime: MarketRegime;         // Market regime when trade was opened
+  shares: number;
+  entryPrice: number;
+  entryDate: Date;
+  exitPrice: number | null;
+  exitDate: Date | null;
+  exitReason: string | null;    // 'take_profit' | 'stop_loss' | 'trailing_stop' | 'time_stop' | 'regime_change' | 'manual'
+  profitLoss: number | null;
+  profitLossPercent: number | null;
+  entrySignals: string[];       // What triggered entry (e.g., "RSI oversold", "SMA crossover")
+}
+
+// Snapshot of swing trader portfolio value over time
+export interface SwingEquitySnapshot {
+  date: Date;
+  equity: number;
+  cashBalance: number;
+  positionsValue: number;
+  regime: MarketRegime;
+  drawdownPercent: number;
+}
+
+// Current state of the swing trader
+export interface SwingTraderState {
+  config: SwingTraderConfig;
+  cashBalance: number;
+  positions: SwingTradePosition[];
+  completedTrades: SwingTrade[];
+  equityHistory: SwingEquitySnapshot[];
+  currentRegimes: Record<string, MarketRegime>;  // Per-symbol regime
+  isRunning: boolean;
+  startedAt: Date | null;
+  peakEquity: number;
+  totalReturn: number;
+  totalReturnPercent: number;
+  winCount: number;
+  lossCount: number;
+  monthlyReturns: Array<{ month: string; returnPercent: number }>;
+}
+
+// An open swing trade position
+export interface SwingTradePosition {
+  id: string;
+  symbol: string;
+  direction: 'long' | 'short';
+  shares: number;
+  entryPrice: number;
+  currentPrice: number;
+  entryDate: Date;
+  highestPrice: number;
+  lowestPrice: number;
+  regime: MarketRegime;
+  entrySignals: string[];
+  unrealizedPnL: number;
+  unrealizedPnLPercent: number;
+}
+
 // DCA (Dollar-Cost Averaging) Configuration
 export interface DCAConfig {
   id: string;
