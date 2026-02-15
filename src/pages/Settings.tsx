@@ -197,13 +197,13 @@ export function Settings() {
 
   return (
     <div className="text-white max-w-4xl">
-      <h1 className="text-3xl font-bold mb-8">Settings</h1>
+      <h1 className="text-2xl md:text-3xl font-bold mb-6 md:mb-8">Settings</h1>
 
       {/* Trading Mode */}
-      <div className="bg-slate-800 rounded-xl p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-6">Trading Mode</h2>
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
+        <h2 className="text-lg md:text-xl font-semibold mb-4 md:mb-6">Trading Mode</h2>
 
-        <div className="flex gap-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4 mb-4 md:mb-6">
           <button
             onClick={() => setTradingMode('paper')}
             className={`flex-1 p-4 rounded-lg border-2 transition-colors ${
@@ -213,8 +213,8 @@ export function Settings() {
             }`}
           >
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-2xl">📝</span>
-              <span className="font-semibold text-lg">Paper Trading</span>
+              <span className="text-xl md:text-2xl">📝</span>
+              <span className="font-semibold text-base md:text-lg">Paper Trading</span>
             </div>
             <p className="text-sm text-slate-400">
               Practice trading with simulated money. No real money at risk.
@@ -231,8 +231,8 @@ export function Settings() {
             } ${!ibkrConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-2xl">💰</span>
-              <span className="font-semibold text-lg">Live Trading</span>
+              <span className="text-xl md:text-2xl">💰</span>
+              <span className="font-semibold text-base md:text-lg">Live Trading</span>
             </div>
             <p className="text-sm text-slate-400">
               {ibkrConnected
@@ -243,11 +243,11 @@ export function Settings() {
         </div>
 
         {tradingMode === 'paper' && (
-          <div className="p-4 bg-slate-700/50 rounded-lg">
+          <div className="p-3 md:p-4 bg-slate-700/50 rounded-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium">Paper Portfolio</h3>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-sm mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 text-sm mb-4">
               <div>
                 <span className="text-slate-400">Cash Balance</span>
                 <p className="font-semibold text-emerald-400">
@@ -265,28 +265,28 @@ export function Settings() {
             </div>
             <div className="border-t border-slate-600 pt-4">
               <p className="text-sm text-slate-400 mb-2">Reset portfolio with custom starting balance:</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => resetPaperPortfolio(5)}
-                  className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                  className="px-2 md:px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
                 >
                   $5
                 </button>
                 <button
                   onClick={() => resetPaperPortfolio(100)}
-                  className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                  className="px-2 md:px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
                 >
                   $100
                 </button>
                 <button
                   onClick={() => resetPaperPortfolio(1000)}
-                  className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                  className="px-2 md:px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
                 >
                   $1,000
                 </button>
                 <button
                   onClick={() => resetPaperPortfolio(25000)}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-sm"
+                  className="px-2 md:px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-sm"
                 >
                   $25,000 (PDT)
                 </button>
@@ -306,7 +306,7 @@ export function Settings() {
                     resetTradingRules();
                   }
                 }}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm"
+                className="px-3 md:px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm"
               >
                 Reset Rules
               </button>
@@ -331,10 +331,10 @@ export function Settings() {
       </div>
 
       {/* Auto-Trading */}
-      <div className="bg-slate-800 rounded-xl p-6 mb-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
+        <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
-            <h2 className="text-xl font-semibold">Auto-Trading</h2>
+            <h2 className="text-lg md:text-xl font-semibold">Auto-Trading</h2>
             <p className="text-slate-400 text-sm mt-1">
               Automatically execute trades when pattern rules trigger
             </p>
@@ -359,11 +359,11 @@ export function Settings() {
           </div>
         )}
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+        <div className="space-y-3 md:space-y-4">
+          <div className="flex items-center justify-between p-3 md:p-4 bg-slate-700/50 rounded-lg">
             <div>
-              <h3 className="font-medium">Max Trades Per Day</h3>
-              <p className="text-sm text-slate-400 mt-1">
+              <h3 className="font-medium text-sm md:text-base">Max Trades Per Day</h3>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">
                 Maximum number of auto-trades allowed per day
               </p>
             </div>
@@ -377,10 +377,10 @@ export function Settings() {
             />
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+          <div className="flex items-center justify-between p-3 md:p-4 bg-slate-700/50 rounded-lg">
             <div>
-              <h3 className="font-medium">Max Position Size</h3>
-              <p className="text-sm text-slate-400 mt-1">
+              <h3 className="font-medium text-sm md:text-base">Max Position Size</h3>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">
                 Maximum shares per auto-trade
               </p>
             </div>
@@ -394,10 +394,10 @@ export function Settings() {
             />
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+          <div className="flex items-center justify-between p-3 md:p-4 bg-slate-700/50 rounded-lg">
             <div>
-              <h3 className="font-medium">Trading Hours Only</h3>
-              <p className="text-sm text-slate-400 mt-1">
+              <h3 className="font-medium text-sm md:text-base">Trading Hours Only</h3>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">
                 Only execute during market hours (9:30 AM - 4:00 PM ET)
               </p>
             </div>
@@ -416,18 +416,18 @@ export function Settings() {
           </div>
 
           {/* Test Auto-Trade */}
-          <div className="p-4 bg-slate-700/50 rounded-lg">
+          <div className="p-3 md:p-4 bg-slate-700/50 rounded-lg">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-medium">Test Auto-Trade</h3>
-                <p className="text-sm text-slate-400 mt-1">
+                <h3 className="font-medium text-sm md:text-base">Test Auto-Trade</h3>
+                <p className="text-xs md:text-sm text-slate-400 mt-1">
                   Simulate a pattern detection to test auto-trading
                 </p>
               </div>
               <button
                 onClick={handleTestAutoTrade}
                 disabled={testingAutoTrade || !autoTradeConfig.enabled}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                className="px-3 md:px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg font-medium text-sm md:text-base transition-colors"
               >
                 {testingAutoTrade ? 'Testing...' : 'Run Test'}
               </button>

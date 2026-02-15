@@ -79,139 +79,149 @@ export function Journal() {
 
   return (
     <div className="text-white">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Trading Journal</h1>
+      <div className="flex justify-between items-center mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold">Trading Journal</h1>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-semibold transition-colors"
+          className="bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-sm md:text-base font-semibold transition-colors"
         >
           {showForm ? 'Cancel' : '+ New Entry'}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Total Entries</div>
-          <div className="text-2xl font-bold">{stats.total}</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
+        <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+          <div className="text-slate-400 text-xs md:text-sm">Total Entries</div>
+          <div className="text-xl md:text-2xl font-bold">{stats.total}</div>
         </div>
-        <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Wins</div>
-          <div className="text-2xl font-bold text-emerald-400">{stats.wins}</div>
+        <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+          <div className="text-slate-400 text-xs md:text-sm">Wins</div>
+          <div className="text-xl md:text-2xl font-bold text-emerald-400">{stats.wins}</div>
         </div>
-        <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Losses</div>
-          <div className="text-2xl font-bold text-red-400">{stats.losses}</div>
+        <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+          <div className="text-slate-400 text-xs md:text-sm">Losses</div>
+          <div className="text-xl md:text-2xl font-bold text-red-400">{stats.losses}</div>
         </div>
-        <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Win Rate</div>
-          <div className="text-2xl font-bold">{stats.winRate}%</div>
+        <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+          <div className="text-slate-400 text-xs md:text-sm">Win Rate</div>
+          <div className="text-xl md:text-2xl font-bold">{stats.winRate}%</div>
         </div>
       </div>
 
       {showForm && (
-        <div className="bg-slate-800 rounded-xl p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">New Journal Entry</h2>
-          {tradesWithoutEntry.length === 0 ? (
-            <p className="text-slate-400">
-              All trades have been journaled. Make a new trade first.
-            </p>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">
-                  Select Trade
-                </label>
-                <select
-                  value={selectedTradeId}
-                  onChange={(e) => setSelectedTradeId(e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
-                  required
-                >
-                  <option value="">Select a trade...</option>
-                  {tradesWithoutEntry.map((trade) => (
-                    <option key={trade.id} value={trade.id}>
-                      {trade.type.toUpperCase()} {trade.shares} {trade.symbol} @
-                      ${trade.price} -{' '}
-                      {format(new Date(trade.date), 'MMM d, yyyy')}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">
-                  Why did you make this trade? *
-                </label>
-                <textarea
-                  value={reasoning}
-                  onChange={(e) => setReasoning(e.target.value)}
-                  placeholder="What was your thesis? What signals did you see?"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
-                  rows={3}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">
-                  How were you feeling?
-                </label>
-                <textarea
-                  value={emotions}
-                  onChange={(e) => setEmotions(e.target.value)}
-                  placeholder="Confident? Anxious? FOMO?"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Outcome</label>
-                <div className="flex gap-2">
-                  {(['open', 'win', 'loss', 'breakeven'] as const).map((o) => (
-                    <button
-                      key={o}
-                      type="button"
-                      onClick={() => setOutcome(o)}
-                      className={`flex-1 py-2 rounded-lg capitalize ${
-                        outcome === o
-                          ? o === 'win'
-                            ? 'bg-emerald-600'
-                            : o === 'loss'
-                            ? 'bg-red-600'
-                            : o === 'breakeven'
-                            ? 'bg-yellow-600'
-                            : 'bg-slate-600'
-                          : 'bg-slate-700'
-                      }`}
-                    >
-                      {o}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">
-                  Lessons Learned
-                </label>
-                <textarea
-                  value={lessonsLearned}
-                  onChange={(e) => setLessonsLearned(e.target.value)}
-                  placeholder="What would you do differently?"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
-                  rows={2}
-                />
-              </div>
-
+        <div className="fixed inset-0 z-50 bg-slate-900 overflow-y-auto p-4 md:static md:z-auto md:bg-transparent md:overflow-visible md:p-0 md:mb-6">
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg md:text-xl font-semibold">New Journal Entry</h2>
               <button
-                type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 py-3 rounded-lg font-semibold transition-colors"
+                onClick={() => { setShowForm(false); resetForm(); }}
+                className="text-slate-400 hover:text-white md:hidden"
               >
-                Save Entry
+                Close
               </button>
-            </form>
-          )}
+            </div>
+            {tradesWithoutEntry.length === 0 ? (
+              <p className="text-slate-400 text-sm md:text-base">
+                All trades have been journaled. Make a new trade first.
+              </p>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
+                <div>
+                  <label className="block text-xs md:text-sm text-slate-400 mb-1.5 md:mb-2">
+                    Select Trade
+                  </label>
+                  <select
+                    value={selectedTradeId}
+                    onChange={(e) => setSelectedTradeId(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-base focus:outline-none focus:border-emerald-500"
+                    required
+                  >
+                    <option value="">Select a trade...</option>
+                    {tradesWithoutEntry.map((trade) => (
+                      <option key={trade.id} value={trade.id}>
+                        {trade.type.toUpperCase()} {trade.shares} {trade.symbol} @
+                        ${trade.price} -{' '}
+                        {format(new Date(trade.date), 'MMM d, yyyy')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs md:text-sm text-slate-400 mb-1.5 md:mb-2">
+                    Why did you make this trade? *
+                  </label>
+                  <textarea
+                    value={reasoning}
+                    onChange={(e) => setReasoning(e.target.value)}
+                    placeholder="What was your thesis? What signals did you see?"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-base focus:outline-none focus:border-emerald-500"
+                    rows={3}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs md:text-sm text-slate-400 mb-1.5 md:mb-2">
+                    How were you feeling?
+                  </label>
+                  <textarea
+                    value={emotions}
+                    onChange={(e) => setEmotions(e.target.value)}
+                    placeholder="Confident? Anxious? FOMO?"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-base focus:outline-none focus:border-emerald-500"
+                    rows={2}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs md:text-sm text-slate-400 mb-1.5 md:mb-2">Outcome</label>
+                  <div className="flex gap-1.5 md:gap-2">
+                    {(['open', 'win', 'loss', 'breakeven'] as const).map((o) => (
+                      <button
+                        key={o}
+                        type="button"
+                        onClick={() => setOutcome(o)}
+                        className={`flex-1 py-1.5 md:py-2 rounded-lg capitalize text-sm md:text-base ${
+                          outcome === o
+                            ? o === 'win'
+                              ? 'bg-emerald-600'
+                              : o === 'loss'
+                              ? 'bg-red-600'
+                              : o === 'breakeven'
+                              ? 'bg-yellow-600'
+                              : 'bg-slate-600'
+                            : 'bg-slate-700'
+                        }`}
+                      >
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs md:text-sm text-slate-400 mb-1.5 md:mb-2">
+                    Lessons Learned
+                  </label>
+                  <textarea
+                    value={lessonsLearned}
+                    onChange={(e) => setLessonsLearned(e.target.value)}
+                    placeholder="What would you do differently?"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-base focus:outline-none focus:border-emerald-500"
+                    rows={2}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 py-2.5 md:py-3 rounded-lg font-semibold text-sm md:text-base transition-colors"
+                >
+                  Save Entry
+                </button>
+              </form>
+            )}
+          </div>
         </div>
       )}
 

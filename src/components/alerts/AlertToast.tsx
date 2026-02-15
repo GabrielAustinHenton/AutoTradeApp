@@ -37,7 +37,7 @@ export function AlertToast() {
   if (visibleAlerts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+    <div className="fixed top-2 left-2 right-2 md:top-4 md:left-auto md:right-4 z-50 space-y-2 md:max-w-sm">
       {visibleAlerts.map((alert) => (
         <div
           key={alert.id}

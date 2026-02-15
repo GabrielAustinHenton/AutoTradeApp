@@ -182,24 +182,24 @@ export function Dashboard() {
 
   return (
     <div className="text-white">
-      <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center gap-4">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+      <div className="flex flex-col gap-3 mb-6 md:flex-row md:justify-between md:items-center md:mb-8">
+        <div className="flex items-center gap-2 md:gap-4 flex-wrap">
+          <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
+          <span className={`px-2 py-0.5 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${
             isPaperMode ? 'bg-amber-900 text-amber-300' : 'bg-emerald-900 text-emerald-300'
           }`}>
-            {isPaperMode ? 'PAPER TRADING' : 'LIVE TRADING'}
+            {isPaperMode ? 'PAPER' : 'LIVE'}
           </span>
           {autoTradeConfig.enabled && (
-            <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-900 text-purple-300">
-              AUTO-TRADE ON
+            <span className="px-2 py-0.5 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium bg-purple-900 text-purple-300">
+              AUTO
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
           {quotesLoading && (
-            <span className="text-sm text-slate-400 animate-pulse">
-              Updating prices...
+            <span className="text-xs md:text-sm text-slate-400 animate-pulse">
+              Updating...
             </span>
           )}
           <button
@@ -218,7 +218,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
         <StatCard
           title="Portfolio Value"
           value={totalPortfolioValue !== null ? `$${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
@@ -243,11 +243,11 @@ export function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-slate-800 rounded-xl p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="lg:col-span-2 space-y-4 md:space-y-6">
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Portfolio Performance</h2>
+              <h2 className="text-lg md:text-xl font-semibold">Portfolio Performance</h2>
               <div className="text-right">
                 {totalPnL !== null ? (
                   <>
@@ -263,7 +263,7 @@ export function Dashboard() {
                 )}
               </div>
             </div>
-            <div className="h-64">
+            <div className="h-48 md:h-64">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
@@ -304,8 +304,8 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Positions</h2>
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Positions</h2>
             {displayPositions.filter(p => p.shares > 0).length === 0 ? (
               <p className="text-slate-400">No positions yet. Start trading to build your portfolio.</p>
             ) : (
@@ -319,24 +319,24 @@ export function Dashboard() {
                   return (
                     <div
                       key={position.id}
-                      className="flex justify-between items-center p-4 bg-slate-700 rounded-lg"
+                      className="flex justify-between items-center p-3 md:p-4 bg-slate-700 rounded-lg"
                     >
-                      <div>
-                        <div className="font-semibold text-lg">{position.symbol}</div>
-                        <div className="text-sm text-slate-400">
-                          {position.shares} shares @ ${position.avgCost.toFixed(2)} avg
+                      <div className="min-w-0">
+                        <div className="font-semibold md:text-lg">{position.symbol}</div>
+                        <div className="text-xs md:text-sm text-slate-400">
+                          {position.shares} @ ${position.avgCost.toFixed(2)}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold">
+                      <div className="text-right shrink-0 ml-2">
+                        <div className="font-semibold text-sm md:text-base">
                           ${position.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
-                        <div className="flex gap-3 text-sm">
+                        <div className="flex flex-col md:flex-row md:gap-3 text-xs md:text-sm">
                           <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
-                            {isPositive ? '+' : ''}${position.totalGain.toFixed(2)} ({position.totalGainPercent.toFixed(2)}%)
+                            {isPositive ? '+' : ''}{position.totalGainPercent.toFixed(2)}%
                           </span>
                           {quote && (
-                            <span className={dayIsPositive ? 'text-emerald-400' : 'text-red-400'}>
+                            <span className={`hidden md:inline ${dayIsPositive ? 'text-emerald-400' : 'text-red-400'}`}>
                               Day: {dayIsPositive ? '+' : ''}${dayChangeAmount.toFixed(2)}
                             </span>
                           )}
@@ -349,8 +349,8 @@ export function Dashboard() {
             )}
           </div>
 
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Recent Trades</h2>
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Recent Trades</h2>
             {displayTrades.length === 0 ? (
               <p className="text-slate-400">No trades yet</p>
             ) : (
@@ -388,8 +388,8 @@ export function Dashboard() {
           </div>
 
           {/* Quick Backtest */}
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Quick Backtest</h2>
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Quick Backtest</h2>
             <div className="space-y-3">
               <div className="flex gap-2 flex-wrap">
                 {backtestStrategy !== 'daytrade' && (
@@ -642,13 +642,13 @@ export function Dashboard() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           <AlertsPanel />
 
           <WatchlistCard />
 
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Trading Rules</h2>
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Trading Rules</h2>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-400">Active Rules</span>
@@ -680,10 +680,10 @@ function StatCard({
   valueColor?: string;
 }) {
   return (
-    <div className="bg-slate-800 rounded-xl p-6">
-      <h3 className="text-slate-400 text-sm mb-2">{title}</h3>
-      <p className={`text-2xl font-bold ${valueColor}`}>{value}</p>
-      <p className="text-slate-500 text-sm mt-1">{subtitle}</p>
+    <div className="bg-slate-800 rounded-xl p-3 md:p-6">
+      <h3 className="text-slate-400 text-[11px] md:text-sm mb-1 md:mb-2 truncate">{title}</h3>
+      <p className={`text-lg md:text-2xl font-bold ${valueColor} truncate`}>{value}</p>
+      <p className="text-slate-500 text-[10px] md:text-sm mt-0.5 md:mt-1 truncate">{subtitle}</p>
     </div>
   );
 }

@@ -115,8 +115,8 @@ export function TradeHistory() {
 
   return (
     <div className="text-white">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Trade History</h1>
+      <div className="flex flex-wrap justify-between items-center mb-6 md:mb-8 gap-3 md:gap-6">
+        <h1 className="text-2xl md:text-3xl font-bold">Trade History</h1>
 
         {/* Portfolio Tabs */}
         <div className="flex bg-slate-800 rounded-lg p-1">
@@ -125,7 +125,7 @@ export function TradeHistory() {
               setActiveTab('paper');
               setFilterSymbol('');
             }}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'paper'
                 ? 'bg-amber-600 text-white'
                 : 'text-slate-400 hover:text-white'
@@ -138,7 +138,7 @@ export function TradeHistory() {
               setActiveTab('live');
               setFilterSymbol('');
             }}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'live'
                 ? 'bg-emerald-600 text-white'
                 : 'text-slate-400 hover:text-white'
@@ -159,42 +159,42 @@ export function TradeHistory() {
       )}
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 mb-6">
         <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Total Trades</div>
-          <div className="text-2xl font-bold">{stats.totalTrades}</div>
+          <div className="text-slate-400 text-xs md:text-sm">Total Trades</div>
+          <div className="text-xl md:text-2xl font-bold">{stats.totalTrades}</div>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Buy Orders</div>
-          <div className="text-2xl font-bold text-emerald-400">{stats.buyCount}</div>
+          <div className="text-slate-400 text-xs md:text-sm">Buy Orders</div>
+          <div className="text-xl md:text-2xl font-bold text-emerald-400">{stats.buyCount}</div>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Sell Orders</div>
-          <div className="text-2xl font-bold text-red-400">{stats.sellCount}</div>
+          <div className="text-slate-400 text-xs md:text-sm">Sell Orders</div>
+          <div className="text-xl md:text-2xl font-bold text-red-400">{stats.sellCount}</div>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Total Bought</div>
-          <div className="text-xl font-bold text-emerald-400">
+          <div className="text-slate-400 text-xs md:text-sm">Total Bought</div>
+          <div className="text-lg md:text-xl font-bold text-emerald-400">
             ${stats.totalBuyValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Total Sold</div>
-          <div className="text-xl font-bold text-red-400">
+          <div className="text-slate-400 text-xs md:text-sm">Total Sold</div>
+          <div className="text-lg md:text-xl font-bold text-red-400">
             ${stats.totalSellValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
-          <div className="text-slate-400 text-sm">Net Cash Flow</div>
-          <div className={`text-xl font-bold ${stats.netFlow >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <div className="text-slate-400 text-xs md:text-sm">Net Cash Flow</div>
+          <div className={`text-lg md:text-xl font-bold ${stats.netFlow >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {stats.netFlow >= 0 ? '+' : ''}${stats.netFlow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-slate-800 rounded-xl p-4 mb-6">
-        <div className="flex flex-wrap gap-4 items-center">
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-6">
+        <div className="flex flex-wrap gap-2 md:gap-4 items-center">
           <div>
             <label className="block text-sm text-slate-400 mb-1">Symbol</label>
             <select
@@ -254,7 +254,7 @@ export function TradeHistory() {
       {/* Trade Table */}
       <div className="bg-slate-800 rounded-xl overflow-hidden">
         {filteredTrades.length === 0 ? (
-          <div className="p-8 text-center text-slate-400">
+          <div className="p-6 md:p-8 text-center text-slate-400 text-sm md:text-base">
             {activeTrades.length === 0
               ? activeTab === 'paper'
                 ? 'No paper trades yet. Switch to paper trading mode and make some trades.'
@@ -262,33 +262,33 @@ export function TradeHistory() {
               : 'No trades match the current filters.'}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-0 px-0">
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-700">
                   <th
-                    className="text-left p-4 text-slate-400 font-medium cursor-pointer hover:text-white"
+                    className="text-left p-3 md:p-4 text-slate-400 text-xs md:text-sm font-medium cursor-pointer hover:text-white"
                     onClick={() => handleSort('date')}
                   >
                     Date {sortBy === 'date' && (sortOrder === 'desc' ? '▼' : '▲')}
                   </th>
                   <th
-                    className="text-left p-4 text-slate-400 font-medium cursor-pointer hover:text-white"
+                    className="text-left p-3 md:p-4 text-slate-400 text-xs md:text-sm font-medium cursor-pointer hover:text-white"
                     onClick={() => handleSort('symbol')}
                   >
                     Symbol {sortBy === 'symbol' && (sortOrder === 'desc' ? '▼' : '▲')}
                   </th>
-                  <th className="text-left p-4 text-slate-400 font-medium">Type</th>
-                  <th className="text-right p-4 text-slate-400 font-medium">Shares</th>
-                  <th className="text-right p-4 text-slate-400 font-medium">Price</th>
+                  <th className="text-left p-3 md:p-4 text-slate-400 text-xs md:text-sm font-medium">Type</th>
+                  <th className="text-right p-3 md:p-4 text-slate-400 text-xs md:text-sm font-medium">Shares</th>
+                  <th className="text-right p-3 md:p-4 text-slate-400 text-xs md:text-sm font-medium">Price</th>
                   <th
-                    className="text-right p-4 text-slate-400 font-medium cursor-pointer hover:text-white"
+                    className="text-right p-3 md:p-4 text-slate-400 text-xs md:text-sm font-medium cursor-pointer hover:text-white"
                     onClick={() => handleSort('total')}
                   >
                     Total {sortBy === 'total' && (sortOrder === 'desc' ? '▼' : '▲')}
                   </th>
-                  <th className="text-left p-4 text-slate-400 font-medium">Notes</th>
-                  <th className="p-4"></th>
+                  <th className="text-left p-3 md:p-4 text-slate-400 text-xs md:text-sm font-medium">Notes</th>
+                  <th className="p-3 md:p-4"></th>
                 </tr>
               </thead>
               <tbody>

@@ -65,7 +65,7 @@ function StatCard({ label, value, subValue, color }: {
   return (
     <div className="bg-slate-800 rounded-xl p-4">
       <p className="text-slate-400 text-sm mb-1">{label}</p>
-      <p className={`text-xl font-bold ${textColor}`}>{value}</p>
+      <p className={`text-lg md:text-xl font-bold ${textColor}`}>{value}</p>
       {subValue && <p className="text-slate-500 text-xs mt-1">{subValue}</p>}
     </div>
   );
@@ -308,14 +308,14 @@ export function SwingTrader() {
   return (
     <div className="text-white">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 md:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Swing Trader</h1>
-          <p className="text-slate-400 mt-1">
+          <h1 className="text-2xl md:text-3xl font-bold">Swing Trader</h1>
+          <p className="text-slate-400 text-sm md:text-base mt-1">
             Adaptive regime-based swing trading &mdash; {formatCurrency(store.config.initialCapital)} to {formatCurrency(store.config.goalCapital)} in {store.config.goalMonths} months
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap gap-2">
           <button
             onClick={handleReset}
             className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300"
@@ -336,7 +336,7 @@ export function SwingTrader() {
       </div>
 
       {/* Goal Progress Bar */}
-      <div className="bg-slate-800 rounded-xl p-4 mb-6">
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-6">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm text-slate-400">Goal Progress</span>
           <span className="text-sm font-medium">
@@ -364,12 +364,12 @@ export function SwingTrader() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-slate-800 rounded-lg p-1">
+      <div className="flex flex-wrap gap-1 mb-6 md:mb-8 bg-slate-800 rounded-lg p-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 min-w-[80px] px-2 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? 'bg-emerald-600 text-white'
                 : 'text-slate-400 hover:text-white hover:bg-slate-700'
@@ -382,9 +382,9 @@ export function SwingTrader() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <div className="space-y-6">
+        <div className="space-y-3 md:space-y-6">
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             <StatCard
               label="Current Equity"
               value={formatCurrency(equity)}
@@ -412,7 +412,7 @@ export function SwingTrader() {
           </div>
 
           {/* Secondary Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             <StatCard
               label="Cash Available"
               value={formatCurrency(store.cashBalance)}
@@ -437,8 +437,8 @@ export function SwingTrader() {
           </div>
 
           {/* Market Regimes */}
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">Market Regime Detection</h2>
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Market Regime Detection</h2>
             {Object.keys(store.currentRegimes).length === 0 ? (
               <p className="text-slate-400 text-sm">
                 No regime data yet. Start the swing trader to begin analyzing market conditions for your watchlist.

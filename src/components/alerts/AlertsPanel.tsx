@@ -23,10 +23,10 @@ export function AlertsPanel() {
   };
 
   return (
-    <div className="bg-slate-800 rounded-xl p-6">
+    <div className="bg-slate-800 rounded-xl p-4 md:p-6">
       <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-semibold">Alerts</h2>
+        <div className="flex items-center gap-2 md:gap-3">
+          <h2 className="text-lg md:text-xl font-semibold">Alerts</h2>
           {unreadCount > 0 && (
             <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
               {unreadCount} new

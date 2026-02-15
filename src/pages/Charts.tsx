@@ -92,19 +92,19 @@ export function Charts() {
 
   return (
     <div className="text-white">
-      <h1 className="text-3xl font-bold mb-8">Charts</h1>
+      <h1 className="text-2xl md:text-3xl font-bold mb-6 md:mb-8">Charts</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Sidebar - Symbol list */}
-        <div className="lg:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 md:gap-6">
+        {/* Sidebar - Symbol list (stacks above chart on mobile) */}
+        <div className="order-first lg:order-none lg:col-span-1">
           <div className="bg-slate-800 rounded-xl p-4">
-            <h2 className="text-lg font-semibold mb-4">Symbols</h2>
-            <div className="space-y-1">
+            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Symbols</h2>
+            <div className="flex flex-wrap gap-1 lg:flex-col lg:space-y-1 lg:gap-0">
               {allSymbols.map((symbol) => (
                 <button
                   key={symbol}
                   onClick={() => setSelectedSymbol(symbol)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                  className={`text-left px-3 py-2 rounded-lg transition-colors text-sm md:text-base lg:w-full ${
                     selectedSymbol === symbol
                       ? 'bg-emerald-600 text-white'
                       : 'hover:bg-slate-700 text-slate-300'
@@ -118,15 +118,15 @@ export function Charts() {
         </div>
 
         {/* Main chart area */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="lg:col-span-3 space-y-3 md:space-y-4">
           {/* Chart header */}
-          <div className="bg-slate-800 rounded-xl p-4">
-            <div className="flex flex-wrap justify-between items-center gap-4">
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <div className="flex flex-wrap justify-between items-center gap-3 md:gap-4">
               <div>
-                <h2 className="text-2xl font-bold">{selectedSymbol}</h2>
+                <h2 className="text-xl md:text-2xl font-bold">{selectedSymbol}</h2>
                 {latestCandle && (
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xl">${latestCandle.close.toFixed(2)}</span>
+                  <div className="flex items-center gap-2 md:gap-3 mt-1">
+                    <span className="text-lg md:text-xl">${latestCandle.close.toFixed(2)}</span>
                     <span
                       className={`text-sm ${
                         periodChange >= 0 ? 'text-emerald-400' : 'text-red-400'
@@ -139,7 +139,7 @@ export function Charts() {
                 )}
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-2 md:gap-4">
                 {/* Pattern toggle */}
                 <button
                   onClick={() => setShowPatterns(!showPatterns)}
@@ -258,9 +258,9 @@ export function Charts() {
 
           {/* Indicator Settings Panel */}
           {showSettings && (
-            <div className="bg-slate-800 rounded-xl p-4">
-              <h3 className="text-lg font-semibold mb-4">Indicator Settings</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+              <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Indicator Settings</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
                 {/* RSI Settings */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-purple-400">RSI</label>
@@ -400,14 +400,14 @@ export function Charts() {
           )}
 
           {/* Chart */}
-          <div className="bg-slate-800 rounded-xl p-6">
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
             {loading ? (
-              <div className="flex items-center justify-center h-96">
-                <div className="text-slate-400">Loading chart data...</div>
+              <div className="flex items-center justify-center h-64 md:h-96">
+                <div className="text-slate-400 text-sm md:text-base">Loading chart data...</div>
               </div>
             ) : chartData.length === 0 ? (
-              <div className="flex items-center justify-center h-96">
-                <div className="text-slate-400">
+              <div className="flex items-center justify-center h-64 md:h-96">
+                <div className="text-slate-400 text-sm md:text-base">
                   No data available for {selectedSymbol}
                 </div>
               </div>
@@ -437,28 +437,28 @@ export function Charts() {
 
           {/* OHLC Stats */}
           {latestCandle && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-slate-800 rounded-xl p-4">
-                <div className="text-slate-400 text-sm">Open</div>
-                <div className="text-lg font-semibold">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+                <div className="text-slate-400 text-xs md:text-sm">Open</div>
+                <div className="text-base md:text-lg font-semibold">
                   ${latestCandle.open.toFixed(2)}
                 </div>
               </div>
-              <div className="bg-slate-800 rounded-xl p-4">
-                <div className="text-slate-400 text-sm">High</div>
-                <div className="text-lg font-semibold text-emerald-400">
+              <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+                <div className="text-slate-400 text-xs md:text-sm">High</div>
+                <div className="text-base md:text-lg font-semibold text-emerald-400">
                   ${latestCandle.high.toFixed(2)}
                 </div>
               </div>
-              <div className="bg-slate-800 rounded-xl p-4">
-                <div className="text-slate-400 text-sm">Low</div>
-                <div className="text-lg font-semibold text-red-400">
+              <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+                <div className="text-slate-400 text-xs md:text-sm">Low</div>
+                <div className="text-base md:text-lg font-semibold text-red-400">
                   ${latestCandle.low.toFixed(2)}
                 </div>
               </div>
-              <div className="bg-slate-800 rounded-xl p-4">
-                <div className="text-slate-400 text-sm">Close</div>
-                <div className="text-lg font-semibold">
+              <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+                <div className="text-slate-400 text-xs md:text-sm">Close</div>
+                <div className="text-base md:text-lg font-semibold">
                   ${latestCandle.close.toFixed(2)}
                 </div>
               </div>

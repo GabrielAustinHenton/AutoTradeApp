@@ -16,9 +16,9 @@ export function WatchlistCard() {
   };
 
   return (
-    <div className="bg-slate-800 rounded-xl p-6">
+    <div className="bg-slate-800 rounded-xl p-4 md:p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Watchlist</h2>
+        <h2 className="text-lg md:text-xl font-semibold">Watchlist</h2>
         <button
           onClick={refetch}
           disabled={loading}
@@ -79,7 +79,7 @@ export function WatchlistCard() {
                 )}
                 <button
                   onClick={() => removeFromWatchlist(symbol)}
-                  className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="text-slate-500 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                 >
                   ×
                 </button>

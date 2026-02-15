@@ -75,8 +75,8 @@ export function Backtest() {
 
   return (
     <div className="text-white">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Backtesting</h1>
+      <div className="flex justify-between items-center mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold">Backtesting</h1>
         {backtestResults.length > 0 && (
           <button
             onClick={clearBacktestResults}
@@ -87,11 +87,11 @@ export function Backtest() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6">
         {/* Configuration Panel */}
         <div className="lg:col-span-1">
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Configuration</h2>
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Configuration</h2>
 
             <div className="space-y-4">
               <div>
@@ -100,7 +100,7 @@ export function Backtest() {
                   type="text"
                   value={symbol}
                   onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -111,7 +111,7 @@ export function Backtest() {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div>
@@ -120,7 +120,7 @@ export function Backtest() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
@@ -133,7 +133,7 @@ export function Backtest() {
                     value={initialCapital}
                     onChange={(e) => setInitialCapital(e.target.value)}
                     min="100"
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div>
@@ -144,7 +144,7 @@ export function Backtest() {
                     onChange={(e) => setPositionSize(e.target.value)}
                     min="1"
                     max="100"
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
@@ -202,8 +202,8 @@ export function Backtest() {
 
           {/* Previous Results */}
           {backtestResults.length > 0 && (
-            <div className="bg-slate-800 rounded-xl p-6 mt-6">
-              <h2 className="text-lg font-semibold mb-4">Previous Results</h2>
+            <div className="bg-slate-800 rounded-xl p-4 md:p-6 mt-3 md:mt-6">
+              <h2 className="text-base md:text-lg font-semibold mb-4">Previous Results</h2>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {backtestResults.map((result) => (
                   <button
@@ -250,17 +250,17 @@ export function Backtest() {
         {/* Results Panel */}
         <div className="lg:col-span-2">
           {activeResult ? (
-            <div className="space-y-6">
+            <div className="space-y-3 md:space-y-6">
               {/* Metrics Grid */}
-              <div className="bg-slate-800 rounded-xl p-6">
-                <h2 className="text-xl font-semibold mb-4">
+              <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+                <h2 className="text-lg md:text-xl font-semibold mb-4">
                   Results: {activeResult.config.symbol}
                   <span className="text-sm text-slate-400 font-normal ml-2">
                     {formatDate(activeResult.config.startDate)} - {formatDate(activeResult.config.endDate)}
                   </span>
                 </h2>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                   <MetricCard
                     label="Total Return"
                     value={formatCurrency(activeResult.metrics.totalReturn)}
@@ -287,7 +287,7 @@ export function Backtest() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mt-3 md:mt-4">
                   <MetricCard
                     label="Final Capital"
                     value={formatCurrency(activeResult.metrics.finalCapital)}
@@ -318,9 +318,9 @@ export function Backtest() {
 
               {/* Equity Curve */}
               {activeResult.equityCurve && activeResult.equityCurve.length > 0 && (
-                <div className="bg-slate-800 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold mb-4">Equity Curve</h3>
-                  <div className="h-48 flex items-end gap-1">
+                <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+                  <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Equity Curve</h3>
+                  <div className="h-36 md:h-48 flex items-end gap-0.5 md:gap-1">
                     {sampleEquityCurve(activeResult.equityCurve, 50).map((point, i, arr) => {
                       const min = Math.min(...arr.map((p) => p.equity));
                       const max = Math.max(...arr.map((p) => p.equity));
@@ -348,8 +348,8 @@ export function Backtest() {
               )}
 
               {/* Trades List */}
-              <div className="bg-slate-800 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">Trade History</h3>
+              <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+                <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Trade History</h3>
                 {activeResult.trades.length === 0 ? (
                   <p className="text-slate-400">No trades executed during this period</p>
                 ) : (

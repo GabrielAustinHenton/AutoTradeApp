@@ -279,22 +279,22 @@ export function Trade() {
 
   return (
     <div className="text-white">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">Trade</h1>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
+      <div className="flex items-center justify-between mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold">Trade</h1>
+        <div className={`flex items-center gap-2 px-2 py-1 md:px-3 md:py-1.5 rounded-full text-xs md:text-sm ${
           isLiveMode
             ? 'bg-red-900/50 text-red-400 border border-red-700'
             : 'bg-emerald-900/50 text-emerald-400'
         }`}>
           <span className={`w-2 h-2 rounded-full ${isLiveMode ? 'bg-red-500' : 'bg-emerald-500'}`} />
-          {isLiveMode ? 'Live Trading' : 'Paper Trading'}
+          {isLiveMode ? 'Live' : 'Paper'}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">Place Order</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        <div className="space-y-4 md:space-y-6">
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Place Order</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-4 gap-2">
                 <button
@@ -544,11 +544,11 @@ export function Trade() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           {symbol && formattedChartData.length > 0 && (
-            <div className="bg-slate-800 rounded-xl p-6">
-              <h2 className="text-xl font-semibold mb-4">{symbol} - 30 Day Chart</h2>
-              <div className="h-64">
+            <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+              <h2 className="text-lg md:text-xl font-semibold mb-4">{symbol} - 30 Day</h2>
+              <div className="h-48 md:h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={formattedChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -584,8 +584,8 @@ export function Trade() {
             </div>
           )}
 
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">
               {isLiveMode ? 'Live Account' : 'Paper Account'}
             </h2>
             <div className="space-y-4">

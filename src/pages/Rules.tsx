@@ -196,8 +196,8 @@ export function Rules() {
 
   return (
     <div className="text-white">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Trading Rules</h1>
+      <div className="flex justify-between items-center mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold">Trading Rules</h1>
         <button
           onClick={() => setShowForm(!showForm)}
           className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-semibold transition-colors"
@@ -207,17 +207,17 @@ export function Rules() {
       </div>
 
       {showForm && (
-        <div className="bg-slate-800 rounded-xl p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Create Trading Rule</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-6">
+          <h2 className="text-lg md:text-xl font-semibold mb-4">Create Trading Rule</h2>
+          <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
             {/* Rule Type Selection */}
             <div>
               <label className="block text-sm text-slate-400 mb-2">Rule Type</label>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-2 md:gap-4">
                 <button
                   type="button"
                   onClick={() => setRuleType('pattern')}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
                     ruleType === 'pattern'
                       ? 'bg-purple-600 text-white'
                       : 'bg-slate-700 text-slate-300'
@@ -228,7 +228,7 @@ export function Rules() {
                 <button
                   type="button"
                   onClick={() => setRuleType('macd')}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
                     ruleType === 'macd'
                       ? 'bg-orange-600 text-white'
                       : 'bg-slate-700 text-slate-300'
@@ -239,7 +239,7 @@ export function Rules() {
                 <button
                   type="button"
                   onClick={() => setRuleType('price')}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
                     ruleType === 'price'
                       ? 'bg-blue-600 text-white'
                       : 'bg-slate-700 text-slate-300'
@@ -276,11 +276,11 @@ export function Rules() {
 
             {/* Buy/Sell/Short Selection - hidden for MACD since crossover type determines it */}
             {ruleType !== 'macd' && (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setTradeType('buy')}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
                     tradeType === 'buy'
                       ? 'bg-emerald-600 text-white'
                       : 'bg-slate-700 text-slate-300'
@@ -291,7 +291,7 @@ export function Rules() {
                 <button
                   type="button"
                   onClick={() => setTradeType('sell')}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
                     tradeType === 'sell'
                       ? 'bg-red-600 text-white'
                       : 'bg-slate-700 text-slate-300'
@@ -302,7 +302,7 @@ export function Rules() {
                 <button
                   type="button"
                   onClick={() => setTradeType('short')}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
                     tradeType === 'short'
                       ? 'bg-purple-600 text-white'
                       : 'bg-slate-700 text-slate-300'
@@ -319,15 +319,15 @@ export function Rules() {
 
             {/* Pattern Selection */}
             {ruleType === 'pattern' && (
-              <div className="bg-slate-700 rounded-lg p-4">
-                <h3 className="font-semibold mb-3">Select Pattern</h3>
+              <div className="bg-slate-700 rounded-lg p-3 md:p-4">
+                <h3 className="font-semibold text-sm md:text-base mb-3">Select Pattern</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {(Object.keys(PATTERN_INFO) as CandlestickPattern[]).map((pattern) => (
                     <button
                       key={pattern}
                       type="button"
                       onClick={() => setSelectedPattern(pattern)}
-                      className={`p-3 rounded-lg text-left transition-colors ${
+                      className={`p-2 md:p-3 rounded-lg text-left transition-colors ${
                         selectedPattern === pattern
                           ? 'bg-purple-600 text-white'
                           : 'bg-slate-600 hover:bg-slate-500'

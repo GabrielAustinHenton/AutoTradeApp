@@ -3,6 +3,17 @@
 body {
   margin: 0;
   min-height: 100vh;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Safe area for iOS devices with notch/home indicator */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Prevent horizontal overflow on mobile */
+html, body {
+  overflow-x: hidden;
 }
 
 #root {

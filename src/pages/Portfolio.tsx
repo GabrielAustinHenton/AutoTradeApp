@@ -161,15 +161,15 @@ export function Portfolio() {
 
   return (
     <div className="text-white">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Portfolio</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold">Portfolio</h1>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4 flex-wrap">
           {/* Export Dropdown */}
           <div className="relative" ref={exportMenuRef}>
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
-              className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+              className="bg-slate-700 hover:bg-slate-600 px-3 md:px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -213,7 +213,7 @@ export function Portfolio() {
           <div className="flex bg-slate-800 rounded-lg p-1">
           <button
             onClick={() => setActiveTab('paper')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
               activeTab === 'paper'
                 ? 'bg-amber-600 text-white'
                 : 'text-slate-400 hover:text-white'
@@ -223,7 +223,7 @@ export function Portfolio() {
           </button>
           <button
             onClick={() => setActiveTab('live')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
               activeTab === 'live'
                 ? 'bg-emerald-600 text-white'
                 : 'text-slate-400 hover:text-white'
@@ -246,24 +246,24 @@ export function Portfolio() {
 
       {/* Paper Portfolio Summary */}
       {isShowingPaper && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-slate-800 rounded-xl p-4">
-            <div className="text-sm text-slate-400">Starting Balance</div>
-            <div className="text-xl font-semibold">${paperPortfolio.startingBalance.toLocaleString()}</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+          <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+            <div className="text-xs md:text-sm text-slate-400">Starting Balance</div>
+            <div className="text-lg md:text-xl font-semibold">${paperPortfolio.startingBalance.toLocaleString()}</div>
           </div>
-          <div className="bg-slate-800 rounded-xl p-4">
-            <div className="text-sm text-slate-400">Current Value</div>
-            <div className="text-xl font-semibold">${paperTotalValue.toLocaleString()}</div>
+          <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+            <div className="text-xs md:text-sm text-slate-400">Current Value</div>
+            <div className="text-lg md:text-xl font-semibold">${paperTotalValue.toLocaleString()}</div>
           </div>
-          <div className="bg-slate-800 rounded-xl p-4">
-            <div className="text-sm text-slate-400">Total P&L</div>
-            <div className={`text-xl font-semibold ${paperPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+            <div className="text-xs md:text-sm text-slate-400">Total P&L</div>
+            <div className={`text-lg md:text-xl font-semibold ${paperPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {paperPnL >= 0 ? '+' : ''}${paperPnL.toLocaleString()} ({paperPnLPercent.toFixed(2)}%)
             </div>
           </div>
-          <div className="bg-slate-800 rounded-xl p-4">
-            <div className="text-sm text-slate-400">Trades</div>
-            <div className="text-xl font-semibold">{paperPortfolio.trades.length}</div>
+          <div className="bg-slate-800 rounded-xl p-3 md:p-4">
+            <div className="text-xs md:text-sm text-slate-400">Trades</div>
+            <div className="text-lg md:text-xl font-semibold">{paperPortfolio.trades.length}</div>
             <button
               onClick={() => setShowResetConfirm(true)}
               className="text-xs text-red-400 hover:text-red-300 mt-1"
@@ -273,7 +273,7 @@ export function Portfolio() {
           </div>
           {/* Force Close Button */}
           {hasOpenPositions && (
-            <div className="bg-slate-800 rounded-xl p-4">
+            <div className="bg-slate-800 rounded-xl p-3 md:p-4 col-span-2 md:col-span-1">
               <button
                 onClick={() => setShowForceCloseConfirm(true)}
                 className="w-full bg-red-600 hover:bg-red-700 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
@@ -290,11 +290,11 @@ export function Portfolio() {
 
       {/* Refresh Prices Button */}
       {isShowingPaper && hasAnyPositions && (
-        <div className="mb-6 flex items-center gap-4">
+        <div className="mb-6 flex items-center gap-2 md:gap-4 flex-wrap">
           <button
             onClick={refreshPaperPrices}
             disabled={isRefreshing}
-            className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 px-4 py-2 rounded-lg text-sm transition-colors"
+            className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 px-3 md:px-4 py-2 rounded-lg text-sm transition-colors"
           >
             {isRefreshing ? 'Refreshing prices...' : 'Refresh Prices'}
           </button>
@@ -302,7 +302,7 @@ export function Portfolio() {
             <span className="text-sm text-slate-400">Fetching live prices...</span>
           )}
           {!isRefreshing && lastUpdated && (
-            <span className="text-sm text-slate-500">
+            <span className="text-xs md:text-sm text-slate-500">
               Last updated: {lastUpdated.toLocaleTimeString()}
             </span>
           )}
@@ -397,16 +397,16 @@ export function Portfolio() {
 
       {/* Short Positions Section */}
       {isShowingPaper && (paperPortfolio.shortPositions?.length || 0) > 0 && (
-        <div className="bg-slate-800 rounded-xl p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+        <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-6">
+          <h2 className="text-lg md:text-xl font-semibold mb-4 flex items-center gap-2">
             <span className="text-red-400">Short Positions</span>
             <span className="text-xs bg-red-900 text-red-300 px-2 py-1 rounded">BEARISH</span>
           </h2>
-          <p className="text-sm text-slate-400 mb-4">
+          <p className="text-xs md:text-sm text-slate-400 mb-4">
             Short positions profit when prices go DOWN. You've borrowed shares and sold them, hoping to buy back cheaper.
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700">
                   <th className="pb-3">Symbol</th>
@@ -447,9 +447,9 @@ export function Portfolio() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-slate-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6 mb-6 md:mb-8">
+        <div className="lg:col-span-2 bg-slate-800 rounded-xl p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-semibold mb-4">
             {isShowingPaper ? 'Long Positions' : 'Live Holdings'}
           </h2>
           {displayPositions.length === 0 ? (
@@ -466,8 +466,8 @@ export function Portfolio() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-slate-400 border-b border-slate-700">
                     <th className="pb-3">Symbol</th>
@@ -481,15 +481,15 @@ export function Portfolio() {
                 <tbody>
                   {displayPositions.map((position) => (
                     <tr key={position.id} className="border-b border-slate-700">
-                      <td className="py-4">
+                      <td className="py-3 md:py-4">
                         <div className="font-semibold">{position.symbol}</div>
-                        <div className="text-sm text-slate-400">{position.name}</div>
+                        <div className="text-xs md:text-sm text-slate-400">{position.name}</div>
                       </td>
-                      <td className="py-4">{position.shares}</td>
-                      <td className="py-4">${position.avgCost.toFixed(2)}</td>
-                      <td className="py-4">${position.currentPrice.toFixed(2)}</td>
-                      <td className="py-4">${position.totalValue.toLocaleString()}</td>
-                      <td className="py-4">
+                      <td className="py-3 md:py-4">{position.shares}</td>
+                      <td className="py-3 md:py-4">${position.avgCost.toFixed(2)}</td>
+                      <td className="py-3 md:py-4">${position.currentPrice.toFixed(2)}</td>
+                      <td className="py-3 md:py-4">${position.totalValue.toLocaleString()}</td>
+                      <td className="py-3 md:py-4">
                         <span
                           className={
                             position.totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'
