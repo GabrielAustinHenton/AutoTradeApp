@@ -1,0 +1,16 @@
+{
+  "name": "ibkr-proxy",
+  "version": "1.0.0",
+  "description": "CORS proxy for IBKR Client Portal Gateway - enables web-based connections",
+  "main": "proxy.js",
+  "scripts": {
+    "start": "node proxy.js",
+    "dev": "node proxy.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "https-proxy-middleware": "^3.0.0",
+    "node-fetch": "^3.3.2"
+  }
+}

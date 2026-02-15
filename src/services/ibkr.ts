@@ -1,11 +1,21 @@
+// ============================================================================
 // Interactive Brokers Client Portal API Service
-// Requires IB Gateway running locally on port 5000
+// ============================================================================
+// Connects to IBKR via either:
+//   - Local Vite proxy (development) → localhost:5000
+//   - Remote CORS proxy (production/web) → your-server:5001
+//
+// In production, the web app connects to the IBKR CORS Proxy server
+// (server/proxy.js) which runs alongside the IBKR Gateway and adds CORS
+// headers + API key authentication.
+// ============================================================================
 
 import { IBKR_CONFIG } from '../config/ibkr';
 
 export interface IBKRConfig {
-  gatewayUrl: string; // Usually https://localhost:5000
+  gatewayUrl: string;   // Proxy URL (e.g. https://your-server.com:5001)
   accountId: string;
+  apiKey?: string;       // API key for the CORS proxy (production)
 }
 
 export interface IBKRAccount {
@@ -126,19 +136,60 @@ export interface CreateOrderParams {
 class IBKRService {
   private config: IBKRConfig | null = null;
 
-  // Use Vite proxy in development to avoid CORS/SSL issues
+  /**
+   * Get the base URL for API requests.
+   * - In development: use Vite proxy (/api/ibkr → localhost:5000)
+   * - In production: use the configured proxy URL directly
+   */
   private get baseUrl(): string {
     if (!this.config) throw new Error('IBKR not configured');
     // In development, route through Vite proxy
     if (import.meta.env.DEV) {
       return '/api/ibkr';
     }
+    // In production, connect to the CORS proxy server directly
     return this.config.gatewayUrl;
   }
 
   private get accountId(): string {
     if (!this.config) throw new Error('IBKR not configured');
     return this.config.accountId;
+  }
+
+  /**
+   * Build request headers. In production, include the API key for the CORS proxy.
+   */
+  private getHeaders(extra?: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = { ...extra };
+
+    // Add API key for production (CORS proxy authentication)
+    if (!import.meta.env.DEV && this.config?.apiKey) {
+      headers['X-API-Key'] = this.config.apiKey;
+    }
+
+    return headers;
+  }
+
+  /**
+   * Make a fetch request with proper headers and error handling.
+   * Handles both local (cookie-based) and remote (API key-based) auth.
+   */
+  private async request(path: string, options: RequestInit = {}): Promise<Response> {
+    const url = `${this.baseUrl}${path}`;
+    const headers = this.getHeaders(options.headers as Record<string, string>);
+
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers,
+    };
+
+    // In development, use credentials for cookie-based auth with Vite proxy
+    if (import.meta.env.DEV) {
+      fetchOptions.credentials = 'include';
+    }
+
+    const response = await fetch(url, fetchOptions);
+    return response;
   }
 
   configure(config: IBKRConfig): void {
@@ -176,70 +227,56 @@ class IBKRService {
     return this.config !== null && this.config.accountId.length > 0;
   }
 
-  // Authentication status
-  async getAuthStatus(): Promise<{ authenticated: boolean; competing: boolean; connected: boolean }> {
-    const response = await fetch(`${this.baseUrl}/v1/api/iserver/auth/status`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error('Failed to get auth status');
-    }
+  // ========================================================================
+  // API Methods
+  // ========================================================================
+
+  // Check proxy health (production only)
+  async checkProxyHealth(): Promise<{ status: string; gateway: string; keepAlive: boolean; uptime: number }> {
+    const response = await this.request('/health');
+    if (!response.ok) throw new Error('Proxy health check failed');
     return response.json();
   }
 
-  // Keep session alive (call every few minutes)
+  // Authentication status
+  async getAuthStatus(): Promise<{ authenticated: boolean; competing: boolean; connected: boolean }> {
+    const response = await this.request('/v1/api/iserver/auth/status', { method: 'POST' });
+    if (!response.ok) throw new Error('Failed to get auth status');
+    return response.json();
+  }
+
+  // Keep session alive
   async tickle(): Promise<void> {
-    await fetch(`${this.baseUrl}/v1/api/tickle`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    await this.request('/v1/api/tickle', { method: 'POST' });
   }
 
   // Get accounts
   async getAccounts(): Promise<IBKRAccount[]> {
-    const response = await fetch(`${this.baseUrl}/v1/api/portfolio/accounts`, {
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error('Failed to get accounts');
-    }
+    const response = await this.request('/v1/api/portfolio/accounts');
+    if (!response.ok) throw new Error('Failed to get accounts');
     return response.json();
   }
 
   // Get account summary
   async getAccountSummary(): Promise<IBKRAccountSummary> {
-    const response = await fetch(
-      `${this.baseUrl}/v1/api/portfolio/${this.accountId}/summary`,
-      { credentials: 'include' }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to get account summary');
-    }
+    const response = await this.request(`/v1/api/portfolio/${this.accountId}/summary`);
+    if (!response.ok) throw new Error('Failed to get account summary');
     return response.json();
   }
 
   // Get positions
   async getPositions(): Promise<IBKRPosition[]> {
-    const response = await fetch(
-      `${this.baseUrl}/v1/api/portfolio/${this.accountId}/positions/0`,
-      { credentials: 'include' }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to get positions');
-    }
+    const response = await this.request(`/v1/api/portfolio/${this.accountId}/positions/0`);
+    if (!response.ok) throw new Error('Failed to get positions');
     return response.json();
   }
 
   // Search for contract by symbol
   async searchContract(symbol: string): Promise<{ conid: number; name: string; ticker: string }[]> {
-    const response = await fetch(
-      `${this.baseUrl}/v1/api/iserver/secdef/search?symbol=${encodeURIComponent(symbol)}`,
-      { credentials: 'include' }
+    const response = await this.request(
+      `/v1/api/iserver/secdef/search?symbol=${encodeURIComponent(symbol)}`
     );
-    if (!response.ok) {
-      throw new Error('Failed to search contract');
-    }
+    if (!response.ok) throw new Error('Failed to search contract');
     return response.json();
   }
 
@@ -251,37 +288,25 @@ class IBKRService {
     instrument_type: string;
     company_name: string;
   }> {
-    const response = await fetch(
-      `${this.baseUrl}/v1/api/iserver/contract/${conid}/info`,
-      { credentials: 'include' }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to get contract details');
-    }
+    const response = await this.request(`/v1/api/iserver/contract/${conid}/info`);
+    if (!response.ok) throw new Error('Failed to get contract details');
     return response.json();
   }
 
   // Get market data snapshot
   async getQuote(conids: number[]): Promise<IBKRQuote[]> {
-    const fields = '31,84,85,86,87,88,7295,7296,7674,7675'; // Common quote fields
-    const response = await fetch(
-      `${this.baseUrl}/v1/api/iserver/marketdata/snapshot?conids=${conids.join(',')}&fields=${fields}`,
-      { credentials: 'include' }
+    const fields = '31,84,85,86,87,88,7295,7296,7674,7675';
+    const response = await this.request(
+      `/v1/api/iserver/marketdata/snapshot?conids=${conids.join(',')}&fields=${fields}`
     );
-    if (!response.ok) {
-      throw new Error('Failed to get quote');
-    }
+    if (!response.ok) throw new Error('Failed to get quote');
     return response.json();
   }
 
   // Get orders
   async getOrders(): Promise<IBKROrder[]> {
-    const response = await fetch(`${this.baseUrl}/v1/api/iserver/account/orders`, {
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error('Failed to get orders');
-    }
+    const response = await this.request('/v1/api/iserver/account/orders');
+    if (!response.ok) throw new Error('Failed to get orders');
     const data = await response.json();
     return data.orders || [];
   }
@@ -298,12 +323,11 @@ class IBKRService {
       ...(params.orderType === 'LMT' && { price: params.price }),
     };
 
-    const response = await fetch(
-      `${this.baseUrl}/v1/api/iserver/account/${this.accountId}/orders`,
+    const response = await this.request(
+      `/v1/api/iserver/account/${this.accountId}/orders`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ orders: [orderPayload] }),
       }
     );
@@ -316,77 +340,46 @@ class IBKRService {
     return response.json();
   }
 
-  // Confirm order (IBKR requires confirmation for some orders)
+  // Confirm order
   async confirmOrder(replyId: string, confirmed: boolean): Promise<{ orderId: string; orderStatus: string }[]> {
-    const response = await fetch(
-      `${this.baseUrl}/v1/api/iserver/reply/${replyId}`,
+    const response = await this.request(
+      `/v1/api/iserver/reply/${replyId}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ confirmed }),
       }
     );
 
-    if (!response.ok) {
-      throw new Error('Failed to confirm order');
-    }
-
+    if (!response.ok) throw new Error('Failed to confirm order');
     return response.json();
   }
 
   // Cancel order
   async cancelOrder(orderId: string): Promise<void> {
-    const response = await fetch(
-      `${this.baseUrl}/v1/api/iserver/account/${this.accountId}/order/${orderId}`,
-      {
-        method: 'DELETE',
-        credentials: 'include',
-      }
+    const response = await this.request(
+      `/v1/api/iserver/account/${this.accountId}/order/${orderId}`,
+      { method: 'DELETE' }
     );
 
-    if (!response.ok) {
-      throw new Error('Failed to cancel order');
-    }
+    if (!response.ok) throw new Error('Failed to cancel order');
   }
 
   // Convenience methods
   async buyMarket(conid: number, quantity: number): Promise<{ orderId: string; orderStatus: string }[]> {
-    return this.placeOrder({
-      conid,
-      orderType: 'MKT',
-      side: 'BUY',
-      quantity,
-    });
+    return this.placeOrder({ conid, orderType: 'MKT', side: 'BUY', quantity });
   }
 
   async sellMarket(conid: number, quantity: number): Promise<{ orderId: string; orderStatus: string }[]> {
-    return this.placeOrder({
-      conid,
-      orderType: 'MKT',
-      side: 'SELL',
-      quantity,
-    });
+    return this.placeOrder({ conid, orderType: 'MKT', side: 'SELL', quantity });
   }
 
   async buyLimit(conid: number, quantity: number, price: number): Promise<{ orderId: string; orderStatus: string }[]> {
-    return this.placeOrder({
-      conid,
-      orderType: 'LMT',
-      side: 'BUY',
-      quantity,
-      price,
-    });
+    return this.placeOrder({ conid, orderType: 'LMT', side: 'BUY', quantity, price });
   }
 
   async sellLimit(conid: number, quantity: number, price: number): Promise<{ orderId: string; orderStatus: string }[]> {
-    return this.placeOrder({
-      conid,
-      orderType: 'LMT',
-      side: 'SELL',
-      quantity,
-      price,
-    });
+    return this.placeOrder({ conid, orderType: 'LMT', side: 'SELL', quantity, price });
   }
 
   // Get conid for a stock symbol (helper)

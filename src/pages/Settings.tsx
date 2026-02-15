@@ -32,6 +32,7 @@ export function Settings() {
 
   const [gatewayUrl, setGatewayUrl] = useState('https://localhost:5000');
   const [accountId, setAccountId] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +110,7 @@ export function Settings() {
     if (config) {
       setGatewayUrl(config.gatewayUrl);
       setAccountId(config.accountId);
+      if (config.apiKey) setApiKey(config.apiKey);
     }
   }, []);
 
@@ -142,6 +144,7 @@ export function Settings() {
       connectIBKR({
         gatewayUrl,
         accountId,
+        apiKey: apiKey || undefined,
       });
 
       // Test connection by checking auth status
@@ -551,43 +554,63 @@ export function Settings() {
           </div>
         </div>
 
-        {/* Setup Instructions */}
+        {/* Setup Instructions - Tabs for Local vs Web */}
         <div className="mb-6 p-4 bg-slate-700/50 rounded-lg">
-          <h3 className="font-medium mb-2">Setup Instructions</h3>
-          <ol className="text-sm text-slate-400 space-y-2 list-decimal list-inside">
-            <li>
-              Download the{' '}
-              <a
-                href="https://www.interactivebrokers.com/en/trading/ib-api.php"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-emerald-400 hover:underline"
-              >
-                IB Client Portal Gateway
-              </a>
-            </li>
-            <li>Run the gateway (usually starts on localhost:5000)</li>
-            <li>Log in through the gateway's web interface</li>
-            <li>Enter your Account ID below and connect</li>
-          </ol>
+          <h3 className="font-medium mb-3">Setup Instructions</h3>
+
+          <div className="space-y-4">
+            {/* Local Development */}
+            <div className="bg-slate-600/30 rounded-lg p-3">
+              <h4 className="text-sm font-medium text-emerald-400 mb-2">Local Development</h4>
+              <ol className="text-sm text-slate-400 space-y-1 list-decimal list-inside">
+                <li>
+                  Download the{' '}
+                  <a href="https://www.interactivebrokers.com/en/trading/ib-api.php" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">
+                    IB Client Portal Gateway
+                  </a>
+                </li>
+                <li>Run the gateway locally (starts on localhost:5000)</li>
+                <li>Log in through the gateway's web interface</li>
+                <li>Set Gateway URL to <code className="text-emerald-300">https://localhost:5000</code></li>
+              </ol>
+            </div>
+
+            {/* Web / Remote */}
+            <div className="bg-slate-600/30 rounded-lg p-3">
+              <h4 className="text-sm font-medium text-blue-400 mb-2">Web / Remote Access</h4>
+              <ol className="text-sm text-slate-400 space-y-1 list-decimal list-inside">
+                <li>Run the IBKR Gateway on a server (VPS, home server, etc.)</li>
+                <li>
+                  Run the CORS proxy alongside it:{' '}
+                  <code className="text-blue-300">cd server && npm install && PROXY_API_KEY=your-secret node proxy.js</code>
+                </li>
+                <li>The proxy runs on port 5001 and keeps the IBKR session alive automatically</li>
+                <li>Set Gateway URL below to your proxy's address (e.g. <code className="text-blue-300">http://your-server:5001</code>)</li>
+                <li>Enter the same API key you set on the proxy</li>
+              </ol>
+              <p className="text-xs text-amber-400 mt-2">
+                The proxy includes built-in keep-alive (tickle every 50s) so your IBKR session stays connected 24/7.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Connection Form */}
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Gateway URL
+              Gateway / Proxy URL
             </label>
             <input
               type="text"
               value={gatewayUrl}
               onChange={(e) => setGatewayUrl(e.target.value)}
-              placeholder="https://localhost:5000"
+              placeholder="https://localhost:5000 or http://your-server:5001"
               className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-emerald-500"
               disabled={ibkrConnected}
             />
             <p className="text-xs text-slate-500 mt-1">
-              Default is https://localhost:5000 for the Client Portal Gateway
+              Local: https://localhost:5000 | Remote: http://your-server:5001 (CORS proxy)
             </p>
           </div>
 
@@ -605,6 +628,24 @@ export function Settings() {
             />
             <p className="text-xs text-slate-500 mt-1">
               Your IBKR account ID (starts with U, DU, or similar)
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Proxy API Key
+              <span className="text-slate-500 font-normal ml-2">(for remote/web connections)</span>
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Leave blank for local development"
+              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-emerald-500"
+              disabled={ibkrConnected}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              The PROXY_API_KEY you set when starting the CORS proxy server. Not needed for local dev.
             </p>
           </div>
         </div>
