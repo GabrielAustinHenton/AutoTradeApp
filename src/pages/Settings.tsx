@@ -575,21 +575,28 @@ export function Settings() {
               </ol>
             </div>
 
-            {/* Web / Remote */}
+            {/* Web / Remote via Google Cloud Free VM */}
             <div className="bg-slate-600/30 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-blue-400 mb-2">Web / Remote Access</h4>
+              <h4 className="text-sm font-medium text-blue-400 mb-2">Web / Phone Access (Google Cloud Free VM)</h4>
               <ol className="text-sm text-slate-400 space-y-1 list-decimal list-inside">
-                <li>Run the IBKR Gateway on a server (VPS, home server, etc.)</li>
                 <li>
-                  Run the CORS proxy alongside it:{' '}
-                  <code className="text-blue-300">cd server && npm install && PROXY_API_KEY=your-secret node proxy.js</code>
+                  Install the{' '}
+                  <a href="https://cloud.google.com/sdk/docs/install" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                    gcloud CLI
+                  </a>
+                  {' '}and log in with your Google account
                 </li>
-                <li>The proxy runs on port 5001 and keeps the IBKR session alive automatically</li>
-                <li>Set Gateway URL below to your proxy's address (e.g. <code className="text-blue-300">http://your-server:5001</code>)</li>
-                <li>Enter the same API key you set on the proxy</li>
+                <li>
+                  Run <code className="text-blue-300">./server/deploy-gce.sh</code> to create a free VM
+                </li>
+                <li>SSH into the VM and run the setup script (printed after deploy)</li>
+                <li>
+                  Log into IBKR at <code className="text-blue-300">https://VM_IP:5000</code>
+                </li>
+                <li>Enter the proxy URL and API key below</li>
               </ol>
               <p className="text-xs text-amber-400 mt-2">
-                The proxy includes built-in keep-alive (tickle every 50s) so your IBKR session stays connected 24/7.
+                Uses Google Cloud's always-free e2-micro VM. The proxy keeps your IBKR session alive 24/7 automatically.
               </p>
             </div>
           </div>
