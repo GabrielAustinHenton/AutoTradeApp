@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { IBKR_CONFIG } from '../config/ibkr';
 import { ibkr } from '../services/ibkr';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
 import { useAuth } from '../contexts/AuthContext';
@@ -562,7 +563,7 @@ export function Settings() {
               Your IBKR session has expired. Log into the Gateway to restore the connection — your IBKR mobile app will receive a 2FA notification to approve.
             </p>
             <button
-              onClick={() => window.open(`https://${new URL(gatewayUrl).hostname}:5000`, '_blank')}
+              onClick={() => window.open(IBKR_CONFIG.loginUrl, '_blank')}
               className="text-sm px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors"
             >
               Open IBKR Gateway Login →

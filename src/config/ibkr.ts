@@ -17,4 +17,7 @@ export const IBKR_CONFIG = {
 
   // API key for the CORS proxy
   apiKey: 'df0a99e3fcadd4b7682eb872cdcf9abfca75caec291ce842a2e6a2b8efe2484e',
+
+  // Login URL via nginx proxy (allows external browser access to the Gateway login page)
+  loginUrl: 'http://136.114.200.145:5002',
 };
