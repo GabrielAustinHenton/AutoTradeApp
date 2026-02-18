@@ -15,7 +15,7 @@ import type {
   AutoTradeExecution,
   BacktestResult,
 } from '../types';
-import { alpaca, type AlpacaConfig } from '../services/alpaca';
+import { alpaca } from '../services/alpaca';
 import { PERMANENT_WATCHLIST } from '../config/watchlist';
 import { clearAllMonitoredPositions } from '../services/positionMonitor';
 
@@ -250,8 +250,10 @@ interface AppState {
   alertsEnabled: boolean;
   soundEnabled: boolean;
 
-  // Alpaca
-  alpacaConnected: boolean;
+  // Alpaca — paper and live stored separately for safety
+  alpacaPaperConnected: boolean;  // paper keys verified
+  alpacaLiveConnected: boolean;   // live keys verified
+  alpacaConnected: boolean;       // = relevant one for current trading mode
   alpacaSynced: boolean;
 
   // Trading Mode & Paper Trading
@@ -305,8 +307,10 @@ interface AppState {
   toggleSound: () => void;
 
   // Actions - Alpaca
-  connectAlpaca: (config: AlpacaConfig) => void;
-  disconnectAlpaca: () => void;
+  connectAlpacaPaper: (keyId: string, secretKey: string) => void;
+  connectAlpacaLive: (keyId: string, secretKey: string) => void;
+  disconnectAlpacaPaper: () => void;
+  disconnectAlpacaLive: () => void;
   syncFromAlpaca: () => Promise<void>;
 
   // Actions - Trading Mode
@@ -362,7 +366,9 @@ export const useStore = create<AppState>()(
       alerts: [],
       alertsEnabled: false,
       soundEnabled: false,
-      alpacaConnected: alpaca.loadConfig() !== null,
+      alpacaPaperConnected: alpaca.isPaperConfigured(),
+      alpacaLiveConnected: alpaca.isLiveConfigured(),
+      alpacaConnected: alpaca.isPaperConfigured(), // default: paper mode
       alpacaSynced: false,
 
       // Trading Mode & Paper Trading
@@ -562,24 +568,54 @@ export const useStore = create<AppState>()(
       toggleSound: () =>
         set((state) => ({ soundEnabled: !state.soundEnabled })),
 
-      // Alpaca actions
-      connectAlpaca: (config) => {
-        alpaca.configure(config);
-        set({ alpacaConnected: true });
+      // Alpaca actions — paper and live stored separately
+      connectAlpacaPaper: (keyId, secretKey) => {
+        alpaca.configurePaper(keyId, secretKey);
+        set((s) => ({
+          alpacaPaperConnected: true,
+          // Update alpacaConnected if we're currently in paper mode
+          alpacaConnected: s.tradingMode === 'paper' ? true : s.alpacaConnected,
+        }));
       },
 
-      disconnectAlpaca: () => {
-        alpaca.clearConfig();
-        set({ alpacaConnected: false, alpacaSynced: false });
+      connectAlpacaLive: (keyId, secretKey) => {
+        alpaca.configureLive(keyId, secretKey);
+        set((s) => ({
+          alpacaLiveConnected: true,
+          // Update alpacaConnected if we're currently in live mode
+          alpacaConnected: s.tradingMode === 'live' ? true : s.alpacaConnected,
+        }));
+      },
+
+      disconnectAlpacaPaper: () => {
+        alpaca.clearPaper();
+        set((s) => ({
+          alpacaPaperConnected: false,
+          alpacaConnected: s.tradingMode === 'paper' ? false : s.alpacaConnected,
+          alpacaSynced: s.tradingMode === 'paper' ? false : s.alpacaSynced,
+        }));
+      },
+
+      disconnectAlpacaLive: () => {
+        alpaca.clearLive();
+        set((s) => ({
+          alpacaLiveConnected: false,
+          alpacaConnected: s.tradingMode === 'live' ? false : s.alpacaConnected,
+          alpacaSynced: s.tradingMode === 'live' ? false : s.alpacaSynced,
+        }));
       },
 
       syncFromAlpaca: async () => {
-        if (!alpaca.isConfigured()) return;
+        const { tradingMode } = get();
+        const isPaper = tradingMode === 'paper';
+
+        if (isPaper && !alpaca.isPaperConfigured()) return;
+        if (!isPaper && !alpaca.isLiveConfigured()) return;
 
         try {
           const [account, alpacaPositions] = await Promise.all([
-            alpaca.getAccount(),
-            alpaca.getPositions(),
+            alpaca.getAccount(isPaper),
+            alpaca.getPositions(isPaper),
           ]);
 
           const cashBalance = parseFloat(account.cash);
@@ -634,7 +670,16 @@ export const useStore = create<AppState>()(
       },
 
       // Trading Mode actions
-      setTradingMode: (mode) => set({ tradingMode: mode }),
+      setTradingMode: (mode) => set((s) => ({
+        tradingMode: mode,
+        // Update alpacaConnected to reflect the relevant account for the new mode
+        alpacaConnected: mode === 'paper' ? s.alpacaPaperConnected : s.alpacaLiveConnected,
+        // Safety: always disable auto-trading when switching to live mode
+        // User must manually re-enable it after reviewing their settings
+        autoTradeConfig: mode === 'live'
+          ? { ...s.autoTradeConfig, enabled: false }
+          : s.autoTradeConfig,
+      })),
 
       resetPaperPortfolio: (initialBalance = 25000) => {
         clearAllMonitoredPositions();  // Clear position monitor when portfolio is reset

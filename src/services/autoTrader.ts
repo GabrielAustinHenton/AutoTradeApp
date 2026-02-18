@@ -224,11 +224,11 @@ export async function executeAutoTrade(
     const isLiveMode = mode === 'live';
 
     if (isLiveMode) {
-      // Execute via Alpaca
+      // Execute via Alpaca Live API (isPaper = false)
       if (rule.type === 'buy') {
-        await alpaca.buyMarket(alert.symbol, execution.shares);
+        await alpaca.buyMarket(false, alert.symbol, execution.shares);
       } else {
-        await alpaca.sellMarket(alert.symbol, execution.shares);
+        await alpaca.sellMarket(false, alert.symbol, execution.shares);
       }
 
       // Sync portfolio after trade

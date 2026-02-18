@@ -22,20 +22,17 @@ import { migrateLocalStorageToUser, loadFromFirestore, scheduleSyncToFirestore }
 import { alpaca } from './services/alpaca';
 
 function AppContent() {
-  const { syncRulesWithWatchlist, connectAlpaca, alpacaConnected, syncFromAlpaca } = useStore();
+  const { syncRulesWithWatchlist, tradingMode, alpacaConnected, syncFromAlpaca } = useStore();
 
-  // Auto-connect to Alpaca on app load if config is stored in localStorage
+  // Auto-sync Alpaca portfolio on app load if credentials are already configured
   useEffect(() => {
-    if (!alpacaConnected) {
-      const config = alpaca.loadConfig();
-      if (config) {
-        connectAlpaca(config);
-        syncFromAlpaca().catch(() => {
-          // Silently fail — keys may be invalid or network unavailable
-        });
-      }
+    // alpaca.loadConfigs() is called on import; just sync if we have the right credentials
+    if (alpacaConnected) {
+      syncFromAlpaca().catch(() => {
+        // Silently fail — network unavailable or keys changed
+      });
     }
-  }, []);
+  }, [tradingMode]); // re-sync when mode changes (switches between paper/live data)
 
   // Initialize pattern scanner
   usePatternScanner();

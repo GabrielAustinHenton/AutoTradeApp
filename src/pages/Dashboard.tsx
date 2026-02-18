@@ -112,9 +112,16 @@ export function Dashboard() {
   }, [isPaperMode, paperPortfolio?.history]);
 
   // Calculate P&L stats
-  const startingBalance = isPaperMode ? (paperPortfolio?.startingBalance ?? 10000) : 10000;
-  const totalPnL = totalPortfolioValue !== null ? totalPortfolioValue - startingBalance : null;
-  const totalPnLPercent = totalPnL !== null ? (totalPnL / startingBalance) * 100 : null;
+  // In live mode, we don't have a meaningful "starting balance" stored in the app —
+  // only paper portfolio tracks its own starting balance.
+  // For live mode, show unrealized P&L (positions gain/loss) instead of inception gain.
+  const startingBalance = isPaperMode ? (paperPortfolio?.startingBalance ?? 25000) : null;
+  const totalPnL = isPaperMode && startingBalance !== null && totalPortfolioValue !== null
+    ? totalPortfolioValue - startingBalance
+    : null;
+  const totalPnLPercent = totalPnL !== null && startingBalance
+    ? (totalPnL / startingBalance) * 100
+    : null;
 
   // Quick Backtest function
   const runQuickBacktest = async () => {
@@ -248,14 +255,21 @@ export function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg md:text-xl font-semibold">Portfolio Performance</h2>
               <div className="text-right">
-                {totalPnL !== null ? (
+                {isPaperMode && totalPnL !== null ? (
                   <>
                     <div className={`text-lg font-semibold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {totalPnL >= 0 ? '+' : ''}${totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     <div className={`text-sm ${(totalPnLPercent ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(totalPnLPercent ?? 0) >= 0 ? '+' : ''}{(totalPnLPercent ?? 0).toFixed(2)}% all-time
+                      {(totalPnLPercent ?? 0) >= 0 ? '+' : ''}{(totalPnLPercent ?? 0).toFixed(2)}% since start
                     </div>
+                  </>
+                ) : !isPaperMode && totalGain !== null && !isLiveNotConnected ? (
+                  <>
+                    <div className={`text-lg font-semibold ${totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {totalGain >= 0 ? '+' : ''}${totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-sm text-slate-400">Unrealized P&L</div>
                   </>
                 ) : (
                   <div className="text-slate-400">--</div>
@@ -282,11 +296,11 @@ export function Dashboard() {
                       }}
                       formatter={(value: number) => [`$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 'Value']}
                     />
-                    <ReferenceLine y={startingBalance} stroke="#64748b" strokeDasharray="5 5" />
+                    {startingBalance !== null && <ReferenceLine y={startingBalance} stroke="#64748b" strokeDasharray="5 5" />}
                     <Line
                       type="monotone"
                       dataKey="value"
-                      stroke={totalPnL >= 0 ? '#10b981' : '#ef4444'}
+                      stroke={(isPaperMode ? (totalPnL ?? 0) : (totalGain ?? 0)) >= 0 ? '#10b981' : '#ef4444'}
                       strokeWidth={2}
                       dot={chartData.length < 20}
                     />

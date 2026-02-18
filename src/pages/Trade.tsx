@@ -90,25 +90,26 @@ export function Trade() {
     const total = sharesNum * priceNum;
 
     try {
-      // Live mode - execute real trade via Alpaca
+      // Live mode - execute real trade via Alpaca Live API
       if (isLiveMode) {
+        const isPaper = false; // isLiveMode = true means live credentials
         if (orderType === 'market') {
           if (tradeType === 'buy') {
-            await alpaca.buyMarket(symbol.toUpperCase(), sharesNum);
+            await alpaca.buyMarket(isPaper, symbol.toUpperCase(), sharesNum);
           } else {
-            await alpaca.sellMarket(symbol.toUpperCase(), sharesNum);
+            await alpaca.sellMarket(isPaper, symbol.toUpperCase(), sharesNum);
           }
         } else {
           if (tradeType === 'buy') {
-            await alpaca.buyLimit(symbol.toUpperCase(), sharesNum, priceNum);
+            await alpaca.buyLimit(isPaper, symbol.toUpperCase(), sharesNum, priceNum);
           } else {
-            await alpaca.sellLimit(symbol.toUpperCase(), sharesNum, priceNum);
+            await alpaca.sellLimit(isPaper, symbol.toUpperCase(), sharesNum, priceNum);
           }
         }
 
         setOrderStatus({
           type: 'success',
-          message: `${tradeType === 'buy' ? 'Buy' : 'Sell'} order for ${sharesNum} shares of ${symbol.toUpperCase()} submitted to Alpaca!`,
+          message: `${tradeType === 'buy' ? 'Buy' : 'Sell'} order for ${sharesNum} shares of ${symbol.toUpperCase()} submitted to Alpaca Live!`,
         });
 
         setTimeout(() => syncFromAlpaca(), 2000);
