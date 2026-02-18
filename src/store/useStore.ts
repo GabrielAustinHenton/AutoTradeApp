@@ -21,7 +21,7 @@ import { clearAllMonitoredPositions } from '../services/positionMonitor';
 
 // Default auto-trade configuration
 const defaultAutoTradeConfig: AutoTradeConfig = {
-  enabled: true,
+  enabled: false,
   maxTradesPerDay: 20,
   maxPositionSize: 10,
   maxTradeDollarAmount: 3750,  // 15% of $25k mental budget — risk shrinks as % as portfolio grows
