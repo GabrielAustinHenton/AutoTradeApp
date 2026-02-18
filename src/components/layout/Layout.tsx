@@ -11,7 +11,7 @@ function IBKRReconnectBanner() {
 
   const handleReconnect = () => {
     // Open the IBKR Gateway login page — user logs in, approves 2FA on their phone
-    window.open(`http://${new URL(IBKR_CONFIG.baseUrl).hostname}:5000`, '_blank');
+    window.open(`https://${new URL(IBKR_CONFIG.baseUrl).hostname}:5000`, '_blank');
   };
 
   const handleSyncAfterLogin = async () => {

@@ -562,7 +562,7 @@ export function Settings() {
               Your IBKR session has expired. Log into the Gateway to restore the connection — your IBKR mobile app will receive a 2FA notification to approve.
             </p>
             <button
-              onClick={() => window.open(`http://${new URL(gatewayUrl).hostname}:5000`, '_blank')}
+              onClick={() => window.open(`https://${new URL(gatewayUrl).hostname}:5000`, '_blank')}
               className="text-sm px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors"
             >
               Open IBKR Gateway Login →
