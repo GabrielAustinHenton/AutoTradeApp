@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { alpaca } from '../services/alpaca';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
+import { saveAlpacaCredsToFirestore } from '../services/firestoreSync';
 import { useAuth } from '../contexts/AuthContext';
 import type { Alert } from '../types';
 
@@ -119,6 +120,7 @@ export function Settings() {
       alpaca.configurePaper(paperKeyId, paperSecret);
       await alpaca.getAccount(true); // verify against paper endpoint
       connectAlpacaPaper(paperKeyId, paperSecret);
+      if (user) saveAlpacaCredsToFirestore(user.uid, 'paper', { keyId: paperKeyId, secretKey: paperSecret });
       setPaperSecret(''); // clear secret from UI after saving
       // Auto-sync if currently in paper mode so Dashboard shows live data immediately
       if (tradingMode === 'paper') {
@@ -148,6 +150,7 @@ export function Settings() {
       alpaca.configureLive(liveKeyId, liveSecret);
       await alpaca.getAccount(false); // verify against live endpoint
       connectAlpacaLive(liveKeyId, liveSecret);
+      if (user) saveAlpacaCredsToFirestore(user.uid, 'live', { keyId: liveKeyId, secretKey: liveSecret });
       setLiveSecret(''); // clear secret from UI after saving
       // Auto-sync if currently in live mode so Dashboard shows live data immediately
       if (tradingMode === 'live') {
@@ -601,7 +604,7 @@ export function Settings() {
                   {syncing ? 'Syncing...' : 'Sync Paper Portfolio'}
                 </button>
                 <button
-                  onClick={() => { disconnectAlpacaPaper(); setPaperKeyId(''); setPaperSecret(''); }}
+                  onClick={() => { disconnectAlpacaPaper(); setPaperKeyId(''); setPaperSecret(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'paper', null); }}
                   className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
                 >
                   Disconnect
@@ -675,7 +678,7 @@ export function Settings() {
                     {syncing ? 'Syncing...' : 'Sync Live Portfolio'}
                   </button>
                   <button
-                    onClick={() => { disconnectAlpacaLive(); setLiveKeyId(''); setLiveSecret(''); }}
+                    onClick={() => { disconnectAlpacaLive(); setLiveKeyId(''); setLiveSecret(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'live', null); }}
                     className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
                   >
                     Disconnect

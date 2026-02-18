@@ -14,6 +14,7 @@
 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { alpaca } from './alpaca';
 
 // Storage key prefixes
 const MAIN_STORE_PREFIX = 'tradeapp-storage';
@@ -109,6 +110,43 @@ export function scheduleSyncToFirestore(uid: string): void {
     saveToFirestore(uid);
     syncTimeout = null;
   }, 5000);
+}
+
+// ============================================================================
+// Alpaca Credentials Sync
+// ============================================================================
+
+/** Save Alpaca credentials for one account type to Firestore */
+export async function saveAlpacaCredsToFirestore(
+  uid: string,
+  type: 'paper' | 'live',
+  creds: { keyId: string; secretKey: string } | null,
+): Promise<void> {
+  try {
+    const field = type === 'paper' ? 'alpacaPaperCreds' : 'alpacaLiveCreds';
+    await setDoc(doc(db, 'userData', uid), { [field]: creds }, { merge: true });
+    console.log(`[FirestoreSync] Saved Alpaca ${type} creds`);
+  } catch (err) {
+    console.error(`[FirestoreSync] Failed to save Alpaca ${type} creds:`, err);
+  }
+}
+
+/** Load Alpaca credentials from Firestore. Returns what was found. */
+export async function loadAlpacaCredsFromFirestore(uid: string): Promise<{
+  paper: { keyId: string; secretKey: string } | null;
+  live: { keyId: string; secretKey: string } | null;
+}> {
+  try {
+    const docSnap = await getDoc(doc(db, 'userData', uid));
+    if (!docSnap.exists()) return { paper: null, live: null };
+    const data = docSnap.data();
+    const paper = data.alpacaPaperCreds?.keyId ? data.alpacaPaperCreds : null;
+    const live = data.alpacaLiveCreds?.keyId ? data.alpacaLiveCreds : null;
+    return { paper, live };
+  } catch (err) {
+    console.error('[FirestoreSync] Failed to load Alpaca creds:', err);
+    return { paper: null, live: null };
+  }
 }
 
 /** Cancel any pending sync */

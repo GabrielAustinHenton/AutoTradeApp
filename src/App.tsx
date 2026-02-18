@@ -18,7 +18,7 @@ import { usePatternScanner } from './hooks/usePatternScanner';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { useStore } from './store/useStore';
 import { useAuth } from './contexts/AuthContext';
-import { migrateLocalStorageToUser, loadFromFirestore, scheduleSyncToFirestore } from './services/firestoreSync';
+import { migrateLocalStorageToUser, loadFromFirestore, scheduleSyncToFirestore, loadAlpacaCredsFromFirestore } from './services/firestoreSync';
 import { alpaca } from './services/alpaca';
 
 function AppContent() {
@@ -80,6 +80,17 @@ function AuthGate() {
         if (loaded) {
           // Reload the page to pick up Firestore data in the stores
           window.location.reload();
+        }
+      });
+
+      // Load Alpaca credentials from Firestore if not already in localStorage
+      loadAlpacaCredsFromFirestore(user.uid).then(({ paper, live }) => {
+        const { connectAlpacaPaper, connectAlpacaLive } = useStore.getState();
+        if (paper && !alpaca.isPaperConfigured()) {
+          connectAlpacaPaper(paper.keyId, paper.secretKey);
+        }
+        if (live && !alpaca.isLiveConfigured()) {
+          connectAlpacaLive(live.keyId, live.secretKey);
         }
       });
 
