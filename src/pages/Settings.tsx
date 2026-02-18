@@ -651,8 +651,8 @@ export function Settings() {
                 <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Live Trading → API Keys</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${alpacaLiveConnected ? 'bg-red-500 animate-pulse' : 'bg-slate-500'}`} />
-                <span className={`text-xs font-medium ${alpacaLiveConnected ? 'text-red-400' : 'text-slate-400'}`}>
+                <span className={`w-2 h-2 rounded-full ${alpacaLiveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
+                <span className={`text-xs font-medium ${alpacaLiveConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
                   {alpacaLiveConnected ? 'Connected' : 'Not connected'}
                 </span>
               </div>

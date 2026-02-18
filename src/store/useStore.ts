@@ -1237,6 +1237,15 @@ export const useStore = create<AppState>()(
           merged.journalEntries = Array.isArray(persisted.journalEntries) ? persisted.journalEntries : [];
           merged.backtestResults = Array.isArray(persisted.backtestResults) ? persisted.backtestResults : [];
 
+          // Always recompute connection state from actual localStorage credentials —
+          // persisted booleans can go stale after a disconnect/reconnect cycle.
+          merged.alpacaPaperConnected = alpaca.isPaperConfigured();
+          merged.alpacaLiveConnected = alpaca.isLiveConfigured();
+          const restoredMode = (persisted.tradingMode as string) || 'paper';
+          merged.alpacaConnected = restoredMode === 'paper'
+            ? merged.alpacaPaperConnected
+            : merged.alpacaLiveConnected;
+
           return merged as AppState;
         } catch (error) {
           console.error('Error in store merge, using defaults:', error);
