@@ -16,9 +16,9 @@ const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export function Portfolio() {
   const location = useLocation();
-  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, forceCloseAllPositions, updatePaperPositionPrices, updateShortPositionPrices, ibkrConnected, autoTradeConfig, updateAutoTradeConfig } = useStore();
+  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, forceCloseAllPositions, updatePaperPositionPrices, updateShortPositionPrices, alpacaConnected, autoTradeConfig, updateAutoTradeConfig } = useStore();
   const [activeTab, setActiveTab] = useState<'paper' | 'live'>(tradingMode);
-  const isLiveNotConnected = activeTab === 'live' && !ibkrConnected;
+  const isLiveNotConnected = activeTab === 'live' && !alpacaConnected;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showForceCloseConfirm, setShowForceCloseConfirm] = useState(false);
   const [forceCloseResult, setForceCloseResult] = useState<{ totalPnL: number; tradesExecuted: number } | null>(null);
@@ -457,7 +457,7 @@ export function Portfolio() {
               <p className="text-slate-400">
                 {isShowingPaper
                   ? 'No paper positions yet. Make some paper trades to build your portfolio.'
-                  : 'No live positions yet. Connect to IBKR and start trading.'}
+                  : 'No live positions yet. Connect Alpaca and start trading.'}
               </p>
               {isShowingPaper && tradingMode !== 'paper' && (
                 <p className="text-sm text-amber-400 mt-2">
@@ -511,7 +511,7 @@ export function Portfolio() {
           <h2 className="text-sm font-semibold mb-2 text-slate-300">Allocation</h2>
           {isLiveNotConnected ? (
             <div className="h-16 flex items-center justify-center text-xs text-slate-400">
-              IBKR not connected
+              Not connected
             </div>
           ) : pieData.length === 0 || totalPortfolioValue === 0 || totalPortfolioValue === null ? (
             <div className="h-16 flex items-center justify-center text-xs text-slate-400">

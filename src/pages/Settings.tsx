@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { IBKR_CONFIG } from '../config/ibkr';
-import { ibkr } from '../services/ibkr';
+import { alpaca } from '../services/alpaca';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
 import { useAuth } from '../contexts/AuthContext';
 import { saveToFirestore } from '../services/firestoreSync';
@@ -10,12 +9,10 @@ import type { Alert } from '../types';
 export function Settings() {
   const { user, userProfile, logOut, updateUserProfile, isConfigured } = useAuth();
   const {
-    ibkrConnected,
-    ibkrAccountId,
-    ibkrAuthenticated,
-    connectIBKR,
-    disconnectIBKR,
-    syncFromIBKR,
+    alpacaConnected,
+    connectAlpaca,
+    disconnectAlpaca,
+    syncFromAlpaca,
     alertsEnabled,
     soundEnabled,
     toggleAlerts,
@@ -32,17 +29,15 @@ export function Settings() {
     autoTradeExecutions,
   } = useStore();
 
-  const [gatewayUrl, setGatewayUrl] = useState('http://136.114.200.145:5001');
-  const [accountId, setAccountId] = useState('');
-  const [apiKey, setApiKey] = useState('');
+  // Alpaca connection form state
+  const [paperKeyId, setPaperKeyId] = useState(() => alpaca.loadConfig()?.isPaper !== false ? (alpaca.loadConfig()?.keyId ?? '') : '');
+  const [paperSecretKey, setPaperSecretKey] = useState(() => alpaca.loadConfig()?.isPaper !== false ? (alpaca.loadConfig()?.secretKey ?? '') : '');
+  const [liveKeyId, setLiveKeyId] = useState(() => alpaca.loadConfig()?.isPaper === false ? (alpaca.loadConfig()?.keyId ?? '') : '');
+  const [liveSecretKey, setLiveSecretKey] = useState(() => alpaca.loadConfig()?.isPaper === false ? (alpaca.loadConfig()?.secretKey ?? '') : '');
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [authStatus, setAuthStatus] = useState<{
-    authenticated: boolean;
-    connected: boolean;
-  } | null>(null);
   const [testingAutoTrade, setTestingAutoTrade] = useState(false);
   const [autoTradeTestResult, setAutoTradeTestResult] = useState<string | null>(null);
 
@@ -106,89 +101,64 @@ export function Settings() {
     setTestingAutoTrade(false);
   };
 
-  // Load existing config on mount
-  useEffect(() => {
-    const config = ibkr.loadConfig();
-    if (config) {
-      setGatewayUrl(config.gatewayUrl);
-      setAccountId(config.accountId);
-      if (config.apiKey) setApiKey(config.apiKey);
+  const handleConnectPaper = async () => {
+    if (!paperKeyId || !paperSecretKey) {
+      setError('Enter both Paper Key ID and Secret Key.');
+      return;
     }
-  }, []);
-
-  // Check auth status when connected
-  useEffect(() => {
-    if (ibkrConnected) {
-      checkAuthStatus();
-    }
-  }, [ibkrConnected]);
-
-  const checkAuthStatus = async () => {
-    try {
-      const status = await ibkr.getAuthStatus();
-      setAuthStatus({
-        authenticated: status.authenticated,
-        connected: status.connected,
-      });
-    } catch (err) {
-      console.error('Failed to get auth status:', err);
-      setAuthStatus(null);
-    }
-  };
-
-  const handleConnect = async () => {
     setError(null);
     setSuccess(null);
     setConnecting(true);
-
     try {
-      // Configure IBKR
-      connectIBKR({
-        gatewayUrl,
-        accountId,
-        apiKey: apiKey || undefined,
-      });
-
-      // Test connection by checking auth status
-      const status = await ibkr.getAuthStatus();
-
-      if (!status.authenticated) {
-        setError('Not authenticated. Please log in to the IB Gateway web interface first.');
-        disconnectIBKR();
-        return;
-      }
-
-      setAuthStatus({
-        authenticated: status.authenticated,
-        connected: status.connected,
-      });
-
-      setSuccess(`Connected to Interactive Brokers! Account: ${accountId}`);
+      const config = { keyId: paperKeyId, secretKey: paperSecretKey, isPaper: true };
+      alpaca.configure(config);
+      // Verify by fetching account
+      await alpaca.getAccount();
+      connectAlpaca(config);
+      await syncFromAlpaca();
+      setSuccess('Connected to Alpaca Paper Trading!');
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? `Connection failed: ${err.message}. Make sure IB Gateway is running.`
-          : 'Failed to connect'
-      );
-      disconnectIBKR();
+      alpaca.clearConfig();
+      setError(err instanceof Error ? `Connection failed: ${err.message}` : 'Failed to connect. Check your API keys.');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleConnectLive = async () => {
+    if (!liveKeyId || !liveSecretKey) {
+      setError('Enter both Live Key ID and Secret Key.');
+      return;
+    }
+    setError(null);
+    setSuccess(null);
+    setConnecting(true);
+    try {
+      const config = { keyId: liveKeyId, secretKey: liveSecretKey, isPaper: false };
+      alpaca.configure(config);
+      await alpaca.getAccount();
+      connectAlpaca(config);
+      await syncFromAlpaca();
+      setSuccess('Connected to Alpaca Live Trading!');
+    } catch (err) {
+      alpaca.clearConfig();
+      setError(err instanceof Error ? `Connection failed: ${err.message}` : 'Failed to connect. Check your API keys.');
     } finally {
       setConnecting(false);
     }
   };
 
   const handleDisconnect = () => {
-    disconnectIBKR();
+    disconnectAlpaca();
     setSuccess(null);
     setError(null);
-    setAuthStatus(null);
   };
 
   const handleSync = async () => {
     setError(null);
     setSyncing(true);
-
     try {
-      await syncFromIBKR();
+      await syncFromAlpaca();
       setSuccess('Portfolio synced successfully!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sync');
@@ -225,21 +195,21 @@ export function Settings() {
 
           <button
             onClick={() => setTradingMode('live')}
-            disabled={!ibkrConnected}
+            disabled={!alpacaConnected}
             className={`flex-1 p-4 rounded-lg border-2 transition-colors ${
               tradingMode === 'live'
                 ? 'border-red-500 bg-red-900/30'
                 : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
-            } ${!ibkrConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${!alpacaConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className="flex items-center gap-3 mb-2">
               <span className="text-xl md:text-2xl">💰</span>
               <span className="font-semibold text-base md:text-lg">Live Trading</span>
             </div>
             <p className="text-sm text-slate-400">
-              {ibkrConnected
-                ? 'Trade with real money via IBKR. Use caution!'
-                : 'Connect to IBKR below to enable live trading.'}
+              {alpacaConnected
+                ? 'Trade with real money via Alpaca. Use caution!'
+                : 'Connect Alpaca Live keys below to enable live trading.'}
             </p>
           </button>
         </div>
@@ -326,7 +296,7 @@ export function Settings() {
               <span className="font-medium">Live Trading Active</span>
             </div>
             <p className="text-sm text-slate-400 mt-1">
-              All trades will be executed with real money through your IBKR account.
+              All trades will be executed with real money through your Alpaca account.
             </p>
           </div>
         )}
@@ -535,43 +505,23 @@ export function Settings() {
         )}
       </div>
 
-      {/* IBKR Connection */}
+      {/* Alpaca Connection */}
       <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg md:text-xl font-semibold">Interactive Brokers</h2>
-            <p className="text-slate-400 text-sm mt-0.5">Account: {ibkrAccountId || accountId || 'Not configured'}</p>
+            <h2 className="text-lg md:text-xl font-semibold">Alpaca Markets</h2>
+            <p className="text-slate-400 text-sm mt-0.5">
+              API key auth — no daily re-login required
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${
-              ibkrAuthenticated ? 'bg-emerald-500 animate-pulse' :
-              ibkrConnected ? 'bg-amber-500' : 'bg-slate-500'
-            }`} />
-            <span className={`text-sm font-medium ${
-              ibkrAuthenticated ? 'text-emerald-400' :
-              ibkrConnected ? 'text-amber-400' : 'text-slate-400'
-            }`}>
-              {ibkrAuthenticated ? 'Session Active' : ibkrConnected ? 'Needs Login' : 'Disconnected'}
+            <span className={`w-2.5 h-2.5 rounded-full ${alpacaConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
+            <span className={`text-sm font-medium ${alpacaConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
+              {alpacaConnected ? `Connected (${alpaca.isPaper() ? 'Paper' : 'Live'})` : 'Not connected'}
             </span>
           </div>
         </div>
 
-        {/* Session expired prompt */}
-        {ibkrConnected && !ibkrAuthenticated && (
-          <div className="mb-4 p-3 bg-amber-900/30 border border-amber-700 rounded-lg">
-            <p className="text-amber-300 text-sm mb-2">
-              Your IBKR session has expired. Log into the Gateway to restore the connection — your IBKR mobile app will receive a 2FA notification to approve.
-            </p>
-            <button
-              onClick={() => window.open(IBKR_CONFIG.loginUrl, '_blank')}
-              className="text-sm px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors"
-            >
-              Open IBKR Gateway Login →
-            </button>
-          </div>
-        )}
-
-        {/* Error/Success Messages */}
         {error && (
           <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
             {error}
@@ -583,40 +533,88 @@ export function Settings() {
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-2">
-          {!ibkrConnected ? (
+        {/* If already connected, show sync/disconnect buttons */}
+        {alpacaConnected ? (
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={handleConnect}
-              disabled={connecting || !accountId}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+              onClick={handleSync}
+              disabled={syncing}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
             >
-              {connecting ? 'Connecting...' : 'Connect'}
+              {syncing ? 'Syncing...' : 'Sync Portfolio'}
             </button>
-          ) : (
-            <>
+            <button
+              onClick={handleDisconnect}
+              className="px-4 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
+            >
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Paper Trading Keys */}
+            <div className="p-4 bg-slate-700/50 rounded-lg">
+              <h3 className="font-medium mb-1">Paper Trading Keys</h3>
+              <p className="text-xs text-slate-400 mb-3">
+                From <span className="text-slate-300">app.alpaca.markets</span> → Paper Trading → API Keys
+              </p>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={paperKeyId}
+                  onChange={(e) => setPaperKeyId(e.target.value.trim())}
+                  placeholder="Paper Key ID (e.g. PKXXXXXXXXXXXXXXXX)"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+                <input
+                  type="password"
+                  value={paperSecretKey}
+                  onChange={(e) => setPaperSecretKey(e.target.value.trim())}
+                  placeholder="Paper Secret Key"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
               <button
-                onClick={handleSync}
-                disabled={syncing}
-                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+                onClick={handleConnectPaper}
+                disabled={connecting || !paperKeyId || !paperSecretKey}
+                className="mt-3 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
               >
-                {syncing ? 'Syncing...' : 'Sync Portfolio'}
+                {connecting ? 'Connecting...' : 'Connect Paper'}
               </button>
+            </div>
+
+            {/* Live Trading Keys */}
+            <div className="p-4 bg-slate-700/50 rounded-lg">
+              <h3 className="font-medium mb-1">Live Trading Keys</h3>
+              <p className="text-xs text-slate-400 mb-3">
+                From <span className="text-slate-300">app.alpaca.markets</span> → Live Trading → API Keys (requires funded account)
+              </p>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={liveKeyId}
+                  onChange={(e) => setLiveKeyId(e.target.value.trim())}
+                  placeholder="Live Key ID (e.g. AKXXXXXXXXXXXXXXXX)"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+                <input
+                  type="password"
+                  value={liveSecretKey}
+                  onChange={(e) => setLiveSecretKey(e.target.value.trim())}
+                  placeholder="Live Secret Key"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
               <button
-                onClick={checkAuthStatus}
-                className="px-4 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
+                onClick={handleConnectLive}
+                disabled={connecting || !liveKeyId || !liveSecretKey}
+                className="mt-3 px-4 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
               >
-                Check Status
+                {connecting ? 'Connecting...' : 'Connect Live'}
               </button>
-              <button
-                onClick={handleDisconnect}
-                className="px-4 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
-              >
-                Disconnect
-              </button>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Alert Settings */}
@@ -706,27 +704,6 @@ export function Settings() {
               </button>
             </div>
 
-            {/* Save IBKR settings to user profile */}
-            {ibkrConnected && ibkrAccountId && (
-              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
-                <div>
-                  <h3 className="font-medium">Save IBKR Config to Profile</h3>
-                  <p className="text-sm text-slate-400 mt-1">
-                    Store your IBKR account ID ({ibkrAccountId}) in your user profile for quick reconnection
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateUserProfile({
-                    ibkrAccountId,
-                    ibkrGatewayUrl: gatewayUrl,
-                  })}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            )}
-
             {/* Sign Out */}
             <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
               <div>
@@ -750,16 +727,16 @@ export function Settings() {
       <div className="bg-slate-800 rounded-xl p-6">
         <h2 className="text-xl font-semibold mb-4">About</h2>
         <div className="text-slate-400 text-sm space-y-2">
-          <p>TradeApp - Stock Trading & Portfolio Management</p>
-          <p>Built with React, TypeScript, and Interactive Brokers API</p>
+          <p>AutoTrader - Stock Trading & Portfolio Management</p>
+          <p>Built with React, TypeScript, and Alpaca Markets API</p>
           <p className="pt-2">
             <a
-              href="https://www.interactivebrokers.com"
+              href="https://alpaca.markets"
               target="_blank"
               rel="noopener noreferrer"
               className="text-emerald-400 hover:underline"
             >
-              Powered by Interactive Brokers
+              Powered by Alpaca Markets
             </a>
           </p>
         </div>

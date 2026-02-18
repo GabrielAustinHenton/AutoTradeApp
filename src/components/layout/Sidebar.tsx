@@ -16,7 +16,7 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  const { ibkrConnected } = useStore();
+  const { alpacaConnected } = useStore();
   const { user, userProfile, logOut, isConfigured } = useAuth();
 
   const handleSignOut = async () => {
@@ -51,19 +51,19 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* IBKR Connection Status */}
+      {/* Alpaca Connection Status */}
       <div className="mt-4 p-3 bg-slate-800 rounded-lg">
         <div className="flex items-center gap-2 text-sm">
           <span
             className={`w-2 h-2 rounded-full ${
-              ibkrConnected ? 'bg-emerald-500' : 'bg-slate-500'
+              alpacaConnected ? 'bg-emerald-500' : 'bg-slate-500'
             }`}
           />
           <span className="text-slate-400">
-            {ibkrConnected ? 'IBKR Connected' : 'Not Connected'}
+            {alpacaConnected ? 'Alpaca Connected' : 'Not Connected'}
           </span>
         </div>
-        {!ibkrConnected && (
+        {!alpacaConnected && (
           <NavLink
             to="/settings"
             className="text-xs text-emerald-400 hover:underline mt-1 block"

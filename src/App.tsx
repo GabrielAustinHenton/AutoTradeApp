@@ -16,24 +16,22 @@ import { AlertToast } from './components/alerts/AlertToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { usePatternScanner } from './hooks/usePatternScanner';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
-import { useIBKRKeepAlive } from './hooks/useIBKRKeepAlive';
 import { useStore } from './store/useStore';
 import { useAuth } from './contexts/AuthContext';
 import { migrateLocalStorageToUser, loadFromFirestore, scheduleSyncToFirestore } from './services/firestoreSync';
-import { ibkr } from './services/ibkr';
+import { alpaca } from './services/alpaca';
 
 function AppContent() {
-  const { syncRulesWithWatchlist, connectIBKR, ibkrConnected, syncFromIBKR } = useStore();
+  const { syncRulesWithWatchlist, connectAlpaca, alpacaConnected, syncFromAlpaca } = useStore();
 
-  // Auto-connect to IBKR on app load if config is available, then sync portfolio
+  // Auto-connect to Alpaca on app load if config is stored in localStorage
   useEffect(() => {
-    if (!ibkrConnected) {
-      const config = ibkr.loadConfig();
+    if (!alpacaConnected) {
+      const config = alpaca.loadConfig();
       if (config) {
-        connectIBKR(config);
-        // Sync portfolio data after connecting
-        syncFromIBKR().catch(() => {
-          // Silently fail — IBKR may need re-authentication
+        connectAlpaca(config);
+        syncFromAlpaca().catch(() => {
+          // Silently fail — keys may be invalid or network unavailable
         });
       }
     }
@@ -44,9 +42,6 @@ function AppContent() {
 
   // Initialize position monitor for take-profit/stop-loss
   usePositionMonitor();
-
-  // Keep IBKR session alive
-  useIBKRKeepAlive();
 
   // Sync trading rules with watchlist on startup
   useEffect(() => {

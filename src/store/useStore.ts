@@ -15,7 +15,7 @@ import type {
   AutoTradeExecution,
   BacktestResult,
 } from '../types';
-import { ibkr, type IBKRConfig } from '../services/ibkr';
+import { alpaca, type AlpacaConfig } from '../services/alpaca';
 import { PERMANENT_WATCHLIST } from '../config/watchlist';
 import { clearAllMonitoredPositions } from '../services/positionMonitor';
 
@@ -250,12 +250,9 @@ interface AppState {
   alertsEnabled: boolean;
   soundEnabled: boolean;
 
-  // IBKR
-  ibkrConnected: boolean;
-  ibkrAccountId: string;
-  ibkrSynced: boolean;
-  ibkrAuthenticated: boolean;
-  setIbkrAuthenticated: (v: boolean) => void;
+  // Alpaca
+  alpacaConnected: boolean;
+  alpacaSynced: boolean;
 
   // Trading Mode & Paper Trading
   tradingMode: TradingMode;
@@ -307,10 +304,10 @@ interface AppState {
   toggleAlerts: () => void;
   toggleSound: () => void;
 
-  // Actions - IBKR
-  connectIBKR: (config: IBKRConfig) => void;
-  disconnectIBKR: () => void;
-  syncFromIBKR: () => Promise<void>;
+  // Actions - Alpaca
+  connectAlpaca: (config: AlpacaConfig) => void;
+  disconnectAlpaca: () => void;
+  syncFromAlpaca: () => Promise<void>;
 
   // Actions - Trading Mode
   setTradingMode: (mode: TradingMode) => void;
@@ -365,11 +362,8 @@ export const useStore = create<AppState>()(
       alerts: [],
       alertsEnabled: false,
       soundEnabled: false,
-      ibkrConnected: ibkr.loadConfig() !== null,
-      ibkrAccountId: ibkr.loadConfig()?.accountId || '',
-      ibkrSynced: false,
-      ibkrAuthenticated: false,
-      setIbkrAuthenticated: (v) => set({ ibkrAuthenticated: v }),
+      alpacaConnected: alpaca.loadConfig() !== null,
+      alpacaSynced: false,
 
       // Trading Mode & Paper Trading
       tradingMode: 'paper',
@@ -568,58 +562,73 @@ export const useStore = create<AppState>()(
       toggleSound: () =>
         set((state) => ({ soundEnabled: !state.soundEnabled })),
 
-      // IBKR actions
-      connectIBKR: (config) => {
-        ibkr.configure(config);
-        set({ ibkrConnected: true, ibkrAccountId: config.accountId });
+      // Alpaca actions
+      connectAlpaca: (config) => {
+        alpaca.configure(config);
+        set({ alpacaConnected: true });
       },
 
-      disconnectIBKR: () => {
-        ibkr.clearConfig();
-        set({ ibkrConnected: false, ibkrAccountId: '' });
+      disconnectAlpaca: () => {
+        alpaca.clearConfig();
+        set({ alpacaConnected: false, alpacaSynced: false });
       },
 
-      syncFromIBKR: async () => {
-        if (!ibkr.isConfigured()) return;
+      syncFromAlpaca: async () => {
+        if (!alpaca.isConfigured()) return;
 
         try {
-          // Get account summary (IBKR returns lowercase field names)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const summaryData = await ibkr.getAccountSummary() as any;
-          const cashBalance = summaryData.totalcashvalue?.amount || 0;
-          set({ cashBalance, ibkrSynced: true });
+          const [account, alpacaPositions] = await Promise.all([
+            alpaca.getAccount(),
+            alpaca.getPositions(),
+          ]);
 
-          // Get positions
-          const ibkrPositions = await ibkr.getPositions();
-          const positions: Position[] = ibkrPositions.map((p) => ({
-            id: p.conid.toString(),
-            symbol: p.ticker || p.contractDesc,
-            name: p.fullName || p.contractDesc,
-            shares: p.position,
-            avgCost: p.avgCost,
-            currentPrice: p.mktPrice,
-            totalValue: p.mktValue,
-            totalGain: p.unrealizedPnl,
-            totalGainPercent: p.avgCost > 0 ? ((p.mktPrice - p.avgCost) / p.avgCost) * 100 : 0,
-          }));
+          const cashBalance = parseFloat(account.cash);
+          const totalValue = parseFloat(account.portfolio_value);
 
-          const totalValue = summaryData.netliquidation?.amount || 0;
+          const positions: Position[] = alpacaPositions
+            .filter((p) => p.side === 'long')
+            .map((p) => {
+              const shares = parseFloat(p.qty);
+              const avgCost = parseFloat(p.avg_entry_price);
+              const currentPrice = parseFloat(p.current_price);
+              const totalVal = parseFloat(p.market_value);
+              const totalGain = parseFloat(p.unrealized_pl);
+              const totalGainPercent = parseFloat(p.unrealized_plpc) * 100;
+              return {
+                id: p.asset_id,
+                symbol: p.symbol,
+                name: p.symbol,
+                shares,
+                avgCost,
+                currentPrice,
+                totalValue: totalVal,
+                totalGain,
+                totalGainPercent,
+              };
+            });
+
           const totalCost = positions.reduce((sum, p) => sum + p.shares * p.avgCost, 0);
+          const dayChange = parseFloat(account.equity) - parseFloat(account.last_equity);
+          const dayChangePercent = parseFloat(account.last_equity) > 0
+            ? (dayChange / parseFloat(account.last_equity)) * 100
+            : 0;
 
           set({
+            cashBalance,
             positions,
+            alpacaSynced: true,
             portfolioSummary: {
               totalValue,
               totalCost,
               totalGain: totalValue - totalCost,
               totalGainPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
-              dayChange: 0, // IBKR doesn't provide this directly
-              dayChangePercent: 0,
+              dayChange,
+              dayChangePercent,
               cashBalance,
             },
           });
         } catch (error) {
-          console.error('Failed to sync from IBKR:', error);
+          console.error('Failed to sync from Alpaca:', error);
           throw error;
         }
       },

@@ -51,12 +51,6 @@ export const PERMANENT_WATCHLIST = [...PERMANENT_STOCKS];
   ],
   server: {
     proxy: {
-      '/api/ibkr': {
-        target: 'https://localhost:5000',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api\/ibkr/, ''),
-      },
       '/api/twelvedata': {
         target: 'https://api.twelvedata.com',
         changeOrigin: true,

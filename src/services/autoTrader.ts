@@ -3,7 +3,7 @@
 
 import type { TradingRule, AutoTradeConfig, AutoTradeExecution, Alert, TradingMode } from '../types';
 import { useStore } from '../store/useStore';
-import { ibkr } from './ibkr';
+import { alpaca } from './alpaca';
 import { getQuote } from './alphaVantage';
 import { getBinancePrice, isCryptoSymbol } from './binanceApi';
 import { registerPositionForMonitoring, registerShortPositionForMonitoring } from './positionMonitor';
@@ -99,10 +99,10 @@ export function canExecuteAutoTrade(
     return { allowed: false, reason: 'Auto-trade not enabled for this rule' };
   }
 
-  // Check if in live mode without IBKR connected
+  // Check if in live mode without Alpaca connected
   const state = useStore.getState();
-  if (state.tradingMode === 'live' && !state.ibkrConnected) {
-    return { allowed: false, reason: 'Live mode requires IBKR connection. Switch to Paper mode or connect IBKR.' };
+  if (state.tradingMode === 'live' && !state.alpacaConnected) {
+    return { allowed: false, reason: 'Live mode requires Alpaca connection. Switch to Paper mode or connect Alpaca in Settings.' };
   }
 
   // Check yearly drawdown protection
@@ -224,21 +224,16 @@ export async function executeAutoTrade(
     const isLiveMode = mode === 'live';
 
     if (isLiveMode) {
-      // Execute via IBKR
-      const conid = await ibkr.getConidForSymbol(alert.symbol);
-      if (!conid) {
-        throw new Error(`Could not find contract for ${alert.symbol}`);
-      }
-
+      // Execute via Alpaca
       if (rule.type === 'buy') {
-        await ibkr.buyMarket(conid, execution.shares);
+        await alpaca.buyMarket(alert.symbol, execution.shares);
       } else {
-        await ibkr.sellMarket(conid, execution.shares);
+        await alpaca.sellMarket(alert.symbol, execution.shares);
       }
 
       // Sync portfolio after trade
       setTimeout(() => {
-        useStore.getState().syncFromIBKR();
+        useStore.getState().syncFromAlpaca();
       }, 2000);
     } else {
       // Paper trading - update paper portfolio

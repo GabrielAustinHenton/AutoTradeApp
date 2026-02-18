@@ -258,7 +258,7 @@ export function TradeHistory() {
             {activeTrades.length === 0
               ? activeTab === 'paper'
                 ? 'No paper trades yet. Switch to paper trading mode and make some trades.'
-                : 'No live trades yet. Connect to IBKR and start trading.'
+                : 'No live trades yet. Connect Alpaca and start trading.'
               : 'No trades match the current filters.'}
           </div>
         ) : (

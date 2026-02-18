@@ -23,7 +23,7 @@ const moreItems = [
 
 export function MobileNav() {
   const [showMore, setShowMore] = useState(false);
-  const { ibkrConnected } = useStore();
+  const { alpacaConnected } = useStore();
   const { user, userProfile, logOut, isConfigured } = useAuth();
 
   return (
@@ -59,16 +59,16 @@ export function MobileNav() {
               ))}
             </div>
 
-            {/* IBKR Status */}
+            {/* Alpaca Status */}
             <div className="flex items-center justify-between p-3 bg-slate-800 rounded-xl mb-2">
               <div className="flex items-center gap-2 text-sm">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    ibkrConnected ? 'bg-emerald-500' : 'bg-slate-500'
+                    alpacaConnected ? 'bg-emerald-500' : 'bg-slate-500'
                   }`}
                 />
                 <span className="text-slate-400">
-                  {ibkrConnected ? 'IBKR Connected' : 'IBKR Not Connected'}
+                  {alpacaConnected ? 'Alpaca Connected' : 'Not Connected'}
                 </span>
               </div>
             </div>

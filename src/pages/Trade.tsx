@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { useQuote, useSymbolSearch, useDailyData } from '../hooks/useStockData';
-import { ibkr } from '../services/ibkr';
+import { alpaca } from '../services/alpaca';
 import type { Trade, Position } from '../types';
 import {
   LineChart,
@@ -21,8 +21,8 @@ export function Trade() {
     updatePosition,
     cashBalance,
     setCashBalance,
-    ibkrConnected,
-    syncFromIBKR,
+    alpacaConnected,
+    syncFromAlpaca,
     tradingMode,
     paperPortfolio,
     addPaperTrade,
@@ -32,7 +32,7 @@ export function Trade() {
   } = useStore();
 
   // Use paper portfolio when in paper mode
-  const isLiveMode = tradingMode === 'live' && ibkrConnected;
+  const isLiveMode = tradingMode === 'live' && alpacaConnected;
   const activeCashBalance = isLiveMode ? cashBalance : paperPortfolio.cashBalance;
   const activePositions = isLiveMode ? positions : paperPortfolio.positions;
   const [symbol, setSymbol] = useState('');
@@ -90,33 +90,28 @@ export function Trade() {
     const total = sharesNum * priceNum;
 
     try {
-      // Live mode - execute real trade via IBKR
+      // Live mode - execute real trade via Alpaca
       if (isLiveMode) {
-        const conid = await ibkr.getConidForSymbol(symbol.toUpperCase());
-        if (!conid) {
-          throw new Error(`Could not find contract for symbol: ${symbol}`);
-        }
-
         if (orderType === 'market') {
           if (tradeType === 'buy') {
-            await ibkr.buyMarket(conid, sharesNum);
+            await alpaca.buyMarket(symbol.toUpperCase(), sharesNum);
           } else {
-            await ibkr.sellMarket(conid, sharesNum);
+            await alpaca.sellMarket(symbol.toUpperCase(), sharesNum);
           }
         } else {
           if (tradeType === 'buy') {
-            await ibkr.buyLimit(conid, sharesNum, priceNum);
+            await alpaca.buyLimit(symbol.toUpperCase(), sharesNum, priceNum);
           } else {
-            await ibkr.sellLimit(conid, sharesNum, priceNum);
+            await alpaca.sellLimit(symbol.toUpperCase(), sharesNum, priceNum);
           }
         }
 
         setOrderStatus({
           type: 'success',
-          message: `${tradeType === 'buy' ? 'Buy' : 'Sell'} order for ${sharesNum} shares of ${symbol.toUpperCase()} submitted to IBKR!`,
+          message: `${tradeType === 'buy' ? 'Buy' : 'Sell'} order for ${sharesNum} shares of ${symbol.toUpperCase()} submitted to Alpaca!`,
         });
 
-        setTimeout(() => syncFromIBKR(), 2000);
+        setTimeout(() => syncFromAlpaca(), 2000);
       } else {
         // Paper trading mode
         const existingPosition = activePositions.find(

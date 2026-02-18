@@ -29,8 +29,8 @@ export function Dashboard() {
     tradingMode,
     paperPortfolio,
     autoTradeConfig,
-    ibkrConnected,
-    ibkrSynced,
+    alpacaConnected,
+    alpacaSynced,
   } = useStore();
 
   // Backtest state
@@ -47,7 +47,7 @@ export function Dashboard() {
 
   // Use paper portfolio data when in paper mode
   const isPaperMode = tradingMode === 'paper';
-  const isLiveNotConnected = tradingMode === 'live' && (!ibkrConnected || !ibkrSynced);
+  const isLiveNotConnected = tradingMode === 'live' && (!alpacaConnected || !alpacaSynced);
   const displayPositions = isPaperMode ? (paperPortfolio?.positions || []) : (isLiveNotConnected ? [] : positions);
   const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : (isLiveNotConnected ? null : cashBalance);
   const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : (isLiveNotConnected ? [] : trades);
@@ -213,7 +213,7 @@ export function Dashboard() {
 
       {isLiveNotConnected && (
         <div className="mb-6 p-4 bg-slate-800 border border-slate-600 rounded-xl text-center">
-          <p className="text-slate-400">IBKR not connected. Connect your broker in Settings to see live portfolio data.</p>
+          <p className="text-slate-400">Not connected. Connect Alpaca in Settings to see live portfolio data.</p>
         </div>
       )}
 
