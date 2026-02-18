@@ -648,6 +648,16 @@ export const useStore = create<AppState>()(
               };
             });
 
+          // Also sync short positions from Alpaca
+          const shortPositions = alpacaPositions
+            .filter((p) => p.side === 'short')
+            .map((p) => ({
+              symbol: p.symbol,
+              shares: Math.abs(parseFloat(p.qty)),
+              entryPrice: parseFloat(p.avg_entry_price),
+              currentPrice: parseFloat(p.current_price),
+            }));
+
           const totalCost = positions.reduce((sum, p) => sum + p.shares * p.avgCost, 0);
           const dayChange = parseFloat(account.equity) - parseFloat(account.last_equity);
           const dayChangePercent = parseFloat(account.last_equity) > 0
@@ -662,6 +672,7 @@ export const useStore = create<AppState>()(
                 ...s.paperPortfolio,
                 cashBalance,
                 positions,
+                shortPositions,
               },
             }));
           } else {

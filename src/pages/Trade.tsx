@@ -114,143 +114,30 @@ export function Trade() {
 
         setTimeout(() => syncFromAlpaca(), 2000);
       } else {
-        // Paper trading mode
-        const existingPosition = activePositions.find(
-          (p) => p.symbol === symbol.toUpperCase()
-        );
-        const existingShort = shortPositions.find(
-          (p) => p.symbol === symbol.toUpperCase()
-        );
-
-        // Validation based on trade type
-        if (tradeType === 'buy' && total > activeCashBalance) {
-          setOrderStatus({ type: 'error', message: 'Insufficient funds' });
-          setSubmitting(false);
-          return;
-        }
-
-        if (tradeType === 'sell') {
-          if (!existingPosition || existingPosition.shares < sharesNum) {
-            setOrderStatus({ type: 'error', message: 'Insufficient shares' });
-            setSubmitting(false);
-            return;
-          }
-        }
-
-        if (tradeType === 'short') {
-          // Need 150% margin for shorts
-          const marginRequired = total * 1.5;
-          if (marginRequired > activeCashBalance) {
-            setOrderStatus({ type: 'error', message: `Insufficient margin. Need $${marginRequired.toFixed(2)} (150% of position)` });
-            setSubmitting(false);
-            return;
-          }
-        }
-
-        if (tradeType === 'cover') {
-          if (!existingShort || existingShort.shares < sharesNum) {
-            setOrderStatus({ type: 'error', message: 'No short position to cover or insufficient shares' });
-            setSubmitting(false);
-            return;
-          }
-        }
-
-        // Execute paper trade based on type
-        if (tradeType === 'buy') {
-          // Update paper cash balance
-          useStore.setState((state) => ({
-            paperPortfolio: {
-              ...state.paperPortfolio,
-              cashBalance: state.paperPortfolio.cashBalance - total,
-            },
-          }));
-
-          if (existingPosition) {
-            const newShares = existingPosition.shares + sharesNum;
-            const newTotalCost = existingPosition.avgCost * existingPosition.shares + total;
-            const newAvgCost = newTotalCost / newShares;
-            updatePaperPosition(symbol.toUpperCase(), newShares, newAvgCost, priceNum);
+        // Paper trading via Alpaca paper API (isPaper = true)
+        // Alpaca is the source of truth — we submit the order and sync back.
+        if (orderType === 'market') {
+          if (tradeType === 'buy' || tradeType === 'cover') {
+            await alpaca.buyMarket(true, symbol.toUpperCase(), sharesNum);
           } else {
-            updatePaperPosition(symbol.toUpperCase(), sharesNum, priceNum, priceNum);
+            await alpaca.sellMarket(true, symbol.toUpperCase(), sharesNum);
           }
-
-          const trade: Trade = {
-            id: crypto.randomUUID(),
-            symbol: symbol.toUpperCase(),
-            type: 'buy',
-            shares: sharesNum,
-            price: priceNum,
-            total,
-            date: new Date(),
-            notes: notes || undefined,
-          };
-          addPaperTrade(trade);
-
-          setOrderStatus({
-            type: 'success',
-            message: `Paper trade: Bought ${sharesNum} shares of ${symbol.toUpperCase()}`,
-          });
-        } else if (tradeType === 'sell') {
-          // Sell - update paper cash balance
-          useStore.setState((state) => ({
-            paperPortfolio: {
-              ...state.paperPortfolio,
-              cashBalance: state.paperPortfolio.cashBalance + total,
-            },
-          }));
-
-          const newShares = existingPosition!.shares - sharesNum;
-          updatePaperPosition(
-            symbol.toUpperCase(),
-            newShares,
-            existingPosition!.avgCost,
-            priceNum
-          );
-
-          const trade: Trade = {
-            id: crypto.randomUUID(),
-            symbol: symbol.toUpperCase(),
-            type: 'sell',
-            shares: sharesNum,
-            price: priceNum,
-            total,
-            date: new Date(),
-            notes: notes || undefined,
-          };
-          addPaperTrade(trade);
-
-          setOrderStatus({
-            type: 'success',
-            message: `Paper trade: Sold ${sharesNum} shares of ${symbol.toUpperCase()}`,
-          });
-        } else if (tradeType === 'short') {
-          // Short sell
-          const success = openShortPosition(symbol.toUpperCase(), sharesNum, priceNum);
-          if (!success) {
-            setOrderStatus({ type: 'error', message: 'Failed to open short position' });
-            setSubmitting(false);
-            return;
+        } else {
+          if (tradeType === 'buy' || tradeType === 'cover') {
+            await alpaca.buyLimit(true, symbol.toUpperCase(), sharesNum, priceNum);
+          } else {
+            await alpaca.sellLimit(true, symbol.toUpperCase(), sharesNum, priceNum);
           }
-
-          setOrderStatus({
-            type: 'success',
-            message: `Paper trade: Shorted ${sharesNum} shares of ${symbol.toUpperCase()} @ $${priceNum.toFixed(2)}`,
-          });
-        } else if (tradeType === 'cover') {
-          // Cover short
-          const success = coverShortPosition(symbol.toUpperCase(), sharesNum, priceNum);
-          if (!success) {
-            setOrderStatus({ type: 'error', message: 'Failed to cover short position' });
-            setSubmitting(false);
-            return;
-          }
-
-          const profitLoss = (existingShort!.entryPrice - priceNum) * sharesNum;
-          setOrderStatus({
-            type: 'success',
-            message: `Paper trade: Covered ${sharesNum} shares of ${symbol.toUpperCase()} (P/L: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)})`,
-          });
         }
+
+        const actionLabel = tradeType === 'buy' ? 'Buy' : tradeType === 'sell' ? 'Sell' : tradeType === 'short' ? 'Short' : 'Cover';
+        setOrderStatus({
+          type: 'success',
+          message: `${actionLabel} order for ${sharesNum} shares of ${symbol.toUpperCase()} submitted to Alpaca Paper!`,
+        });
+
+        // Sync paper portfolio so balance and positions update in the app
+        setTimeout(() => syncFromAlpaca(), 2000);
       }
 
       // Reset form

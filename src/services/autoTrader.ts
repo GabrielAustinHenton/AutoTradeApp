@@ -221,117 +221,22 @@ export async function executeAutoTrade(
 
     execution.total = execution.shares * execution.price;
 
-    const isLiveMode = mode === 'live';
+    // Both paper and live trades go through Alpaca — paper uses isPaper=true,
+    // live uses isPaper=false. Alpaca is the single source of truth for both.
+    const isPaper = mode === 'paper';
 
-    if (isLiveMode) {
-      // Execute via Alpaca Live API (isPaper = false)
-      if (rule.type === 'buy') {
-        await alpaca.buyMarket(false, alert.symbol, execution.shares);
-      } else {
-        await alpaca.sellMarket(false, alert.symbol, execution.shares);
-      }
-
-      // Sync portfolio after trade
-      setTimeout(() => {
-        useStore.getState().syncFromAlpaca();
-      }, 2000);
+    if (rule.type === 'buy' || rule.type === 'cover') {
+      // BUY to open a long position, or COVER to close a short
+      await alpaca.buyMarket(isPaper, alert.symbol, execution.shares);
     } else {
-      // Paper trading - update paper portfolio
-      const state = useStore.getState();
-      const paperPositions = state.paperPortfolio.positions;
-
-      if (rule.type === 'buy') {
-        // Check if we have enough cash
-        if (execution.total > state.paperPortfolio.cashBalance) {
-          throw new Error('Insufficient funds in paper portfolio');
-        }
-
-        // Update paper portfolio
-        useStore.setState((s) => ({
-          paperPortfolio: {
-            ...s.paperPortfolio,
-            cashBalance: s.paperPortfolio.cashBalance - execution.total,
-          },
-        }));
-
-        // Update or create position
-        const existingPosition = paperPositions.find((p) => p.symbol === alert.symbol);
-        if (existingPosition) {
-          const newShares = existingPosition.shares + execution.shares;
-          const newTotalCost = existingPosition.avgCost * existingPosition.shares + execution.total;
-          const newAvgCost = newTotalCost / newShares;
-          state.updatePaperPosition(alert.symbol, newShares, newAvgCost, execution.price);
-        } else {
-          state.updatePaperPosition(alert.symbol, execution.shares, execution.price, execution.price);
-        }
-
-        // Initialize highestPrice for new position (for trailing stop)
-        const newPosition = useStore.getState().paperPortfolio.positions.find((p) => p.symbol === alert.symbol);
-        if (newPosition && !newPosition.highestPrice) {
-          useStore.setState((s) => ({
-            paperPortfolio: {
-              ...s.paperPortfolio,
-              positions: s.paperPortfolio.positions.map((p) =>
-                p.symbol === alert.symbol ? { ...p, highestPrice: execution.price } : p
-              ),
-            },
-          }));
-        }
-
-        // Add trade record for BUY
-        state.addPaperTrade({
-          id: crypto.randomUUID(),
-          symbol: alert.symbol,
-          type: 'buy',
-          shares: execution.shares,
-          price: execution.price,
-          total: execution.total,
-          date: new Date(),
-          notes: `Auto-trade: ${rule.name}`,
-        });
-      } else if (rule.type === 'short') {
-        // SHORT - Open a short position (profit when price goes DOWN)
-        const success = state.openShortPosition(alert.symbol, execution.shares, execution.price);
-        if (!success) {
-          throw new Error('Could not open short position - insufficient margin');
-        }
-      } else if (rule.type === 'cover') {
-        // COVER - Close a short position (buy back shares)
-        const success = state.coverShortPosition(alert.symbol, execution.shares, execution.price);
-        if (!success) {
-          throw new Error('Could not cover short - no short position or insufficient shares');
-        }
-      } else {
-        // Sell (close long position)
-        const existingPosition = paperPositions.find((p) => p.symbol === alert.symbol);
-        if (!existingPosition || existingPosition.shares < execution.shares) {
-          throw new Error('Insufficient shares in paper portfolio');
-        }
-
-        // Update paper portfolio
-        useStore.setState((s) => ({
-          paperPortfolio: {
-            ...s.paperPortfolio,
-            cashBalance: s.paperPortfolio.cashBalance + execution.total,
-          },
-        }));
-
-        const newShares = existingPosition.shares - execution.shares;
-        state.updatePaperPosition(alert.symbol, newShares, existingPosition.avgCost, execution.price);
-
-        // Add trade to paper portfolio
-        state.addPaperTrade({
-          id: crypto.randomUUID(),
-          symbol: alert.symbol,
-          type: rule.type,
-          shares: execution.shares,
-          price: execution.price,
-          total: execution.total,
-          date: new Date(),
-          notes: `Auto-trade: ${rule.name}`,
-        });
-      }
+      // SELL to close a long position, or SHORT to open a short
+      await alpaca.sellMarket(isPaper, alert.symbol, execution.shares);
     }
+
+    // Sync portfolio after trade so app reflects Alpaca's state
+    setTimeout(() => {
+      useStore.getState().syncFromAlpaca();
+    }, 2000);
 
     execution.status = 'executed';
 
@@ -359,40 +264,34 @@ export async function executeAutoTrade(
     // Update rule's last executed timestamp
     useStore.getState().updateTradingRule(rule.id, { lastExecutedAt: new Date() });
 
-    // Register position for take-profit/stop-loss/trailing-stop monitoring
+    // Register position for take-profit/stop-loss monitoring.
+    // Wait 3s so the Alpaca sync (2s delay above) has time to populate paperPortfolio.
     if (rule.type === 'buy') {
       if (rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent) {
-        // Small delay to ensure state is updated
         setTimeout(() => {
           const state = useStore.getState();
-          const position = state.paperPortfolio.positions.find((p) => p.symbol === alert.symbol);
-          if (position) {
-            console.log(`📊 Registering ${alert.symbol} for monitoring (TP: ${rule.takeProfitPercent || 'none'}%, SL: ${rule.stopLossPercent || 'none'}%, Trail: ${rule.trailingStopPercent || 'none'}%)`);
-            registerPositionForMonitoring(position, rule);
-          } else {
-            console.warn(`⚠️ Could not find position for ${alert.symbol} to register for monitoring`);
-          }
-        }, 100);
+          const position = state.paperPortfolio.positions.find((p) => p.symbol === alert.symbol)
+            // Fallback: construct a minimal position from execution data if sync hasn't landed yet
+            ?? { symbol: alert.symbol, shares: execution.shares, avgCost: execution.price, currentPrice: execution.price };
+          console.log(`📊 Registering ${alert.symbol} for monitoring (TP: ${rule.takeProfitPercent || 'none'}%, SL: ${rule.stopLossPercent || 'none'}%)`);
+          registerPositionForMonitoring(position as Parameters<typeof registerPositionForMonitoring>[0], rule);
+        }, 3000);
       } else {
-        console.warn(`⚠️ Rule "${rule.name}" has no take-profit, stop-loss, or trailing-stop configured - position will NOT be auto-sold!`);
+        console.warn(`⚠️ Rule "${rule.name}" has no take-profit or stop-loss configured - position will NOT be auto-sold!`);
       }
     }
 
-    // Register SHORT position for monitoring (stop loss and trailing stop work inversely)
     if (rule.type === 'short') {
       if (rule.stopLossPercent || rule.trailingStopPercent) {
         setTimeout(() => {
           const state = useStore.getState();
-          const shortPosition = state.paperPortfolio.shortPositions?.find((p) => p.symbol === alert.symbol);
-          if (shortPosition) {
-            console.log(`📊 Registering SHORT ${alert.symbol} for monitoring (SL: ${rule.stopLossPercent || 'none'}%, Trail: ${rule.trailingStopPercent || 'none'}%)`);
-            registerShortPositionForMonitoring(shortPosition, rule);
-          } else {
-            console.warn(`⚠️ Could not find short position for ${alert.symbol} to register for monitoring`);
-          }
-        }, 100);
+          const shortPosition = state.paperPortfolio.shortPositions?.find((p) => p.symbol === alert.symbol)
+            ?? { symbol: alert.symbol, shares: execution.shares, entryPrice: execution.price, currentPrice: execution.price };
+          console.log(`📊 Registering SHORT ${alert.symbol} for monitoring (SL: ${rule.stopLossPercent || 'none'}%)`);
+          registerShortPositionForMonitoring(shortPosition as Parameters<typeof registerShortPositionForMonitoring>[0], rule);
+        }, 3000);
       } else {
-        console.warn(`⚠️ Short rule "${rule.name}" has no stop-loss or trailing-stop configured - position will NOT be auto-covered!`);
+        console.warn(`⚠️ Short rule "${rule.name}" has no stop-loss configured - position will NOT be auto-covered!`);
       }
     }
   } catch (error) {
