@@ -191,6 +191,7 @@ export interface AutoTradeConfig {
   enabled: boolean;
   maxTradesPerDay: number;
   maxPositionSize: number;
+  maxTradeDollarAmount: number;        // Max $ per trade (15% of $25k = $3,750)
   tradingHoursOnly: boolean;
   // Yearly drawdown protection
   yearlyDrawdownLimit: number;         // Max % loss from year start (default 20)

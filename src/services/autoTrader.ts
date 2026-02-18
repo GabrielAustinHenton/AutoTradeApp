@@ -205,19 +205,25 @@ export async function executeAutoTrade(
 
     execution.price = currentPrice;
 
-    // Calculate shares based on rule action
-    if (rule.action.targetDollarAmount && execution.price > 0) {
-      // Buy a specific dollar amount worth - minimum 1 share
-      execution.shares = Math.max(1, Math.floor(rule.action.targetDollarAmount / execution.price));
+    // Calculate shares: use rule's target dollar amount if set,
+    // otherwise fall back to fixed shares — then cap by maxTradeDollarAmount.
+    const targetDollars = rule.action.targetDollarAmount || config.maxTradeDollarAmount;
+    if (targetDollars && execution.price > 0) {
+      execution.shares = Math.max(1, Math.floor(targetDollars / execution.price));
     } else {
-      // Use fixed shares with max position size limit
       execution.shares = Math.min(rule.action.shares || 10, config.maxPositionSize);
     }
 
-    // Ensure we always trade at least 1 share
-    if (execution.shares < 1) {
-      execution.shares = 1;
+    // Hard cap: never exceed maxTradeDollarAmount per trade
+    if (config.maxTradeDollarAmount > 0 && execution.price > 0) {
+      const maxShares = Math.floor(config.maxTradeDollarAmount / execution.price);
+      if (maxShares < 1) {
+        throw new Error(`Price $${execution.price.toFixed(2)} exceeds max trade amount of $${config.maxTradeDollarAmount}`);
+      }
+      execution.shares = Math.min(execution.shares, maxShares);
     }
+
+    if (execution.shares < 1) execution.shares = 1;
 
     execution.total = execution.shares * execution.price;
 
