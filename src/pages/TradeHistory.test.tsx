@@ -210,7 +210,7 @@ describe('TradeHistory', () => {
       fireEvent.click(screen.getByText('Live Trades'));
 
       expect(
-        screen.getByText('No live trades yet. Connect to IBKR and start trading.')
+        screen.getByText('No live trades yet. Connect Alpaca and start trading.')
       ).toBeInTheDocument();
     });
 

@@ -46,17 +46,6 @@ vi.mock('../hooks/useStockData', () => ({
   }),
 }));
 
-// Mock IBKR service
-vi.mock('../services/ibkr', () => ({
-  ibkr: {
-    getConidForSymbol: vi.fn().mockResolvedValue(12345),
-    buyMarket: vi.fn().mockResolvedValue({}),
-    sellMarket: vi.fn().mockResolvedValue({}),
-    buyLimit: vi.fn().mockResolvedValue({}),
-    sellLimit: vi.fn().mockResolvedValue({}),
-  },
-}));
-
 const mockPaperPositions: Position[] = [
   {
     id: 'p1',
@@ -78,8 +67,8 @@ const mockStore = {
   updatePosition: vi.fn(),
   cashBalance: 50000,
   setCashBalance: vi.fn(),
-  ibkrConnected: false,
-  syncFromIBKR: vi.fn(),
+  alpacaConnected: false,
+  syncFromAlpaca: vi.fn(),
   tradingMode: 'paper' as const,
   paperPortfolio: {
     positions: mockPaperPositions,
@@ -107,7 +96,7 @@ describe('Trade', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockStore.tradingMode = 'paper';
-    mockStore.ibkrConnected = false;
+    mockStore.alpacaConnected = false;
     mockStore.paperPortfolio = {
       positions: [...mockPaperPositions],
       trades: [],
@@ -125,17 +114,17 @@ describe('Trade', () => {
       expect(screen.getByText('Paper Trading')).toBeInTheDocument();
     });
 
-    it('should show Live Trading indicator when in live mode with IBKR connected', () => {
+    it('should show Live Trading indicator when in live mode with Alpaca connected', () => {
       mockStore.tradingMode = 'live';
-      mockStore.ibkrConnected = true;
+      mockStore.alpacaConnected = true;
       render(<Trade />);
 
       expect(screen.getByText('Live Trading')).toBeInTheDocument();
     });
 
-    it('should show Paper Trading even in live mode if IBKR not connected', () => {
+    it('should show Paper Trading even in live mode if Alpaca not connected', () => {
       mockStore.tradingMode = 'live';
-      mockStore.ibkrConnected = false;
+      mockStore.alpacaConnected = false;
       render(<Trade />);
 
       expect(screen.getByText('Paper Trading')).toBeInTheDocument();
@@ -343,7 +332,7 @@ describe('Trade', () => {
 
     it('should show live account info when in live mode', () => {
       mockStore.tradingMode = 'live';
-      mockStore.ibkrConnected = true;
+      mockStore.alpacaConnected = true;
       render(<Trade />);
 
       expect(screen.getByText('Live Account')).toBeInTheDocument();

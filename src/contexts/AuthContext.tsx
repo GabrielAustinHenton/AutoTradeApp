@@ -26,8 +26,6 @@ export interface UserProfile {
   email: string;
   displayName: string;
   createdAt: Date;
-  ibkrAccountId?: string;
-  ibkrGatewayUrl?: string;
 }
 
 interface AuthContextType {
@@ -88,8 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               email: firebaseUser.email || '',
               displayName: data.displayName || firebaseUser.displayName || '',
               createdAt: data.createdAt?.toDate?.() || new Date(),
-              ibkrAccountId: data.ibkrAccountId,
-              ibkrGatewayUrl: data.ibkrGatewayUrl,
             });
           } else {
             // Profile doesn't exist yet, create basic one
@@ -131,8 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       displayName,
       createdAt: serverTimestamp(),
-      ibkrAccountId: null,
-      ibkrGatewayUrl: null,
     });
 
     setUserProfile({

@@ -256,7 +256,7 @@ describe('Portfolio', () => {
       fireEvent.click(screen.getByText('Live Portfolio'));
 
       expect(
-        screen.getByText('No live positions yet. Connect to IBKR and start trading.')
+        screen.getByText('No live positions yet. Connect Alpaca and start trading.')
       ).toBeInTheDocument();
     });
 

@@ -171,7 +171,7 @@ export function Auth() {
 
         {/* Info */}
         <p className="text-center text-slate-500 text-xs mt-6">
-          Each user gets their own paper trading account, trade history, and IBKR connection.
+          Each user gets their own paper trading account, trade history, and Alpaca connection.
         </p>
       </div>
     </div>
