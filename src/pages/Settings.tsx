@@ -525,10 +525,25 @@ export function Settings() {
 
         <div className="space-y-4">
           {/* ── Paper Trading ── */}
-          <div className={`p-4 rounded-lg border ${alpacaPaperConnected ? 'bg-emerald-900/20 border-emerald-700' : 'bg-slate-700/50 border-slate-600'}`}>
+          <div className={`p-4 rounded-lg border transition-all ${
+            tradingMode === 'paper'
+              ? alpacaPaperConnected
+                ? 'bg-emerald-900/30 border-emerald-500 ring-2 ring-emerald-500/30'
+                : 'bg-slate-700/50 border-emerald-500/60 ring-2 ring-emerald-500/20'
+              : alpacaPaperConnected
+                ? 'bg-emerald-900/20 border-emerald-700'
+                : 'bg-slate-700/50 border-slate-600'
+          }`}>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-medium">Paper Trading</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">Paper Trading</h3>
+                  {tradingMode === 'paper' && (
+                    <span className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/50 rounded text-xs text-emerald-400 font-medium">
+                      Active Mode
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Paper Trading → API Keys</p>
               </div>
               <div className="flex items-center gap-2">
@@ -584,10 +599,25 @@ export function Settings() {
           </div>
 
           {/* ── Live Trading ── */}
-          <div className={`p-4 rounded-lg border ${alpacaLiveConnected ? 'bg-red-900/20 border-red-800' : 'bg-slate-700/50 border-slate-600'}`}>
+          <div className={`p-4 rounded-lg border transition-all ${
+            tradingMode === 'live'
+              ? alpacaLiveConnected
+                ? 'bg-red-900/30 border-red-500 ring-2 ring-red-500/30'
+                : 'bg-slate-700/50 border-red-500/60 ring-2 ring-red-500/20'
+              : alpacaLiveConnected
+                ? 'bg-red-900/20 border-red-800'
+                : 'bg-slate-700/50 border-slate-600'
+          }`}>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-medium">Live Trading</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">Live Trading</h3>
+                  {tradingMode === 'live' && (
+                    <span className="px-1.5 py-0.5 bg-red-500/20 border border-red-500/50 rounded text-xs text-red-400 font-medium">
+                      Active Mode
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Live Trading → API Keys</p>
               </div>
               <div className="flex items-center gap-2">
