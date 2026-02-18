@@ -321,7 +321,7 @@ export function Settings() {
       {/* Auto-Trading */}
       <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
         <div className="flex items-center justify-between mb-4 md:mb-6">
-          <div>
+          <div className="w-4/5">
             <h2 className="text-lg md:text-xl font-semibold">Auto-Trading</h2>
             <p className="text-slate-400 text-sm mt-1">
               Automatically execute trades when pattern rules trigger
