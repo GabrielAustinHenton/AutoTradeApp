@@ -609,6 +609,10 @@ export const useStore = create<AppState>()(
         const { tradingMode } = get();
         const isPaper = tradingMode === 'paper';
 
+        // Always reload credentials from localStorage before syncing — prevents stale
+        // in-memory creds causing spurious 401s after mode switches or page navigation.
+        alpaca.loadConfigs();
+
         if (isPaper && !alpaca.isPaperConfigured()) return;
         if (!isPaper && !alpaca.isLiveConfigured()) return;
 
@@ -649,20 +653,33 @@ export const useStore = create<AppState>()(
             ? (dayChange / parseFloat(account.last_equity)) * 100
             : 0;
 
-          set({
-            cashBalance,
-            positions,
-            alpacaSynced: true,
-            portfolioSummary: {
-              totalValue,
-              totalCost,
-              totalGain: totalValue - totalCost,
-              totalGainPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
-              dayChange,
-              dayChangePercent,
+          if (isPaper) {
+            // Paper sync → update paperPortfolio so it doesn't bleed into live view
+            set((s) => ({
+              alpacaSynced: true,
+              paperPortfolio: {
+                ...s.paperPortfolio,
+                cashBalance,
+                positions,
+              },
+            }));
+          } else {
+            // Live sync → update top-level live state
+            set({
               cashBalance,
-            },
-          });
+              positions,
+              alpacaSynced: true,
+              portfolioSummary: {
+                totalValue,
+                totalCost,
+                totalGain: totalValue - totalCost,
+                totalGainPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
+                dayChange,
+                dayChangePercent,
+                cashBalance,
+              },
+            });
+          }
         } catch (error) {
           console.error('Failed to sync from Alpaca:', error);
           throw error;

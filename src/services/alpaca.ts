@@ -97,7 +97,9 @@ class AlpacaService {
 
   private headers(isPaper: boolean): Record<string, string> {
     const creds = isPaper ? this.paperCreds : this.liveCreds;
-    if (!creds) throw new Error(`Alpaca ${isPaper ? 'paper' : 'live'} credentials not configured`);
+    if (!creds || !creds.keyId || !creds.secretKey) {
+      throw new Error(`Alpaca ${isPaper ? 'paper' : 'live'} credentials not configured`);
+    }
     return {
       'APCA-API-KEY-ID': creds.keyId,
       'APCA-API-SECRET-KEY': creds.secretKey,
