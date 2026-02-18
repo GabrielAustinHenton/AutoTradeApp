@@ -11,7 +11,7 @@ export function Layout() {
       </div>
 
       {/* Main content - responsive padding, bottom spacing for mobile nav */}
-      <main className="flex-1 p-4 pb-20 md:p-8 md:pb-8 overflow-x-hidden">
+      <main className="flex-1 p-4 pb-20 pt-4 md:p-8 md:pb-8 safe-area-top overflow-x-hidden">
         <Outlet />
       </main>
 

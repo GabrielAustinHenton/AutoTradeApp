@@ -29,8 +29,6 @@ export function Dashboard() {
     tradingMode,
     paperPortfolio,
     autoTradeConfig,
-    requestScan,
-    alertsEnabled,
     ibkrConnected,
   } = useStore();
 
@@ -185,7 +183,7 @@ export function Dashboard() {
     <div className="text-white">
       <div className="flex flex-col gap-3 mb-6 md:flex-row md:justify-between md:items-center md:mb-8">
         <div className="flex items-center gap-2 md:gap-4 flex-wrap">
-          <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Welcome To AutoTrader</h1>
           <span className={`px-2 py-0.5 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${
             isPaperMode ? 'bg-amber-900 text-amber-300' : 'bg-emerald-900 text-emerald-300'
           }`}>
@@ -209,13 +207,6 @@ export function Dashboard() {
           >
             🔄 Swing Trader
           </NavLink>
-          <button
-            onClick={requestScan}
-            disabled={!alertsEnabled}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-          >
-            Scan Now
-          </button>
         </div>
       </div>
 

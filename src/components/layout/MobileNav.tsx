@@ -7,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const primaryTabs = [
   { path: '/', label: 'Home', icon: '📊' },
   { path: '/portfolio', label: 'Portfolio', icon: '💼' },
-  { path: '/swing-trader', label: 'AutoTrader', icon: '🔄' },
+  { path: '/swing-trader', label: 'SwingTrader', icon: '🔄' },
   { path: '/charts', label: 'Charts', icon: '📈' },
 ];
 
