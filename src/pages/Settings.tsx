@@ -30,10 +30,10 @@ export function Settings() {
   } = useStore();
 
   // Alpaca connection form state
-  const [paperKeyId, setPaperKeyId] = useState(() => alpaca.loadConfig()?.isPaper !== false ? (alpaca.loadConfig()?.keyId ?? '') : '');
-  const [paperSecretKey, setPaperSecretKey] = useState(() => alpaca.loadConfig()?.isPaper !== false ? (alpaca.loadConfig()?.secretKey ?? '') : '');
-  const [liveKeyId, setLiveKeyId] = useState(() => alpaca.loadConfig()?.isPaper === false ? (alpaca.loadConfig()?.keyId ?? '') : '');
-  const [liveSecretKey, setLiveSecretKey] = useState(() => alpaca.loadConfig()?.isPaper === false ? (alpaca.loadConfig()?.secretKey ?? '') : '');
+  const existingConfig = alpaca.loadConfig();
+  const [keyId, setKeyId] = useState(existingConfig?.keyId ?? '');
+  const [secretKey, setSecretKey] = useState(existingConfig?.secretKey ?? '');
+  const [isPaper, setIsPaper] = useState(existingConfig?.isPaper ?? true);
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,48 +101,29 @@ export function Settings() {
     setTestingAutoTrade(false);
   };
 
-  const handleConnectPaper = async () => {
-    if (!paperKeyId || !paperSecretKey) {
-      setError('Enter both Paper Key ID and Secret Key.');
+  const handleConnect = async () => {
+    if (!keyId || !secretKey) {
+      setError('Enter both Key ID and Secret Key.');
       return;
     }
     setError(null);
     setSuccess(null);
     setConnecting(true);
     try {
-      const config = { keyId: paperKeyId, secretKey: paperSecretKey, isPaper: true };
-      alpaca.configure(config);
-      // Verify by fetching account
-      await alpaca.getAccount();
-      connectAlpaca(config);
-      await syncFromAlpaca();
-      setSuccess('Connected to Alpaca Paper Trading!');
-    } catch (err) {
-      alpaca.clearConfig();
-      setError(err instanceof Error ? `Connection failed: ${err.message}` : 'Failed to connect. Check your API keys.');
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handleConnectLive = async () => {
-    if (!liveKeyId || !liveSecretKey) {
-      setError('Enter both Live Key ID and Secret Key.');
-      return;
-    }
-    setError(null);
-    setSuccess(null);
-    setConnecting(true);
-    try {
-      const config = { keyId: liveKeyId, secretKey: liveSecretKey, isPaper: false };
+      const config = { keyId, secretKey, isPaper };
       alpaca.configure(config);
       await alpaca.getAccount();
       connectAlpaca(config);
       await syncFromAlpaca();
-      setSuccess('Connected to Alpaca Live Trading!');
+      setSuccess(`Connected to Alpaca ${isPaper ? 'Paper' : 'Live'} Trading!`);
     } catch (err) {
       alpaca.clearConfig();
-      setError(err instanceof Error ? `Connection failed: ${err.message}` : 'Failed to connect. Check your API keys.');
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg.includes('401')) {
+        setError(`Invalid API keys for ${isPaper ? 'Paper' : 'Live'} trading. Make sure you copied the correct keys from the ${isPaper ? 'Paper Trading' : 'Live Trading'} section on app.alpaca.markets.`);
+      } else {
+        setError(`Connection failed: ${msg}`);
+      }
     } finally {
       setConnecting(false);
     }
@@ -533,7 +514,6 @@ export function Settings() {
           </div>
         )}
 
-        {/* If already connected, show sync/disconnect buttons */}
         {alpacaConnected ? (
           <div className="flex flex-wrap gap-2">
             <button
@@ -551,68 +531,59 @@ export function Settings() {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            {/* Paper Trading Keys */}
-            <div className="p-4 bg-slate-700/50 rounded-lg">
-              <h3 className="font-medium mb-1">Paper Trading Keys</h3>
-              <p className="text-xs text-slate-400 mb-3">
-                From <span className="text-slate-300">app.alpaca.markets</span> → Paper Trading → API Keys
-              </p>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={paperKeyId}
-                  onChange={(e) => setPaperKeyId(e.target.value.trim())}
-                  placeholder="Paper Key ID (e.g. PKXXXXXXXXXXXXXXXX)"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-                <input
-                  type="password"
-                  value={paperSecretKey}
-                  onChange={(e) => setPaperSecretKey(e.target.value.trim())}
-                  placeholder="Paper Secret Key"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+          <div className="space-y-3">
+            {/* Paper / Live toggle */}
+            <div className="flex gap-2">
               <button
-                onClick={handleConnectPaper}
-                disabled={connecting || !paperKeyId || !paperSecretKey}
-                className="mt-3 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+                onClick={() => setIsPaper(true)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isPaper ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'
+                }`}
               >
-                {connecting ? 'Connecting...' : 'Connect Paper'}
+                Paper Trading
+              </button>
+              <button
+                onClick={() => setIsPaper(false)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  !isPaper ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300'
+                }`}
+              >
+                Live Trading
               </button>
             </div>
 
-            {/* Live Trading Keys */}
-            <div className="p-4 bg-slate-700/50 rounded-lg">
-              <h3 className="font-medium mb-1">Live Trading Keys</h3>
-              <p className="text-xs text-slate-400 mb-3">
-                From <span className="text-slate-300">app.alpaca.markets</span> → Live Trading → API Keys (requires funded account)
-              </p>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={liveKeyId}
-                  onChange={(e) => setLiveKeyId(e.target.value.trim())}
-                  placeholder="Live Key ID (e.g. AKXXXXXXXXXXXXXXXX)"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-                <input
-                  type="password"
-                  value={liveSecretKey}
-                  onChange={(e) => setLiveSecretKey(e.target.value.trim())}
-                  placeholder="Live Secret Key"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <button
-                onClick={handleConnectLive}
-                disabled={connecting || !liveKeyId || !liveSecretKey}
-                className="mt-3 px-4 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-              >
-                {connecting ? 'Connecting...' : 'Connect Live'}
-              </button>
-            </div>
+            <p className="text-xs text-slate-400">
+              {isPaper
+                ? 'Get Paper keys from app.alpaca.markets → Paper Trading → API Keys'
+                : 'Get Live keys from app.alpaca.markets → Live Trading → API Keys'}
+            </p>
+
+            <input
+              type="text"
+              value={keyId}
+              onChange={(e) => setKeyId(e.target.value.trim())}
+              placeholder={isPaper ? 'Paper Key ID (starts with PK...)' : 'Live Key ID (starts with AK...)'}
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+            />
+            <input
+              type="password"
+              value={secretKey}
+              onChange={(e) => setSecretKey(e.target.value.trim())}
+              placeholder="Secret Key"
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+            />
+
+            <button
+              onClick={handleConnect}
+              disabled={connecting || !keyId || !secretKey}
+              className={`w-full py-2 rounded-lg text-sm font-medium transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed ${
+                isPaper
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : 'bg-red-600 hover:bg-red-700'
+              }`}
+            >
+              {connecting ? 'Connecting...' : `Connect ${isPaper ? 'Paper' : 'Live'}`}
+            </button>
           </div>
         )}
       </div>
