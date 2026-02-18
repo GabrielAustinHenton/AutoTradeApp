@@ -30,7 +30,7 @@ export function Settings() {
     autoTradeExecutions,
   } = useStore();
 
-  const [gatewayUrl, setGatewayUrl] = useState('https://localhost:5000');
+  const [gatewayUrl, setGatewayUrl] = useState('http://136.114.200.145:5001');
   const [accountId, setAccountId] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [connecting, setConnecting] = useState(false);
@@ -735,14 +735,17 @@ export function Settings() {
 
       {/* Alert Settings */}
       <div className="bg-slate-800 rounded-xl p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-6">Alerts & Notifications</h2>
+        <h2 className="text-xl font-semibold mb-2">Alerts & Notifications</h2>
+        <p className="text-sm text-slate-400 mb-6">
+          These are <span className="text-white font-medium">manual trading signals only</span> — pop-up toasts that appear when the scanner detects a candlestick pattern on your watchlist. They do <span className="text-white font-medium">not</span> place trades automatically. Auto-trading is controlled separately under <span className="text-white font-medium">Auto-Trade Settings</span> above.
+        </p>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
             <div>
-              <h3 className="font-medium">Pattern Alerts</h3>
+              <h3 className="font-medium">Pattern Notifications</h3>
               <p className="text-sm text-slate-400 mt-1">
-                Get notified when candlestick patterns are detected
+                Show on-screen toast notifications when buy/sell signals are detected.
               </p>
             </div>
             <button
@@ -763,7 +766,7 @@ export function Settings() {
             <div>
               <h3 className="font-medium">Sound Notifications</h3>
               <p className="text-sm text-slate-400 mt-1">
-                Play sound when alerts are triggered
+                Play a sound when a signal alert fires. Off by default.
               </p>
             </div>
             <button

@@ -138,16 +138,19 @@ class IBKRService {
 
   /**
    * Get the base URL for API requests.
-   * - In development: use Vite proxy (/api/ibkr → localhost:5000)
-   * - In production: use the configured proxy URL directly
+   * - If using remote proxy (has apiKey): connect directly to proxy URL
+   * - If local gateway (no apiKey, dev mode): use Vite proxy
    */
   private get baseUrl(): string {
     if (!this.config) throw new Error('IBKR not configured');
-    // In development, route through Vite proxy
+    // If using remote CORS proxy (has API key), connect directly
+    if (this.config.apiKey) {
+      return this.config.gatewayUrl;
+    }
+    // Local development: route through Vite proxy
     if (import.meta.env.DEV) {
       return '/api/ibkr';
     }
-    // In production, connect to the CORS proxy server directly
     return this.config.gatewayUrl;
   }
 
@@ -162,8 +165,8 @@ class IBKRService {
   private getHeaders(extra?: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = { ...extra };
 
-    // Add API key for production (CORS proxy authentication)
-    if (!import.meta.env.DEV && this.config?.apiKey) {
+    // Add API key for CORS proxy authentication
+    if (this.config?.apiKey) {
       headers['X-API-Key'] = this.config.apiKey;
     }
 
@@ -183,8 +186,8 @@ class IBKRService {
       headers,
     };
 
-    // In development, use credentials for cookie-based auth with Vite proxy
-    if (import.meta.env.DEV) {
+    // Use credentials for cookie-based auth with local gateway (no API key)
+    if (!this.config?.apiKey) {
       fetchOptions.credentials = 'include';
     }
 
@@ -209,6 +212,7 @@ class IBKRService {
       this.config = {
         gatewayUrl: IBKR_CONFIG.baseUrl,
         accountId: IBKR_CONFIG.accountId,
+        apiKey: (IBKR_CONFIG as { apiKey?: string }).apiKey,
       };
       // Save to localStorage for future loads
       localStorage.setItem('ibkr_config', JSON.stringify(this.config));
