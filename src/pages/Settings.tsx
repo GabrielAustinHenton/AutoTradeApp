@@ -321,7 +321,7 @@ export function Settings() {
       {/* Auto-Trading */}
       <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
         <div className="flex items-center justify-between mb-4 md:mb-6">
-          <div className="w-4/5">
+          <div className="w-3/4">
             <h2 className="text-lg md:text-xl font-semibold">Auto-Trading</h2>
             <p className="text-slate-400 text-sm mt-1">
               Automatically execute trades when pattern rules trigger
@@ -404,7 +404,7 @@ export function Settings() {
           </div>
 
           <div className="flex items-center justify-between p-3 md:p-4 bg-slate-700/50 rounded-lg">
-            <div>
+            <div className="w-3/4">
               <h3 className="font-medium text-sm md:text-base">Trading Hours Only</h3>
               <p className="text-xs md:text-sm text-slate-400 mt-1">
                 Only execute during market hours (9:30 AM - 4:00 PM ET)
