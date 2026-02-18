@@ -154,14 +154,37 @@ export function Settings() {
     }
   };
 
-  const handleSync = async () => {
+  const handleSyncPaper = async () => {
+    if (tradingMode !== 'paper') {
+      setError('You\'re in Live Trading mode. Switch to Paper Trading at the top of this page to sync your paper portfolio.');
+      return;
+    }
     setError(null);
+    setSuccess(null);
     setSyncing(true);
     try {
       await syncFromAlpaca();
-      setSuccess('Portfolio synced!');
+      setSuccess('Paper portfolio synced!');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sync');
+      setError(err instanceof Error ? err.message : 'Failed to sync paper portfolio');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSyncLive = async () => {
+    if (tradingMode !== 'live') {
+      setError('You\'re in Paper Trading mode. Switch to Live Trading at the top of this page to sync your live portfolio.');
+      return;
+    }
+    setError(null);
+    setSuccess(null);
+    setSyncing(true);
+    try {
+      await syncFromAlpaca();
+      setSuccess('Live portfolio synced!');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sync live portfolio');
     } finally {
       setSyncing(false);
     }
@@ -557,10 +580,9 @@ export function Settings() {
             {alpacaPaperConnected ? (
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={handleSync}
-                  disabled={syncing || tradingMode !== 'paper'}
+                  onClick={handleSyncPaper}
+                  disabled={syncing}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                  title={tradingMode !== 'paper' ? 'Switch to Paper mode to sync paper account' : ''}
                 >
                   {syncing ? 'Syncing...' : 'Sync Paper Portfolio'}
                 </button>
@@ -632,10 +654,9 @@ export function Settings() {
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={handleSync}
-                    disabled={syncing || tradingMode !== 'live'}
+                    onClick={handleSyncLive}
+                    disabled={syncing}
                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                    title={tradingMode !== 'live' ? 'Switch to Live mode to sync live account' : ''}
                   >
                     {syncing ? 'Syncing...' : 'Sync Live Portfolio'}
                   </button>
