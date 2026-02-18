@@ -72,6 +72,12 @@ export interface AlpacaOrder {
   status: string;
 }
 
+export interface AlpacaWatchlist {
+  id: string;
+  name: string;
+  assets: Array<{ symbol: string }>;
+}
+
 export interface CreateOrderParams {
   symbol: string;
   qty: number;
@@ -239,6 +245,45 @@ class AlpacaService {
 
   async sellLimit(isPaper: boolean, symbol: string, qty: number, limitPrice: number): Promise<AlpacaOrder> {
     return this.createOrder(isPaper, { symbol, qty, side: 'sell', type: 'limit', limit_price: limitPrice, time_in_force: 'gtc' });
+  }
+
+  // ── Watchlists ──────────────────────────────────────────────────────────────
+
+  async getWatchlists(isPaper: boolean): Promise<AlpacaWatchlist[]> {
+    const res = await this.request(isPaper, '/watchlists');
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
+  async createWatchlist(isPaper: boolean, name: string, symbols: string[]): Promise<AlpacaWatchlist> {
+    const res = await this.request(isPaper, '/watchlists', {
+      method: 'POST',
+      body: JSON.stringify({ name, symbols }),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
+  async updateWatchlist(isPaper: boolean, id: string, symbols: string[]): Promise<AlpacaWatchlist> {
+    const res = await this.request(isPaper, `/watchlists/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name: 'AutoTrader', symbols }),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
+  async addSymbolToWatchlist(isPaper: boolean, id: string, symbol: string): Promise<void> {
+    const res = await this.request(isPaper, `/watchlists/${id}`, {
+      method: 'POST',
+      body: JSON.stringify({ symbol }),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  }
+
+  async removeSymbolFromWatchlist(isPaper: boolean, id: string, symbol: string): Promise<void> {
+    const res = await this.request(isPaper, `/watchlists/${id}/${symbol}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) throw new Error(`${res.status} ${await res.text()}`);
   }
 }
 
