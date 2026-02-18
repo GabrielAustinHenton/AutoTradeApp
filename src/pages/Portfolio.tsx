@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import {
   PieChart,
@@ -16,7 +16,7 @@ const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export function Portfolio() {
   const location = useLocation();
-  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, forceCloseAllPositions, updatePaperPositionPrices, updateShortPositionPrices, alpacaConnected, autoTradeConfig, updateAutoTradeConfig } = useStore();
+  const { positions, cashBalance, tradingMode, paperPortfolio, resetPaperPortfolio, forceCloseAllPositions, updatePaperPositionPrices, updateShortPositionPrices, alpacaConnected, alpacaPaperConnected, alpacaLiveConnected, autoTradeConfig, updateAutoTradeConfig } = useStore();
   const [activeTab, setActiveTab] = useState<'paper' | 'live'>(tradingMode);
   const isLiveNotConnected = activeTab === 'live' && !alpacaConnected;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -101,7 +101,7 @@ export function Portfolio() {
   // Determine which portfolio to display
   const isShowingPaper = activeTab === 'paper';
   const displayPositions: Position[] = isShowingPaper ? paperPortfolio.positions : (isLiveNotConnected ? [] : positions);
-  const displayCash = isShowingPaper ? paperPortfolio.cashBalance : (isLiveNotConnected ? null : cashBalance);
+  const displayCash = isShowingPaper ? (alpacaPaperConnected ? paperPortfolio.cashBalance : null) : (isLiveNotConnected ? null : cashBalance);
 
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
   const totalPortfolioValue = displayCash !== null ? totalPositionValue + displayCash : null;
@@ -234,6 +234,23 @@ export function Portfolio() {
         </div>
         </div>
       </div>
+
+      {activeTab === 'paper' && !alpacaPaperConnected && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-yellow-600 bg-yellow-900/30 px-4 py-3 text-sm text-yellow-300">
+          <span>Connect your Alpaca paper account in Settings to start trading.</span>
+          <Link to="/settings" className="shrink-0 rounded-lg bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 transition-colors">
+            Go to Settings
+          </Link>
+        </div>
+      )}
+      {activeTab === 'live' && !alpacaLiveConnected && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-yellow-600 bg-yellow-900/30 px-4 py-3 text-sm text-yellow-300">
+          <span>Connect your Alpaca live account in Settings to start trading.</span>
+          <Link to="/settings" className="shrink-0 rounded-lg bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 transition-colors">
+            Go to Settings
+          </Link>
+        </div>
+      )}
 
       {/* Active Mode Indicator */}
       {tradingMode === activeTab && (

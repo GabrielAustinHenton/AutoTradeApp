@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useQuote, useSymbolSearch, useDailyData } from '../hooks/useStockData';
 import { alpaca } from '../services/alpaca';
@@ -22,6 +23,8 @@ export function Trade() {
     cashBalance,
     setCashBalance,
     alpacaConnected,
+    alpacaPaperConnected,
+    alpacaLiveConnected,
     syncFromAlpaca,
     tradingMode,
     paperPortfolio,
@@ -33,7 +36,7 @@ export function Trade() {
 
   // Use paper portfolio when in paper mode
   const isLiveMode = tradingMode === 'live' && alpacaConnected;
-  const activeCashBalance = isLiveMode ? cashBalance : paperPortfolio.cashBalance;
+  const activeCashBalance = isLiveMode ? cashBalance : (alpacaPaperConnected ? paperPortfolio.cashBalance : null);
   const activePositions = isLiveMode ? positions : paperPortfolio.positions;
   const [symbol, setSymbol] = useState('');
   const [shares, setShares] = useState('');
@@ -173,6 +176,23 @@ export function Trade() {
           {isLiveMode ? 'Live' : 'Paper'}
         </div>
       </div>
+
+      {tradingMode === 'paper' && !alpacaPaperConnected && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-yellow-600 bg-yellow-900/30 px-4 py-3 text-sm text-yellow-300">
+          <span>Connect your Alpaca paper account in Settings to start trading.</span>
+          <Link to="/settings" className="shrink-0 rounded-lg bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 transition-colors">
+            Go to Settings
+          </Link>
+        </div>
+      )}
+      {tradingMode === 'live' && !alpacaLiveConnected && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-yellow-600 bg-yellow-900/30 px-4 py-3 text-sm text-yellow-300">
+          <span>Connect your Alpaca live account in Settings to start trading.</span>
+          <Link to="/settings" className="shrink-0 rounded-lg bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 transition-colors">
+            Go to Settings
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <div className="space-y-4 md:space-y-6">
@@ -386,8 +406,8 @@ export function Trade() {
                   {tradeType === 'buy' && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-400">Cash after trade</span>
-                      <span className={activeCashBalance - parseInt(shares) * (orderType === 'market' ? (quote?.price || 0) : parseFloat(price)) < 0 ? 'text-red-400' : ''}>
-                        ${(activeCashBalance - parseInt(shares) * (orderType === 'market' ? (quote?.price || 0) : parseFloat(price))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <span className={activeCashBalance !== null && activeCashBalance - parseInt(shares) * (orderType === 'market' ? (quote?.price || 0) : parseFloat(price)) < 0 ? 'text-red-400' : ''}>
+                        {activeCashBalance !== null ? `$${(activeCashBalance - parseInt(shares) * (orderType === 'market' ? (quote?.price || 0) : parseFloat(price))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
                       </span>
                     </div>
                   )}
@@ -475,7 +495,7 @@ export function Trade() {
               <div className="flex justify-between p-4 bg-slate-700 rounded-lg">
                 <span className="text-slate-400">Cash Available</span>
                 <span className="font-semibold text-emerald-400">
-                  ${activeCashBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {activeCashBalance !== null ? `$${activeCashBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
                 </span>
               </div>
               <div className="flex justify-between p-4 bg-slate-700 rounded-lg">
