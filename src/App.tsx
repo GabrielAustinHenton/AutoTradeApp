@@ -23,14 +23,18 @@ import { migrateLocalStorageToUser, loadFromFirestore, scheduleSyncToFirestore }
 import { ibkr } from './services/ibkr';
 
 function AppContent() {
-  const { syncRulesWithWatchlist, connectIBKR, ibkrConnected } = useStore();
+  const { syncRulesWithWatchlist, connectIBKR, ibkrConnected, syncFromIBKR } = useStore();
 
-  // Auto-connect to IBKR on app load if config is available
+  // Auto-connect to IBKR on app load if config is available, then sync portfolio
   useEffect(() => {
     if (!ibkrConnected) {
       const config = ibkr.loadConfig();
       if (config) {
         connectIBKR(config);
+        // Sync portfolio data after connecting
+        syncFromIBKR().catch(() => {
+          // Silently fail — IBKR may need re-authentication
+        });
       }
     }
   }, []);

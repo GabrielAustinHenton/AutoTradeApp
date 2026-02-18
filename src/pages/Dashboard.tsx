@@ -30,6 +30,7 @@ export function Dashboard() {
     paperPortfolio,
     autoTradeConfig,
     ibkrConnected,
+    ibkrSynced,
   } = useStore();
 
   // Backtest state
@@ -46,7 +47,7 @@ export function Dashboard() {
 
   // Use paper portfolio data when in paper mode
   const isPaperMode = tradingMode === 'paper';
-  const isLiveNotConnected = tradingMode === 'live' && !ibkrConnected;
+  const isLiveNotConnected = tradingMode === 'live' && (!ibkrConnected || !ibkrSynced);
   const displayPositions = isPaperMode ? (paperPortfolio?.positions || []) : (isLiveNotConnected ? [] : positions);
   const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : (isLiveNotConnected ? null : cashBalance);
   const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : (isLiveNotConnected ? [] : trades);

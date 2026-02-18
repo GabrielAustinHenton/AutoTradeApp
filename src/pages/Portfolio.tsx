@@ -507,28 +507,28 @@ export function Portfolio() {
           )}
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-4">Allocation</h2>
+        <div className="bg-slate-800 rounded-xl p-3">
+          <h2 className="text-sm font-semibold mb-2 text-slate-300">Allocation</h2>
           {isLiveNotConnected ? (
-            <div className="h-64 flex items-center justify-center text-slate-400">
+            <div className="h-16 flex items-center justify-center text-xs text-slate-400">
               IBKR not connected
             </div>
           ) : pieData.length === 0 || totalPortfolioValue === 0 || totalPortfolioValue === null ? (
-            <div className="h-64 flex items-center justify-center text-slate-400">
-              No allocation data
+            <div className="h-16 flex items-center justify-center text-xs text-slate-400">
+              No data
             </div>
           ) : (
-            <>
-              <div className="h-64">
+            <div className="flex items-center gap-3">
+              <div className="h-16 w-16 shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={pieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
+                      innerRadius={18}
+                      outerRadius={28}
+                      paddingAngle={3}
                       dataKey="value"
                     >
                       {pieData.map((_, index) => (
@@ -540,29 +540,30 @@ export function Portfolio() {
                         backgroundColor: '#1e293b',
                         border: 'none',
                         borderRadius: '8px',
+                        fontSize: '11px',
                       }}
                       formatter={(value) => `$${Number(value).toLocaleString()}`}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="mt-4 space-y-2">
+              <div className="space-y-1 flex-1 min-w-0">
                 {pieData.map((item, index) => (
-                  <div key={item.name} className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
+                  <div key={item.name} className="flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <div
-                        className="w-3 h-3 rounded-full"
+                        className="w-2 h-2 rounded-full shrink-0"
                         style={{ backgroundColor: COLORS[index % COLORS.length] }}
                       />
-                      <span>{item.name}</span>
+                      <span className="truncate text-slate-300">{item.name}</span>
                     </div>
-                    <span className="text-slate-400">
-                      {((item.value / totalPortfolioValue) * 100).toFixed(1)}%
+                    <span className="text-slate-400 ml-1 shrink-0">
+                      {((item.value / totalPortfolioValue) * 100).toFixed(0)}%
                     </span>
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>

@@ -253,6 +253,7 @@ interface AppState {
   // IBKR
   ibkrConnected: boolean;
   ibkrAccountId: string;
+  ibkrSynced: boolean;
 
   // Trading Mode & Paper Trading
   tradingMode: TradingMode;
@@ -364,6 +365,7 @@ export const useStore = create<AppState>()(
       soundEnabled: false,
       ibkrConnected: ibkr.loadConfig() !== null,
       ibkrAccountId: ibkr.loadConfig()?.accountId || '',
+      ibkrSynced: false,
 
       // Trading Mode & Paper Trading
       tradingMode: 'paper',
@@ -581,7 +583,7 @@ export const useStore = create<AppState>()(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const summaryData = await ibkr.getAccountSummary() as any;
           const cashBalance = summaryData.totalcashvalue?.amount || 0;
-          set({ cashBalance });
+          set({ cashBalance, ibkrSynced: true });
 
           // Get positions
           const ibkrPositions = await ibkr.getPositions();
