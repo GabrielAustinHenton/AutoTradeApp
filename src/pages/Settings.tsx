@@ -539,121 +539,18 @@ export function Settings() {
           <div>
             <h2 className="text-xl font-semibold">Interactive Brokers</h2>
             <p className="text-slate-400 text-sm mt-1">
-              Connect to your IBKR account via Client Portal Gateway
+              Account: {accountId || 'Not configured'}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <span
               className={`w-3 h-3 rounded-full ${
-                ibkrConnected ? 'bg-emerald-500' : 'bg-slate-500'
+                ibkrConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'
               }`}
             />
-            <span className="text-sm text-slate-400">
+            <span className={`text-sm font-medium ${ibkrConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
               {ibkrConnected ? 'Connected' : 'Disconnected'}
             </span>
-          </div>
-        </div>
-
-        {/* Setup Instructions - Tabs for Local vs Web */}
-        <div className="mb-6 p-4 bg-slate-700/50 rounded-lg">
-          <h3 className="font-medium mb-3">Setup Instructions</h3>
-
-          <div className="space-y-4">
-            {/* Local Development */}
-            <div className="bg-slate-600/30 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-emerald-400 mb-2">Local Development</h4>
-              <ol className="text-sm text-slate-400 space-y-1 list-decimal list-inside">
-                <li>
-                  Download the{' '}
-                  <a href="https://www.interactivebrokers.com/en/trading/ib-api.php" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">
-                    IB Client Portal Gateway
-                  </a>
-                </li>
-                <li>Run the gateway locally (starts on localhost:5000)</li>
-                <li>Log in through the gateway's web interface</li>
-                <li>Set Gateway URL to <code className="text-emerald-300">https://localhost:5000</code></li>
-              </ol>
-            </div>
-
-            {/* Web / Remote via Google Cloud Free VM */}
-            <div className="bg-slate-600/30 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-blue-400 mb-2">Web / Phone Access (Google Cloud Free VM)</h4>
-              <ol className="text-sm text-slate-400 space-y-1 list-decimal list-inside">
-                <li>
-                  Install the{' '}
-                  <a href="https://cloud.google.com/sdk/docs/install" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                    gcloud CLI
-                  </a>
-                  {' '}and log in with your Google account
-                </li>
-                <li>
-                  Run <code className="text-blue-300">./server/deploy-gce.sh</code> to create a free VM
-                </li>
-                <li>SSH into the VM and run the setup script (printed after deploy)</li>
-                <li>
-                  Log into IBKR at <code className="text-blue-300">https://VM_IP:5000</code>
-                </li>
-                <li>Enter the proxy URL and API key below</li>
-              </ol>
-              <p className="text-xs text-amber-400 mt-2">
-                Uses Google Cloud's always-free e2-micro VM. The proxy keeps your IBKR session alive 24/7 automatically.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Connection Form */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Gateway / Proxy URL
-            </label>
-            <input
-              type="text"
-              value={gatewayUrl}
-              onChange={(e) => setGatewayUrl(e.target.value)}
-              placeholder="https://localhost:5000 or http://your-server:5001"
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-emerald-500"
-              disabled={ibkrConnected}
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Local: https://localhost:5000 | Remote: http://your-server:5001 (CORS proxy)
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Account ID
-            </label>
-            <input
-              type="text"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              placeholder="U1234567"
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-emerald-500"
-              disabled={ibkrConnected}
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Your IBKR account ID (starts with U, DU, or similar)
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Proxy API Key
-              <span className="text-slate-500 font-normal ml-2">(for remote/web connections)</span>
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Leave blank for local development"
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-emerald-500"
-              disabled={ibkrConnected}
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              The PROXY_API_KEY you set when starting the CORS proxy server. Not needed for local dev.
-            </p>
           </div>
         </div>
 

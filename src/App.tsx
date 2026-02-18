@@ -20,9 +20,20 @@ import { useIBKRKeepAlive } from './hooks/useIBKRKeepAlive';
 import { useStore } from './store/useStore';
 import { useAuth } from './contexts/AuthContext';
 import { migrateLocalStorageToUser, loadFromFirestore, scheduleSyncToFirestore } from './services/firestoreSync';
+import { ibkr } from './services/ibkr';
 
 function AppContent() {
-  const syncRulesWithWatchlist = useStore((state) => state.syncRulesWithWatchlist);
+  const { syncRulesWithWatchlist, connectIBKR, ibkrConnected } = useStore();
+
+  // Auto-connect to IBKR on app load if config is available
+  useEffect(() => {
+    if (!ibkrConnected) {
+      const config = ibkr.loadConfig();
+      if (config) {
+        connectIBKR(config);
+      }
+    }
+  }, []);
 
   // Initialize pattern scanner
   usePatternScanner();

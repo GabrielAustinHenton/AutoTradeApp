@@ -181,7 +181,7 @@ export function Dashboard() {
 
   return (
     <div className="text-white">
-      <div className="flex flex-col gap-3 mb-6 md:flex-row md:justify-between md:items-center md:mb-8">
+      <div className="flex flex-row justify-between items-center gap-3 mb-6 md:mb-8">
         <div className="flex items-center gap-2 md:gap-4 flex-wrap">
           <h1 className="text-2xl md:text-3xl font-bold">Welcome To AutoTrader</h1>
           <span className={`px-2 py-0.5 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${
@@ -195,7 +195,7 @@ export function Dashboard() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           {quotesLoading && (
             <span className="text-xs md:text-sm text-slate-400 animate-pulse">
               Updating...
@@ -205,7 +205,7 @@ export function Dashboard() {
             to="/swing-trader"
             className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm font-medium transition-colors"
           >
-            🔄 Swing Trader
+            🔄 SwingTrader
           </NavLink>
         </div>
       </div>
