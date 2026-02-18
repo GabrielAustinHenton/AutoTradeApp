@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useMultipleQuotes } from '../hooks/useStockData';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
@@ -202,6 +203,12 @@ export function Dashboard() {
               Updating...
             </span>
           )}
+          <NavLink
+            to="/swing-trader"
+            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm font-medium transition-colors"
+          >
+            🔄 Swing Trader
+          </NavLink>
           <button
             onClick={requestScan}
             disabled={!alertsEnabled}

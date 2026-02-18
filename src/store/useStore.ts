@@ -360,8 +360,8 @@ export const useStore = create<AppState>()(
       tradingRules: defaultPatternRules,
       journalEntries: [],
       alerts: [],
-      alertsEnabled: true,
-      soundEnabled: true,
+      alertsEnabled: false,
+      soundEnabled: false,
       ibkrConnected: ibkr.loadConfig() !== null,
       ibkrAccountId: ibkr.loadConfig()?.accountId || '',
 

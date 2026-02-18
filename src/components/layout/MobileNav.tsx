@@ -7,15 +7,15 @@ import { useAuth } from '../../contexts/AuthContext';
 const primaryTabs = [
   { path: '/', label: 'Home', icon: '📊' },
   { path: '/portfolio', label: 'Portfolio', icon: '💼' },
-  { path: '/trade', label: 'Trade', icon: '💹' },
+  { path: '/swing-trader', label: 'AutoTrader', icon: '🔄' },
   { path: '/charts', label: 'Charts', icon: '📈' },
 ];
 
 // All items shown in the "More" menu
 const moreItems = [
+  { path: '/trade', label: 'Trade', icon: '💹' },
   { path: '/history', label: 'Trade History', icon: '📜' },
   { path: '/rules', label: 'Trading Rules', icon: '⚙️' },
-  { path: '/swing-trader', label: 'Swing Trader', icon: '🔄' },
   { path: '/backtest', label: 'Backtest', icon: '🔬' },
   { path: '/journal', label: 'Journal', icon: '📓' },
   { path: '/settings', label: 'Settings', icon: '🔧' },

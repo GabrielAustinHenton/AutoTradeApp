@@ -74,13 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth!, async (firebaseUser) => {
       setUser(firebaseUser);
 
       if (firebaseUser) {
         // Load user profile from Firestore
         try {
-          const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          const profileDoc = await getDoc(doc(db!, 'users', firebaseUser.uid));
           if (profileDoc.exists()) {
             const data = profileDoc.data();
             setUserProfile({
@@ -121,13 +121,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Sign up with email and password
   const signUp = async (email: string, password: string, displayName: string) => {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    const credential = await createUserWithEmailAndPassword(auth!, email, password);
 
     // Set display name
     await updateProfile(credential.user, { displayName });
 
     // Create user profile in Firestore
-    await setDoc(doc(db, 'users', credential.user.uid), {
+    await setDoc(doc(db!, 'users', credential.user.uid), {
       email,
       displayName,
       createdAt: serverTimestamp(),
@@ -145,12 +145,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Sign in with email and password
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    await signInWithEmailAndPassword(auth!, email, password);
   };
 
   // Sign out
   const logOut = async () => {
-    await signOut(auth);
+    if (auth) await signOut(auth);
     setUser(null);
     setUserProfile(null);
   };
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateUserProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
 
-    await setDoc(doc(db, 'users', user.uid), updates, { merge: true });
+    await setDoc(doc(db!, 'users', user.uid), updates, { merge: true });
 
     setUserProfile((prev) => prev ? { ...prev, ...updates } : null);
   };
