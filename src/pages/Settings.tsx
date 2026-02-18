@@ -117,6 +117,10 @@ export function Settings() {
       await alpaca.getAccount(true); // verify against paper endpoint
       connectAlpacaPaper(paperKeyId, paperSecret);
       setPaperSecret(''); // clear secret from UI after saving
+      // Auto-sync if currently in paper mode so Dashboard shows live data immediately
+      if (tradingMode === 'paper') {
+        await syncFromAlpaca().catch(() => {});
+      }
       setSuccess('Paper account connected! Trades in paper mode will show in your Alpaca paper account.');
     } catch (err) {
       alpaca.clearPaper();
@@ -142,6 +146,10 @@ export function Settings() {
       await alpaca.getAccount(false); // verify against live endpoint
       connectAlpacaLive(liveKeyId, liveSecret);
       setLiveSecret(''); // clear secret from UI after saving
+      // Auto-sync if currently in live mode so Dashboard shows live data immediately
+      if (tradingMode === 'live') {
+        await syncFromAlpaca().catch(() => {});
+      }
       setSuccess('Live account connected! Auto-trading is disabled by default when you switch to live mode.');
     } catch (err) {
       alpaca.clearLive();
