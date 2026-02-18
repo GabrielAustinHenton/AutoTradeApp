@@ -724,7 +724,7 @@ export function Settings() {
 
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
-            <div>
+            <div className="w-3/4">
               <h3 className="font-medium">Pattern Notifications</h3>
               <p className="text-sm text-slate-400 mt-1">
                 Show on-screen toast notifications when buy/sell signals are detected.
@@ -745,7 +745,7 @@ export function Settings() {
           </div>
 
           <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
-            <div>
+            <div className="w-3/4">
               <h3 className="font-medium">Sound Notifications</h3>
               <p className="text-sm text-slate-400 mt-1">
                 Play a sound when a signal alert fires. Off by default.
