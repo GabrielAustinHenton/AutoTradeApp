@@ -23,7 +23,7 @@ export function Settings() {
     tradingMode,
     setTradingMode,
     paperPortfolio,
-    resetPaperPortfolio,
+    setPaperStartingBalance,
     resetTradingRules,
     autoTradeConfig,
     updateAutoTradeConfig,
@@ -31,6 +31,10 @@ export function Settings() {
     addAlert,
     autoTradeExecutions,
   } = useStore();
+
+  const [startingBalanceInput, setStartingBalanceInput] = useState(
+    String(paperPortfolio.startingBalance ?? 25000)
+  );
 
   // Alpaca form state — separate fields for paper and live
   const [paperKeyId, setPaperKeyId] = useState(alpaca.getPaperKeyId());
@@ -247,9 +251,7 @@ export function Settings() {
 
         {tradingMode === 'paper' && (
           <div className="p-3 md:p-4 bg-slate-700/50 rounded-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium">Paper Portfolio</h3>
-            </div>
+            <h3 className="font-medium mb-4">Paper Portfolio</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 text-sm mb-4">
               <div>
                 <span className="text-slate-400">Cash Balance</span>
@@ -266,55 +268,39 @@ export function Settings() {
                 <p className="font-semibold">{paperPortfolio.trades.length}</p>
               </div>
             </div>
+
+            {/* P&L Baseline */}
             <div className="border-t border-slate-600 pt-4">
-              <p className="text-sm text-slate-400 mb-2">Reset portfolio with custom starting balance:</p>
-              <div className="flex flex-wrap gap-2">
+              <p className="text-sm font-medium mb-1">P&amp;L Starting Balance</p>
+              <p className="text-xs text-slate-400 mb-3">
+                The baseline the Dashboard uses to calculate your profit/loss over time.
+                Set it to match what your Alpaca paper account started with.
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 text-sm">$</span>
+                <input
+                  type="number"
+                  value={startingBalanceInput}
+                  onChange={(e) => setStartingBalanceInput(e.target.value)}
+                  className="w-32 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500"
+                  min="1"
+                />
                 <button
-                  onClick={() => resetPaperPortfolio(5)}
-                  className="px-2 md:px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
+                  onClick={() => {
+                    const val = parseFloat(startingBalanceInput);
+                    if (!isNaN(val) && val > 0) setPaperStartingBalance(val);
+                  }}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors"
                 >
-                  $5
-                </button>
-                <button
-                  onClick={() => resetPaperPortfolio(100)}
-                  className="px-2 md:px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
-                >
-                  $100
-                </button>
-                <button
-                  onClick={() => resetPaperPortfolio(1000)}
-                  className="px-2 md:px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm"
-                >
-                  $1,000
-                </button>
-                <button
-                  onClick={() => resetPaperPortfolio(25000)}
-                  className="px-2 md:px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-sm"
-                >
-                  $25,000 (PDT)
+                  Set
                 </button>
               </div>
-              <p className="text-xs text-red-400 mt-2">Warning: This will clear all positions and trade history</p>
-            </div>
-
-            {/* Reset Trading Rules */}
-            <div className="border-t border-slate-600 pt-4 mt-4">
-              <h3 className="font-semibold mb-2">Trading Rules</h3>
-              <p className="text-sm text-slate-400 mb-2">
-                Reset all trading rules to defaults (long-only BUY rules for bullish patterns).
+              <p className="text-xs text-slate-500 mt-2">
+                Current baseline: ${(paperPortfolio.startingBalance ?? 25000).toLocaleString()}
               </p>
-              <button
-                onClick={() => {
-                  if (confirm('Reset all trading rules to defaults? This will delete your custom rules and create new BUY rules for bullish patterns.')) {
-                    resetTradingRules();
-                  }
-                }}
-                className="px-3 md:px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm"
-              >
-                Reset Rules
-              </button>
-              <p className="text-xs text-purple-400 mt-2">
-                Current rules: {tradingRules.length} total
+              <p className="text-xs text-slate-500 mt-3">
+                Portfolio data syncs from your Alpaca paper account. To reset your account balance,
+                visit <span className="text-blue-400">app.alpaca.markets → Paper Trading → Reset Account</span>.
               </p>
             </div>
           </div>
@@ -813,6 +799,24 @@ export function Settings() {
           </div>
         </div>
       )}
+
+      {/* Trading Rules */}
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
+        <h2 className="text-lg md:text-xl font-semibold mb-1">Trading Rules</h2>
+        <p className="text-slate-400 text-sm mb-4">
+          {tradingRules.length} rules configured. Rules control when auto-trades trigger in both paper and live mode.
+        </p>
+        <button
+          onClick={() => {
+            if (confirm('Reset all trading rules to defaults? This will delete your custom rules.')) {
+              resetTradingRules();
+            }
+          }}
+          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-sm font-medium transition-colors"
+        >
+          Reset Rules to Defaults
+        </button>
+      </div>
 
       {/* About Section */}
       <div className="bg-slate-800 rounded-xl p-6">

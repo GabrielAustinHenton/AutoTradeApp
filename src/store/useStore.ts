@@ -316,6 +316,7 @@ interface AppState {
   // Actions - Trading Mode
   setTradingMode: (mode: TradingMode) => void;
   resetPaperPortfolio: (initialBalance?: number) => void;
+  setPaperStartingBalance: (balance: number) => void;
   forceCloseAllPositions: () => { totalPnL: number; tradesExecuted: number };
   addPaperTrade: (trade: Trade) => void;
   updatePaperPosition: (symbol: string, shares: number, avgCost: number, currentPrice: number) => void;
@@ -709,6 +710,15 @@ export const useStore = create<AppState>()(
             createdAt: new Date(),
           },
         });
+      },
+
+      setPaperStartingBalance: (balance) => {
+        set((s) => ({
+          paperPortfolio: {
+            ...s.paperPortfolio,
+            startingBalance: balance,
+          },
+        }));
       },
 
       forceCloseAllPositions: () => {
