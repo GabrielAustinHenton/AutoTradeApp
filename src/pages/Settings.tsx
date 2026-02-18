@@ -11,6 +11,7 @@ export function Settings() {
   const {
     ibkrConnected,
     ibkrAccountId,
+    ibkrAuthenticated,
     connectIBKR,
     disconnectIBKR,
     syncFromIBKR,
@@ -534,73 +535,60 @@ export function Settings() {
       </div>
 
       {/* IBKR Connection */}
-      <div className="bg-slate-800 rounded-xl p-6 mb-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-semibold">Interactive Brokers</h2>
-            <p className="text-slate-400 text-sm mt-1">
-              Account: {accountId || 'Not configured'}
-            </p>
+            <h2 className="text-lg md:text-xl font-semibold">Interactive Brokers</h2>
+            <p className="text-slate-400 text-sm mt-0.5">Account: {ibkrAccountId || accountId || 'Not configured'}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span
-              className={`w-3 h-3 rounded-full ${
-                ibkrConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'
-              }`}
-            />
-            <span className={`text-sm font-medium ${ibkrConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
-              {ibkrConnected ? 'Connected' : 'Disconnected'}
+            <span className={`w-2.5 h-2.5 rounded-full ${
+              ibkrAuthenticated ? 'bg-emerald-500 animate-pulse' :
+              ibkrConnected ? 'bg-amber-500' : 'bg-slate-500'
+            }`} />
+            <span className={`text-sm font-medium ${
+              ibkrAuthenticated ? 'text-emerald-400' :
+              ibkrConnected ? 'text-amber-400' : 'text-slate-400'
+            }`}>
+              {ibkrAuthenticated ? 'Session Active' : ibkrConnected ? 'Needs Login' : 'Disconnected'}
             </span>
           </div>
         </div>
 
+        {/* Session expired prompt */}
+        {ibkrConnected && !ibkrAuthenticated && (
+          <div className="mb-4 p-3 bg-amber-900/30 border border-amber-700 rounded-lg">
+            <p className="text-amber-300 text-sm mb-2">
+              Your IBKR session has expired. Log into the Gateway to restore the connection — your IBKR mobile app will receive a 2FA notification to approve.
+            </p>
+            <button
+              onClick={() => window.open(`http://${new URL(gatewayUrl).hostname}:5000`, '_blank')}
+              className="text-sm px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors"
+            >
+              Open IBKR Gateway Login →
+            </button>
+          </div>
+        )}
+
         {/* Error/Success Messages */}
         {error && (
-          <div className="mt-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300">
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
             {error}
           </div>
         )}
         {success && (
-          <div className="mt-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded-lg text-emerald-300">
+          <div className="mb-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded-lg text-emerald-300 text-sm">
             {success}
           </div>
         )}
 
-        {/* Auth Status */}
-        {authStatus && ibkrConnected && (
-          <div className="mt-4 p-4 bg-slate-700/50 rounded-lg">
-            <h3 className="font-medium mb-2">Connection Status</h3>
-            <div className="flex items-center gap-4 text-sm">
-              <span
-                className={`px-2 py-1 rounded ${
-                  authStatus.authenticated
-                    ? 'bg-emerald-900/50 text-emerald-300'
-                    : 'bg-red-900/50 text-red-300'
-                }`}
-              >
-                {authStatus.authenticated ? 'Authenticated' : 'Not Authenticated'}
-              </span>
-              <span
-                className={`px-2 py-1 rounded ${
-                  authStatus.connected
-                    ? 'bg-emerald-900/50 text-emerald-300'
-                    : 'bg-amber-900/50 text-amber-300'
-                }`}
-              >
-                {authStatus.connected ? 'Gateway Connected' : 'Gateway Disconnected'}
-              </span>
-              <span className="text-slate-400">Account: {ibkrAccountId}</span>
-            </div>
-          </div>
-        )}
-
         {/* Action Buttons */}
-        <div className="mt-6 flex gap-3">
+        <div className="flex flex-wrap gap-2">
           {!ibkrConnected ? (
             <button
               onClick={handleConnect}
               disabled={connecting || !accountId}
-              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
             >
               {connecting ? 'Connecting...' : 'Connect'}
             </button>
@@ -609,19 +597,19 @@ export function Settings() {
               <button
                 onClick={handleSync}
                 disabled={syncing}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded-lg font-medium transition-colors"
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
               >
                 {syncing ? 'Syncing...' : 'Sync Portfolio'}
               </button>
               <button
                 onClick={checkAuthStatus}
-                className="px-6 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg font-medium transition-colors"
+                className="px-4 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
               >
                 Check Status
               </button>
               <button
                 onClick={handleDisconnect}
-                className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors"
+                className="px-4 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
               >
                 Disconnect
               </button>
