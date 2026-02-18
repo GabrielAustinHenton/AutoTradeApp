@@ -38,7 +38,7 @@ const defaultPaperPortfolio: PaperPortfolio = {
   positions: [],
   shortPositions: [],  // Short positions for bearish trades
   trades: [],
-  startingBalance: 25000,
+  startingBalance: 100000,
   createdAt: new Date(),
   history: [{ date: new Date(), totalValue: 25000, cashBalance: 25000, positionsValue: 0 }],
 };

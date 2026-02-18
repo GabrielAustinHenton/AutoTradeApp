@@ -33,7 +33,7 @@ export function Settings() {
   } = useStore();
 
   const [startingBalanceInput, setStartingBalanceInput] = useState(
-    String(paperPortfolio.startingBalance ?? 25000)
+    String(paperPortfolio.startingBalance ?? 100000)
   );
 
   // Alpaca form state — separate fields for paper and live
@@ -296,7 +296,7 @@ export function Settings() {
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-2">
-                Current baseline: ${(paperPortfolio.startingBalance ?? 25000).toLocaleString()}
+                Current baseline: ${(paperPortfolio.startingBalance ?? 100000).toLocaleString()}
               </p>
               <p className="text-xs text-slate-500 mt-3">
                 Portfolio data syncs from your Alpaca paper account. To reset your account balance,
