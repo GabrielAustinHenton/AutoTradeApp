@@ -25,7 +25,7 @@ const defaultAutoTradeConfig: AutoTradeConfig = {
   maxTradesPerDay: 20,
   maxPositionSize: 10,
   maxTradeDollarAmount: 3750,  // 15% of $25k mental budget — risk shrinks as % as portfolio grows
-  tradingHoursOnly: false,  // Allow paper trading outside market hours
+  tradingHoursOnly: true,
   // Yearly drawdown protection - stop trading if down 15% from year start
   yearlyDrawdownLimit: 15,
   yearStartPortfolioValue: null,
