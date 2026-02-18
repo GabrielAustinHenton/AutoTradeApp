@@ -254,6 +254,8 @@ interface AppState {
   ibkrConnected: boolean;
   ibkrAccountId: string;
   ibkrSynced: boolean;
+  ibkrAuthenticated: boolean;
+  setIbkrAuthenticated: (v: boolean) => void;
 
   // Trading Mode & Paper Trading
   tradingMode: TradingMode;
@@ -366,6 +368,8 @@ export const useStore = create<AppState>()(
       ibkrConnected: ibkr.loadConfig() !== null,
       ibkrAccountId: ibkr.loadConfig()?.accountId || '',
       ibkrSynced: false,
+      ibkrAuthenticated: false,
+      setIbkrAuthenticated: (v) => set({ ibkrAuthenticated: v }),
 
       // Trading Mode & Paper Trading
       tradingMode: 'paper',
