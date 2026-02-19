@@ -466,7 +466,7 @@ export function Dashboard() {
               </div>
               <p className="text-xs text-slate-500">
                 {backtestStrategy === 'daytrade'
-                  ? `ORB Strategy: ${PERMANENT_WATCHLIST.length} stocks, ${backtestYears.length === 4 ? backtestYears : backtestYears + ' yr'}. 25% position, 2% target, 1% stop.${realisticCosts ? ' 0.2% slippage.' : ''} $25k start, scales down at $100k+, goal: $500k.`
+                  ? `ORB Strategy: ${watchlist.length} stocks, ${backtestYears.length === 4 ? backtestYears : backtestYears + ' yr'}. 25% position, 2% target, 1% stop.${realisticCosts ? ' 0.2% slippage.' : ''} $25k start, scales down at $100k+, goal: $500k.`
                   : backtestStrategy === 'hybrid'
                   ? 'Long-only trend following with 200 MA filter'
                   : backtestStrategy === 'rsi'
