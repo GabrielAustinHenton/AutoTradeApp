@@ -664,7 +664,7 @@ export function Dashboard() {
               )}
 
               {orbStates.length === 0 ? (
-                <p className="text-slate-400 text-sm">Waiting for 10:00 AM ET opening range...</p>
+                <p className="text-slate-400 text-sm">Loading opening ranges from Alpaca...</p>
               ) : (
                 <div className="space-y-1 text-sm">
                   {orbStates.map(s => (

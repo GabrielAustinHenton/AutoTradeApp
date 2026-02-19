@@ -59,11 +59,12 @@ export function useOrbScanner(): {
     setIsRunning(true);
     setExposureCap(getDailyExposureCap());
 
-    // Refresh displayed states + deployed amount every 60s
+    // Refresh displayed states every 5s so UI picks up after first scan quickly.
+    // The scan itself still only runs every 60s inside orbScanner.ts.
     intervalRef.current = setInterval(() => {
       setOrbStates(getOrbStates());
       setTotalDeployed(getTotalDeployedToday());
-    }, 60_000);
+    }, 5_000);
 
     // Initial display
     setOrbStates(getOrbStates());
