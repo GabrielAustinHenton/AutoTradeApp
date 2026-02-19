@@ -259,19 +259,16 @@ class AlpacaService {
       start,
       end,
       limit: '10000',
-      adjustment: 'split',
       feed: 'iex',  // IEX feed works on free Alpaca accounts; SIP requires paid tier
     });
 
-    const res = await fetch(
-      `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`,
-      {
-        headers: {
-          'APCA-API-KEY-ID': creds.keyId,
-          'APCA-API-SECRET-KEY': creds.secretKey,
-        },
-      }
-    );
+    const url = `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`;
+    const res = await fetch(url, {
+      headers: {
+        'APCA-API-KEY-ID': creds.keyId,
+        'APCA-API-SECRET-KEY': creds.secretKey,
+      },
+    });
 
     if (!res.ok) {
       const text = await res.text();
@@ -279,7 +276,11 @@ class AlpacaService {
     }
 
     const data = await res.json();
-    return (data.bars || [])
+    const bars = data.bars || [];
+    if (bars.length === 0) {
+      console.warn(`[Alpaca] ${symbol}: 0 bars returned for ${start}→${end}. Full response:`, JSON.stringify(data).substring(0, 400));
+    }
+    return bars
       .map((bar: any) => ({
         timestamp: bar.t.split('T')[0],
         open: bar.o,

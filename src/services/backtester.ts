@@ -1137,7 +1137,7 @@ export async function runDayTradingBacktest(
   commissionPerTrade: number = 0,    // $0 for Robinhood, ~$1 for others
   slippagePercent: number = 0.02,    // 0.02% slippage per side (realistic for liquid large-caps)
   // RISK MANAGEMENT
-  yearlyDrawdownLimit: number = 20,  // Stop trading if down this % from year start
+  yearlyDrawdownLimit: number = 15,  // Stop trading if down this % from year start
   isPaper: boolean = true            // Use paper credentials for market data
 ): Promise<DayTradeResult> {
   // Determine data range to fetch
