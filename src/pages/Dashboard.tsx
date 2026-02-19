@@ -365,44 +365,6 @@ export function Dashboard() {
             )}
           </div>
 
-          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
-            <h2 className="text-lg md:text-xl font-semibold mb-4">Recent Trades</h2>
-            {displayTrades.length === 0 ? (
-              <p className="text-slate-400">No trades yet</p>
-            ) : (
-              <div className="space-y-3">
-                {displayTrades.slice(0, 5).map((trade) => (
-                  <div
-                    key={trade.id}
-                    className="flex justify-between items-center p-3 bg-slate-700 rounded-lg"
-                  >
-                    <div>
-                      <span className="font-semibold">{trade.symbol}</span>
-                      <span
-                        className={`ml-2 text-sm ${
-                          trade.type === 'buy' ? 'text-emerald-400' :
-                          trade.type === 'short' ? 'text-purple-400' :
-                          trade.type === 'cover' ? 'text-amber-400' : 'text-red-400'
-                        }`}
-                      >
-                        {trade.type.toUpperCase()}
-                      </span>
-                      <div className="text-xs text-slate-500">
-                        {new Date(trade.date).toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div>{trade.shares} shares</div>
-                      <div className="text-sm text-slate-400">
-                        @ ${trade.price.toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           {/* Quick Backtest */}
           <div className="bg-slate-800 rounded-xl p-4 md:p-6">
             <h2 className="text-lg md:text-xl font-semibold mb-4">Quick Backtest</h2>
@@ -677,6 +639,44 @@ export function Dashboard() {
                 <span>{tradingRules.length}</span>
               </div>
             </div>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Recent Trades</h2>
+            {displayTrades.length === 0 ? (
+              <p className="text-slate-400">No trades yet</p>
+            ) : (
+              <div className="space-y-3">
+                {displayTrades.slice(0, 5).map((trade) => (
+                  <div
+                    key={trade.id}
+                    className="flex justify-between items-center p-3 bg-slate-700 rounded-lg"
+                  >
+                    <div>
+                      <span className="font-semibold">{trade.symbol}</span>
+                      <span
+                        className={`ml-2 text-sm ${
+                          trade.type === 'buy' ? 'text-emerald-400' :
+                          trade.type === 'short' ? 'text-purple-400' :
+                          trade.type === 'cover' ? 'text-amber-400' : 'text-red-400'
+                        }`}
+                      >
+                        {trade.type.toUpperCase()}
+                      </span>
+                      <div className="text-xs text-slate-500">
+                        {new Date(trade.date).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div>{trade.shares} shares</div>
+                      <div className="text-sm text-slate-400">
+                        @ ${trade.price.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
