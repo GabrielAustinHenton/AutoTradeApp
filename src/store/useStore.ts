@@ -486,6 +486,7 @@ export const useStore = create<AppState>()(
         const isPaper = state.tradingMode === 'paper';
 
         try {
+          // Find or create the AutoTrader watchlist
           const watchlists = await alpaca.getWatchlists(isPaper);
           const existing = watchlists.find(w => w.name === 'AutoTrader');
 
@@ -493,21 +494,26 @@ export const useStore = create<AppState>()(
           let alpacaSymbols: string[];
 
           if (existing) {
-            // Fetch full watchlist — the list endpoint may not include assets
             const full = await alpaca.getWatchlist(isPaper, existing.id);
             watchlistId = full.id;
             alpacaSymbols = (full.assets ?? []).map(a => a.symbol);
+            console.log(`[Watchlist] Found AutoTrader watchlist with ${alpacaSymbols.length} symbols:`, alpacaSymbols);
           } else {
-            const created = await alpaca.createWatchlist(isPaper, 'AutoTrader', state.watchlist);
+            const created = await alpaca.createWatchlist(isPaper, 'AutoTrader', []);
             watchlistId = created.id;
-            alpacaSymbols = state.watchlist;
+            alpacaSymbols = [];
+            console.log(`[Watchlist] Created AutoTrader watchlist`);
           }
 
           // Two-way merge: union of both sides
           const merged = Array.from(new Set([...state.watchlist, ...alpacaSymbols]));
 
-          // Update Alpaca with merged list
-          await alpaca.updateWatchlist(isPaper, watchlistId, merged);
+          // Add symbols missing from Alpaca one by one
+          const toAdd = merged.filter(s => !alpacaSymbols.includes(s));
+          console.log(`[Watchlist] Adding ${toAdd.length} symbols to Alpaca:`, toAdd);
+          for (const symbol of toAdd) {
+            await alpaca.addSymbolToWatchlist(isPaper, watchlistId, symbol);
+          }
 
           // Update app with merged list + any new rules for new symbols
           const newRules: TradingRule[] = [];
