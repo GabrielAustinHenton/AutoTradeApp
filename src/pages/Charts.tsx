@@ -18,6 +18,7 @@ export function Charts() {
   ])];
 
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
+  const [companyName, setCompanyName] = useState('');
   const [timeframe, setTimeframe] = useState<TimeFrame>('1M');
   const [showPatterns, setShowPatterns] = useState(true);
   const [showRSI, setShowRSI] = useState(true);
@@ -39,6 +40,12 @@ export function Charts() {
   const [macdSignal, setMacdSignal] = useState(9);
 
   const isPaper = tradingMode === 'paper';
+
+  // Fetch company name from Alpaca asset info whenever symbol changes
+  useEffect(() => {
+    setCompanyName('');
+    alpaca.getAssetName(isPaper, selectedSymbol).then(setCompanyName);
+  }, [selectedSymbol, isPaper]);
 
   // Fetch chart data from Alpaca
   type ChartCandle = { date: string; open: number; high: number; low: number; close: number; volume: number };
@@ -132,7 +139,14 @@ export function Charts() {
           <div className="bg-slate-800 rounded-xl p-4 md:p-6">
             <div className="flex flex-wrap justify-between items-center gap-3 md:gap-4">
               <div>
-                <h2 className="text-xl md:text-2xl font-bold">{selectedSymbol}</h2>
+                <h2 className="text-xl md:text-2xl font-bold">
+                  {selectedSymbol}
+                  {companyName && companyName !== selectedSymbol && (
+                    <span className="ml-2 text-base md:text-lg font-normal text-slate-400">
+                      ({companyName})
+                    </span>
+                  )}
+                </h2>
                 {latestCandle && (
                   <div className="flex items-center gap-2 md:gap-3 mt-1">
                     <span className="text-lg md:text-xl">${latestCandle.close.toFixed(2)}</span>

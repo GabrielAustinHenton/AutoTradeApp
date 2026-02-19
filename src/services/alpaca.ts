@@ -340,6 +340,19 @@ class AlpacaService {
     return result;
   }
 
+  // ── Asset Info (company name lookup) ─────────────────────────────────────────
+
+  async getAssetName(isPaper: boolean, symbol: string): Promise<string> {
+    try {
+      const res = await this.request(isPaper, `/assets/${symbol.toUpperCase()}`);
+      if (!res.ok) return symbol;
+      const data = await res.json();
+      return data.name || symbol;
+    } catch {
+      return symbol;
+    }
+  }
+
   // ── Intraday Bars (15-minute candles for a single trading day) ───────────────
 
   async getIntradayBars(
