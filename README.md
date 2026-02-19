@@ -1,70 +1,83 @@
 # AutoTradeApp
 
-A realistic stock trading backtester and paper trading platform built with React + TypeScript + Vite.
+An automated day trading platform built with React + TypeScript, connected to Alpaca Markets for real paper and live trading. The core strategy is Opening Range Breakout (ORB) — validated by backtesting and executed automatically during market hours.
 
-## Features
+**Goal: Grow $25,000 → $500,000 through disciplined, rules-based day trading.**
 
-### Backtesting Engine
-- **Opening Range Breakout (ORB) Strategy**: Tests breakout trades with configurable profit targets and stop losses
-- **Real Historical Data**: 53 major stocks from 2013-2025 (Yahoo Finance data, stored locally)
-- **Simulated Historical Data**: 30 stocks from 1996-2012 for extended backtesting
-- **No API Rate Limits**: All historical data is pre-downloaded (174,000+ days of price data)
-
-### Realistic Cost Modeling
-- **Transaction Costs**: Configurable slippage (default 0.02% for liquid large-caps)
-- **Dynamic Volatility Adjustment**: Higher slippage during high-volatility periods
-- **Zero Commission**: Reflects modern brokers like Robinhood
-
-### Risk Management
-- **PDT Compliance**: $25,000 minimum capital requirement
-- **Yearly Drawdown Protection**: Stops trading if down 15% from year start
-- **Position Scaling**: Reduces position size as portfolio grows ($100k+ scales down)
-- **$500k Goal**: Auto-stops day trading when goal reached with transition advice
-
-### Realistic Estimate (Haircut System)
-The backtester applies real-world adjustments to raw results:
-- **Base Execution Slippage** (-12%): Real orders don't fill at perfect prices
-- **Trade Frequency Penalty** (0-10%): More trades = more mistakes
-- **Crisis Period Adjustment** (0-20%): Volatile months are worse in reality
-- **Simulated Data Penalty** (-15%): Pre-2013 data is less reliable
-- **Tax Consideration**: Reminds you of short-term capital gains impact
-
-### Sample 10-Year Results (2016-2025)
-```
-Raw Backtest:     $25,000 → $500,229 (+1,901%)
-Realistic Est:    $25,000 → $296,281 (+1,085%)
-Haircut Applied:  -43%
-
-Win Rate:         49.4% (5,281W / 5,359L)
-Avg Win/Loss:     +1.21% / -0.89%
-Total Trades:     10,687
-Transaction Costs: $140,561
-```
+---
 
 ## How It Works
 
-### Opening Range Breakout Strategy
-1. **Entry**: When price breaks above yesterday's high
-2. **Profit Target**: +2% from entry
-3. **Stop Loss**: -1% from entry (2:1 reward/risk)
-4. **Exit**: Hit target, hit stop, or close at end of day
+### Strategy: Opening Range Breakout (ORB)
 
-### Data Flow
+1. **Opening Range** — The high and low of each watchlist stock between 9:30–10:00 AM ET are recorded
+2. **Breakout Signal** — After 10:00 AM ET, if price closes above the opening range high, a trade is triggered
+3. **Bracket Order** — A buy order is placed with automatic take profit (+2%) and stop loss (-1%) legs managed server-side by Alpaca
+4. **One trade per symbol per day** — No re-entry; scanner stops at 3:30 PM ET
+
+### Risk Management
+- **$3,750 per trade** (15% of $25k mental budget — as portfolio grows, % risk naturally shrinks)
+- **+2% take profit** → +$75 per winner
+- **-1% stop loss** → -$37.50 per loser
+- **2:1 reward/risk** — break even at 34% win rate
+- **Daily exposure cap** — bounded by available buying power × max trades per day
+- **Yearly drawdown protection** — stops auto-trading if down 15% from year start
+- **Trading hours only** — no overnight positions
+
+### Paper → Live Pathway
+1. Connect Alpaca paper account in Settings
+2. Enable auto-trading — ORB scanner watches your watchlist during market hours
+3. Validate strategy profitability over weeks/months in paper mode
+4. Switch to live when confident — auto-trading disables automatically on mode switch (must re-enable manually)
+
+---
+
+## Features
+
+### Live Auto-Trading (Alpaca Markets)
+- ORB scanner polls every 60 seconds during market hours
+- Bracket orders placed server-side — executes even when browser tab is hidden
+- Duplicate order protection — checks existing Alpaca positions before placing
+- Paper and live accounts managed separately — impossible to mix credentials
+
+### Dashboard
+- Real-time portfolio value, buying power, gain/loss, day change
+- ORB Scanner status card with live opening ranges and breakout tracking
+- Daily exposure progress bar (warns at 80% of cap)
+- Portfolio performance chart (history of paper account equity)
+- Quick backtester — run ORB strategy across full watchlist in seconds
+
+### Manual Trading
+- Buy/sell/short/cover any symbol via Alpaca
+- Market and limit order support
+- Routes to paper or live account based on current trading mode
+
+### Backtesting Engine
+- **Real historical data**: 53 major stocks from 2013–2025 (Yahoo Finance)
+- **Simulated data**: 30 stocks from 1996–2012 for extended testing
+- No API rate limits — all data pre-downloaded (174,000+ days of price data)
+- Realistic cost modeling: configurable slippage, zero commission
+- Yearly drawdown protection and position scaling built into backtests
+- Haircut system applies real-world adjustments to raw backtest results
+
+### Backtested Results (ORB, 10 Years, 2016–2025)
 ```
-Yahoo Finance → downloadHistoricalData.ts → yahooHistorical.json
-                                                    ↓
-                                            backtester.ts
-                                                    ↓
-                                            Dashboard.tsx
+Raw:       $25,000 → $500,229  (+1,901%)
+Realistic: $25,000 → $296,281  (+1,085%)
+Haircut:   -43% (slippage, execution variance, data imperfection)
+
+Win Rate:  49.4% (5,281W / 5,359L)
+Avg Win:   +1.21%  |  Avg Loss: -0.89%
+Trades:    10,687  |  Transaction Costs: $140,561
 ```
 
-### No Lookahead Bias
-The backtester only uses information available at trade entry:
-- Yesterday's OHLCV data
-- Today's opening price
-- Gap direction and size
+### Settings & Configuration
+- Alpaca paper and live credentials stored separately in localStorage
+- Auto-trade config: max $ per trade, max trades per day, yearly drawdown limit
+- Watchlist management (permanent list + user additions)
+- Trading rules: candlestick patterns, MACD crossover, price alerts
 
-It does NOT cheat by using today's high/low to select trades.
+---
 
 ## Getting Started
 
@@ -79,49 +92,45 @@ npm run dev
 npm run build
 ```
 
-## Updating Historical Data
+### Connect Alpaca
+1. Create a free account at [alpaca.markets](https://alpaca.markets)
+2. Go to Settings → Alpaca Markets → connect paper account
+3. Click "Sync Portfolio" to pull account data
+4. Add stocks to your watchlist
+5. Enable Auto-Trading
 
-To refresh the Yahoo data (e.g., after each year ends):
-
+### Update Historical Backtest Data
 ```bash
 npx tsx scripts/downloadHistoricalData.ts
 ```
+Downloads fresh Yahoo Finance data to `src/data/yahooHistorical.json`.
 
-This downloads fresh data and saves it to `src/data/yahooHistorical.json`.
+---
 
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript
 - **Build**: Vite
-- **State**: Zustand
+- **State**: Zustand (with localStorage persistence)
 - **Styling**: Tailwind CSS
-- **Charts**: Lightweight Charts (TradingView)
-- **Data**: Yahoo Finance (historical), Binance (crypto real-time)
-
-## Final Thoughts
-
-This backtester was built to tell the truth, not to sell dreams.
-
-**The reality of day trading:**
-- Most day traders lose money (studies show 70-90% lose)
-- Transaction costs compound brutally over thousands of trades
-- Backtests always look better than real trading
-- Emotions, mistakes, and execution issues aren't modeled
-
-**What the data shows:**
-- A ~49% win rate with 1.2:1 reward/risk is a real (small) edge
-- The edge exists, but it's fragile and requires discipline
-- After realistic adjustments, expect 50-60% of backtest returns
-- Taxes take another 25-35% of gains (short-term capital gains)
-
-**If you pursue this:**
-1. Paper trade for 3-6 months first
-2. Start with minimum position sizes
-3. Track every trade and review weekly
-4. Have a day job - don't depend on trading income
-5. Consider if your time is better spent on index funds
-
-The best trade might be putting $25k in VOO and checking back in 10 years.
+- **Charts**: Recharts
+- **Broker**: Alpaca Markets API (paper + live)
+- **Hosting**: Firebase Hosting
+- **CI/CD**: GitHub Actions (push to main = deploy)
 
 ---
 
-*Built with the assistance of Claude (Anthropic). MVP released February 2026.*
+## Reality Check
+
+This app was built to trade with discipline, not emotion. Before going live:
+
+- **Paper trade for at least 1–3 months** — validate the strategy holds in current market conditions
+- **A 49% win rate with 2:1 R/R is a real edge** — but it's fragile and requires strict adherence to rules
+- **Backtests always look better than live trading** — expect 50–60% of backtest returns
+- **Taxes matter** — short-term capital gains are taxed as ordinary income (25–37%)
+- **Most day traders lose money** — studies consistently show 70–90% of retail day traders underperform
+
+The best trade might still be putting $25k in VOO and checking back in 10 years.
+
+---
+
+*Built with the assistance of [Claude](https://claude.ai) (Anthropic). MVP released February 2026.*
