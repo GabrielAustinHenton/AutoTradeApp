@@ -1218,9 +1218,13 @@ export const useStore = create<AppState>()(
           // Preserve user data, only reset if not present
           // Ensure paper portfolio cash balance is preserved (don't reset to $10k!)
           if (persisted.paperPortfolio && typeof persisted.paperPortfolio.cashBalance === 'number') {
+            const persistedStartingBalance = persisted.paperPortfolio.startingBalance;
+            // Migrate old $25k default → $100k (Alpaca paper accounts start at $100k)
+            const startingBalance = persistedStartingBalance === 25000 ? 100000 : (persistedStartingBalance ?? 100000);
             merged.paperPortfolio = {
               ...defaultPaperPortfolio,
               ...persisted.paperPortfolio,
+              startingBalance,
               // Ensure nested arrays are preserved
               positions: Array.isArray(persisted.paperPortfolio.positions) ? persisted.paperPortfolio.positions : [],
               trades: Array.isArray(persisted.paperPortfolio.trades) ? persisted.paperPortfolio.trades : [],
