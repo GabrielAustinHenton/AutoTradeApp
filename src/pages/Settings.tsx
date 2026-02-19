@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { alpaca } from '../services/alpaca';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
+import { resetOrbScanner } from '../services/orbScanner';
 import { saveAlpacaCredsToFirestore } from '../services/firestoreSync';
 import { useAuth } from '../contexts/AuthContext';
 import type { Alert } from '../types';
@@ -121,6 +122,7 @@ export function Settings() {
       await alpaca.getAccount(true); // verify against paper endpoint
       connectAlpacaPaper(paperKeyId, paperSecret);
       if (user) saveAlpacaCredsToFirestore(user.uid, 'paper', { keyId: paperKeyId, secretKey: paperSecret });
+      resetOrbScanner();
       setPaperSecret(''); // clear secret from UI after saving
       // Auto-sync if currently in paper mode so Dashboard shows live data immediately
       if (tradingMode === 'paper') {

@@ -287,6 +287,15 @@ export function stopOrbScanner(): void {
   console.log('[ORB] Scanner stopped.');
 }
 
+export function resetOrbScanner(): void {
+  stopOrbScanner();
+  orbMap.clear();
+  totalDeployedToday = 0;
+  deployedDate = '';
+  dailyExposureCap = 0;
+  console.log('[ORB] Scanner state reset.');
+}
+
 export function getOrbStates(): OrbData[] {
   return Array.from(orbMap.values());
 }
