@@ -656,6 +656,18 @@ export const useStore = create<AppState>()(
               if (isStaleHistory) {
                 console.log(`[Store] Clearing stale history (last snapshot ~$${existingHistory[existingHistory.length - 1].totalValue.toFixed(0)}, current value ~$${totalValue.toFixed(0)})`);
               }
+
+              // Record one portfolio snapshot per calendar day using Alpaca's portfolio_value.
+              // This powers the Dashboard performance chart without needing manual trades.
+              const baseHistory = isStaleHistory ? [] : existingHistory;
+              const todayStr = new Date().toDateString();
+              const lastSnap = baseHistory[baseHistory.length - 1];
+              const alreadyRecordedToday = lastSnap && new Date(lastSnap.date).toDateString() === todayStr;
+              const positionsValue = positions.reduce((sum, p) => sum + p.totalValue, 0);
+              const newHistory = alreadyRecordedToday
+                ? baseHistory
+                : [...baseHistory, { date: new Date(), totalValue, cashBalance, positionsValue }].slice(-365);
+
               return {
                 alpacaSynced: true,
                 paperPortfolio: {
@@ -665,7 +677,7 @@ export const useStore = create<AppState>()(
                   dayChange,
                   positions,
                   shortPositions,
-                  history: isStaleHistory ? [] : existingHistory,
+                  history: newHistory,
                 },
               };
             });
