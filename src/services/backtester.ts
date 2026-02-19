@@ -196,9 +196,9 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
   const equityCurve: EquityPoint[] = [];
   const openPositions: Position[] = [];
 
-  // Filter rules to only enabled pattern rules for the symbol
+  // Filter rules to only enabled pattern rules (symbol-agnostic rules match any symbol)
   const activeRules = rules.filter(
-    (r) => r.enabled && r.ruleType === 'pattern' && r.symbol.toUpperCase() === symbol.toUpperCase()
+    (r) => r.enabled && r.ruleType === 'pattern' && (!r.symbol || r.symbol.toUpperCase() === symbol.toUpperCase())
   );
 
   // Walk through historical data

@@ -14,7 +14,7 @@ function formatTimeAgo(date: Date | undefined): string {
 }
 
 export function Rules() {
-  const { tradingRules, addTradingRule, toggleTradingRule, removeTradingRule, updateTradingRule, autoTradeConfig } = useStore();
+  const { tradingRules, addTradingRule, toggleTradingRule, removeTradingRule, updateTradingRule, resetTradingRules, autoTradeConfig } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [ruleType, setRuleType] = useState<'price' | 'pattern' | 'macd'>('pattern');
   const [name, setName] = useState('');
@@ -207,12 +207,24 @@ export function Rules() {
           </Link>
           <h1 className="text-2xl md:text-3xl font-bold">Trading Rules</h1>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-semibold transition-colors"
-        >
-          {showForm ? 'Cancel' : '+ New Rule'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (confirm('Reset all trading rules back to defaults? This will remove any custom rules you added.')) {
+                resetTradingRules();
+              }
+            }}
+            className="text-slate-400 hover:text-slate-200 text-sm px-3 py-2 rounded-lg hover:bg-slate-700 transition-colors"
+          >
+            Reset to Defaults
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-semibold transition-colors"
+          >
+            {showForm ? 'Cancel' : '+ New Rule'}
+          </button>
+        </div>
       </div>
 
       {showForm && (

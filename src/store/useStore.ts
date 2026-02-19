@@ -464,9 +464,9 @@ export const useStore = create<AppState>()(
         })),
 
       resetTradingRules: () =>
-        set((state) => ({
-          tradingRules: state.watchlist.flatMap(createRulesForSymbol),
-        })),
+        set({
+          tradingRules: createDefaultRules(),
+        }),
 
       // Journal actions
       addJournalEntry: (entry) =>

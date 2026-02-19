@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { runBacktest } from '../services/backtester';
+import { CURATED_STRATEGIES } from '../config/curatedStrategies';
 import type { BacktestResult } from '../types';
 
 // Returns the most recent weekday (skips Saturday/Sunday)
@@ -13,7 +14,7 @@ function previousMarketDay(): Date {
 }
 
 export function Backtest() {
-  const { tradingRules, backtestResults, addBacktestResult, removeBacktestResult, clearBacktestResults, tradingMode } = useStore();
+  const { backtestResults, addBacktestResult, removeBacktestResult, clearBacktestResults, tradingMode } = useStore();
 
   const [symbol, setSymbol] = useState('AAPL');
   const [endDate, setEndDate] = useState(() => {
@@ -27,12 +28,13 @@ export function Backtest() {
   });
   const [initialCapital, setInitialCapital] = useState('10000');
   const [positionSize, setPositionSize] = useState('10');
-  const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
+  // All curated strategies selected by default
+  const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(
+    () => new Set(CURATED_STRATEGIES.map((s) => s.id))
+  );
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeResult, setActiveResult] = useState<BacktestResult | null>(null);
-
-  const patternRules = tradingRules.filter((r) => r.ruleType === 'pattern' && r.enabled);
 
   const toggleRule = (ruleId: string) => {
     const newSet = new Set(selectedRuleIds);
@@ -45,7 +47,11 @@ export function Backtest() {
   };
 
   const selectAllRules = () => {
-    setSelectedRuleIds(new Set(patternRules.map((r) => r.id)));
+    setSelectedRuleIds(new Set(CURATED_STRATEGIES.map((s) => s.id)));
+  };
+
+  const deselectAllRules = () => {
+    setSelectedRuleIds(new Set());
   };
 
   const handleRunBacktest = async () => {
@@ -58,7 +64,7 @@ export function Backtest() {
     setError(null);
 
     try {
-      const selectedRules = tradingRules.filter((r) => selectedRuleIds.has(r.id));
+      const selectedRules = CURATED_STRATEGIES.filter((s) => selectedRuleIds.has(s.id));
       const result = await runBacktest({
         symbol: symbol.toUpperCase(),
         startDate: new Date(startDate),
@@ -172,36 +178,51 @@ export function Backtest() {
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm text-slate-400">Rules to Test</label>
-                  <button
-                    onClick={selectAllRules}
-                    className="text-xs text-emerald-400 hover:text-emerald-300"
-                  >
-                    Select All
-                  </button>
+                  <label className="text-sm text-slate-400">Strategies to Test</label>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={selectAllRules}
+                      className="text-xs text-emerald-400 hover:text-emerald-300"
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={deselectAllRules}
+                      className="text-xs text-slate-500 hover:text-slate-300"
+                    >
+                      None
+                    </button>
+                  </div>
                 </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {patternRules.length === 0 ? (
-                    <p className="text-sm text-slate-500">No pattern rules configured</p>
-                  ) : (
-                    patternRules.map((rule) => (
-                      <label
-                        key={rule.id}
-                        className={`flex items-center gap-2 p-2 rounded cursor-pointer ${
-                          selectedRuleIds.has(rule.id) ? 'bg-slate-700' : 'hover:bg-slate-700/50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedRuleIds.has(rule.id)}
-                          onChange={() => toggleRule(rule.id)}
-                          className="rounded border-slate-500"
-                        />
-                        <span className="text-sm flex-1">{rule.name}</span>
-                        {rule.symbol && <span className="text-xs text-slate-500">{rule.symbol}</span>}
-                      </label>
-                    ))
-                  )}
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {CURATED_STRATEGIES.map((strategy) => (
+                    <label
+                      key={strategy.id}
+                      className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer transition-colors ${
+                        selectedRuleIds.has(strategy.id)
+                          ? 'bg-slate-700'
+                          : 'hover:bg-slate-700/40'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedRuleIds.has(strategy.id)}
+                        onChange={() => toggleRule(strategy.id)}
+                        className="mt-0.5 rounded border-slate-500 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{strategy.name}</span>
+                          <span className="text-xs text-slate-500 shrink-0">
+                            +{strategy.takeProfitPercent}% / -{strategy.stopLossPercent}%
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          {strategy.description}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
 
