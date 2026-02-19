@@ -35,7 +35,7 @@ export function Dashboard() {
     alpacaLiveConnected,
   } = useStore();
 
-  const { orbStates, isRunning: isOrbRunning } = useOrbScanner();
+  const { orbStates, isRunning: isOrbRunning, totalDeployed, exposureCap } = useOrbScanner();
 
   // Backtest state
   const [backtestRunning, setBacktestRunning] = useState(false);
@@ -676,6 +676,25 @@ export function Dashboard() {
                 ORB Scanner
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
               </h2>
+
+              {/* Daily exposure bar */}
+              {exposureCap > 0 && (
+                <div className="mb-3">
+                  <div className="flex justify-between text-xs text-slate-400 mb-1">
+                    <span>Daily deployed</span>
+                    <span>${totalDeployed.toLocaleString(undefined, { maximumFractionDigits: 0 })} / ${exposureCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        totalDeployed / exposureCap > 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${Math.min((totalDeployed / exposureCap) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {orbStates.length === 0 ? (
                 <p className="text-slate-400 text-sm">Waiting for 10:00 AM ET opening range...</p>
               ) : (

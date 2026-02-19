@@ -85,6 +85,14 @@ const orbMap = new Map<string, OrbData>();
 let scanInterval: ReturnType<typeof setInterval> | null = null;
 export let scannerRunning = false;
 
+// Daily exposure tracking
+let totalDeployedToday = 0;
+let deployedDate = '';        // YYYY-MM-DD ET — reset when date changes
+let dailyExposureCap = 0;     // set by startOrbScanner
+
+export function getTotalDeployedToday(): number { return totalDeployedToday; }
+export function getDailyExposureCap(): number { return dailyExposureCap; }
+
 // ── Core scan logic ──────────────────────────────────────────────────────────
 
 async function runOrbScan(
@@ -106,6 +114,19 @@ async function runOrbScan(
   }
 
   const today = getETDateStr();
+
+  // Reset daily exposure counter on a new trading day
+  if (deployedDate !== today) {
+    totalDeployedToday = 0;
+    deployedDate = today;
+    console.log(`[ORB] New day ${today} — daily exposure reset. Cap: $${dailyExposureCap.toFixed(0)}`);
+  }
+
+  // Stop trading if daily exposure cap is reached
+  if (dailyExposureCap > 0 && totalDeployedToday >= dailyExposureCap) {
+    console.log(`[ORB] Daily exposure cap reached ($${totalDeployedToday.toFixed(0)} / $${dailyExposureCap.toFixed(0)}) — no new trades today.`);
+    return;
+  }
 
   // Reset stale entries from a previous day
   for (const [sym, data] of orbMap.entries()) {
@@ -169,7 +190,15 @@ async function runOrbScan(
         continue;
       }
 
-      console.log(`[ORB] BREAKOUT: ${sym} @ $${price.toFixed(2)} > ORB high $${orbData.orbHigh.toFixed(2)} — buying ${qty} shares`);
+      const orderCost = qty * price;
+
+      // Check daily exposure cap before placing
+      if (dailyExposureCap > 0 && totalDeployedToday + orderCost > dailyExposureCap) {
+        console.log(`[ORB] ${sym}: skipping — would exceed daily cap ($${(totalDeployedToday + orderCost).toFixed(0)} > $${dailyExposureCap.toFixed(0)})`);
+        continue;
+      }
+
+      console.log(`[ORB] BREAKOUT: ${sym} @ $${price.toFixed(2)} > ORB high $${orbData.orbHigh.toFixed(2)} — buying ${qty} shares ($${orderCost.toFixed(0)})`);
 
       // Mark as traded immediately to prevent duplicate orders during async call
       orbData.tradedToday = true;
@@ -186,7 +215,8 @@ async function runOrbScan(
           take_profit: { limit_price: parseFloat((price * 1.02).toFixed(2)) },
           stop_loss:   { stop_price: parseFloat((price * 0.99).toFixed(2)) },
         });
-        console.log(`[ORB] Order placed: ${order.id}`);
+        totalDeployedToday += orderCost;
+        console.log(`[ORB] Order placed: ${order.id} | Daily deployed: $${totalDeployedToday.toFixed(0)} / $${dailyExposureCap.toFixed(0)}`);
         onTrade(sym, qty, price, order.id);
       } catch (err) {
         // Undo tradedToday so we can retry next scan
@@ -204,13 +234,22 @@ export function startOrbScanner(
   symbols: string[],
   isPaper: boolean,
   capitalPerTrade: number,
+  maxDailyExposure: number,
   onTrade: (symbol: string, qty: number, price: number, orderId: string) => void,
   onError: (err: string) => void,
 ): void {
   if (scanInterval !== null) return; // already running
 
+  dailyExposureCap = maxDailyExposure;
+  // Reset deployed counter if starting fresh on a new day
+  const today = getETDateStr();
+  if (deployedDate !== today) {
+    totalDeployedToday = 0;
+    deployedDate = today;
+  }
+
   scannerRunning = true;
-  console.log(`[ORB] Scanner started — watching ${symbols.join(', ')}`);
+  console.log(`[ORB] Scanner started — watching ${symbols.join(', ')} | Cap: $${maxDailyExposure.toFixed(0)}`);
 
   // Run immediately, then every 60s
   runOrbScan(symbols, isPaper, capitalPerTrade, onTrade, onError);
