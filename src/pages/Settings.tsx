@@ -321,6 +321,178 @@ export function Settings() {
         )}
       </div>
 
+      {/* Alpaca Connection */}
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
+        <h2 className="text-lg md:text-xl font-semibold mb-1">Alpaca Markets</h2>
+        <p className="text-slate-400 text-sm mb-4">
+          Paper and Live accounts are completely separate — it's impossible to accidentally use real money in paper mode.
+        </p>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded-lg text-emerald-300 text-sm">
+            {success}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {/* ── Paper Trading ── */}
+          <div className={`p-4 rounded-lg border transition-all ${
+            tradingMode === 'paper'
+              ? alpacaPaperConnected
+                ? 'bg-emerald-900/30 border-emerald-500 ring-2 ring-emerald-500/30'
+                : 'bg-slate-700/50 border-emerald-500/60 ring-2 ring-emerald-500/20'
+              : alpacaPaperConnected
+                ? 'bg-emerald-900/20 border-emerald-700'
+                : 'bg-slate-700/50 border-slate-600'
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">Paper Trading</h3>
+                  {tradingMode === 'paper' && (
+                    <span className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/50 rounded text-xs text-emerald-400 font-medium">
+                      Active Mode
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Paper Trading → API Keys</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${alpacaPaperConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
+                <span className={`text-xs font-medium ${alpacaPaperConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {alpacaPaperConnected ? 'Connected' : 'Not connected'}
+                </span>
+              </div>
+            </div>
+
+            {alpacaPaperConnected ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleSyncPaper}
+                  disabled={syncing}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+                >
+                  {syncing ? 'Syncing...' : 'Sync Paper Portfolio'}
+                </button>
+                <button
+                  onClick={() => { disconnectAlpacaPaper(); setPaperKeyId(''); setPaperSecret(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'paper', null); }}
+                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={paperKeyId}
+                  onChange={(e) => setPaperKeyId(e.target.value.trim())}
+                  placeholder="Paper Key ID (PK...)"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+                <input
+                  type="password"
+                  value={paperSecret}
+                  onChange={(e) => setPaperSecret(e.target.value.trim())}
+                  placeholder="Paper Secret Key"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  onClick={handleConnectPaper}
+                  disabled={connecting || !paperKeyId || !paperSecret}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+                >
+                  {connecting ? 'Connecting...' : 'Connect Paper Account'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Live Trading ── */}
+          <div className={`p-4 rounded-lg border transition-all ${
+            tradingMode === 'live'
+              ? alpacaLiveConnected
+                ? 'bg-red-900/30 border-red-500 ring-2 ring-red-500/30'
+                : 'bg-slate-700/50 border-red-500/60 ring-2 ring-red-500/20'
+              : alpacaLiveConnected
+                ? 'bg-red-900/20 border-red-800'
+                : 'bg-slate-700/50 border-slate-600'
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">Live Trading</h3>
+                  {tradingMode === 'live' && (
+                    <span className="px-1.5 py-0.5 bg-red-500/20 border border-red-500/50 rounded text-xs text-red-400 font-medium">
+                      Active Mode
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Live Trading → API Keys</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${alpacaLiveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
+                <span className={`text-xs font-medium ${alpacaLiveConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {alpacaLiveConnected ? 'Connected' : 'Not connected'}
+                </span>
+              </div>
+            </div>
+
+            {alpacaLiveConnected ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleSyncLive}
+                    disabled={syncing}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {syncing ? 'Syncing...' : 'Sync Live Portfolio'}
+                  </button>
+                  <button
+                    onClick={() => { disconnectAlpacaLive(); setLiveKeyId(''); setLiveSecret(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'live', null); }}
+                    className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                <p className="text-xs text-amber-400">
+                  Auto-trading is disabled whenever you switch to Live mode. You must manually enable it in Auto-Trading above.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={liveKeyId}
+                  onChange={(e) => setLiveKeyId(e.target.value.trim())}
+                  placeholder="Live Key ID (AK...)"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                />
+                <input
+                  type="password"
+                  value={liveSecret}
+                  onChange={(e) => setLiveSecret(e.target.value.trim())}
+                  placeholder="Live Secret Key"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                />
+                <button
+                  onClick={handleConnectLive}
+                  disabled={connecting || !liveKeyId || !liveSecret}
+                  className="w-full py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+                >
+                  {connecting ? 'Connecting...' : 'Connect Live Account'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Auto-Trading */}
       <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
         <div className="flex items-center justify-between mb-4 md:mb-6">
@@ -543,178 +715,6 @@ export function Settings() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Alpaca Connection */}
-      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-semibold mb-1">Alpaca Markets</h2>
-        <p className="text-slate-400 text-sm mb-4">
-          Paper and Live accounts are completely separate — it's impossible to accidentally use real money in paper mode.
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded-lg text-emerald-300 text-sm">
-            {success}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          {/* ── Paper Trading ── */}
-          <div className={`p-4 rounded-lg border transition-all ${
-            tradingMode === 'paper'
-              ? alpacaPaperConnected
-                ? 'bg-emerald-900/30 border-emerald-500 ring-2 ring-emerald-500/30'
-                : 'bg-slate-700/50 border-emerald-500/60 ring-2 ring-emerald-500/20'
-              : alpacaPaperConnected
-                ? 'bg-emerald-900/20 border-emerald-700'
-                : 'bg-slate-700/50 border-slate-600'
-          }`}>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium">Paper Trading</h3>
-                  {tradingMode === 'paper' && (
-                    <span className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/50 rounded text-xs text-emerald-400 font-medium">
-                      Active Mode
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Paper Trading → API Keys</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${alpacaPaperConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-                <span className={`text-xs font-medium ${alpacaPaperConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
-                  {alpacaPaperConnected ? 'Connected' : 'Not connected'}
-                </span>
-              </div>
-            </div>
-
-            {alpacaPaperConnected ? (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={handleSyncPaper}
-                  disabled={syncing}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                >
-                  {syncing ? 'Syncing...' : 'Sync Paper Portfolio'}
-                </button>
-                <button
-                  onClick={() => { disconnectAlpacaPaper(); setPaperKeyId(''); setPaperSecret(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'paper', null); }}
-                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Disconnect
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={paperKeyId}
-                  onChange={(e) => setPaperKeyId(e.target.value.trim())}
-                  placeholder="Paper Key ID (PK...)"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-                <input
-                  type="password"
-                  value={paperSecret}
-                  onChange={(e) => setPaperSecret(e.target.value.trim())}
-                  placeholder="Paper Secret Key"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-                <button
-                  onClick={handleConnectPaper}
-                  disabled={connecting || !paperKeyId || !paperSecret}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                >
-                  {connecting ? 'Connecting...' : 'Connect Paper Account'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* ── Live Trading ── */}
-          <div className={`p-4 rounded-lg border transition-all ${
-            tradingMode === 'live'
-              ? alpacaLiveConnected
-                ? 'bg-red-900/30 border-red-500 ring-2 ring-red-500/30'
-                : 'bg-slate-700/50 border-red-500/60 ring-2 ring-red-500/20'
-              : alpacaLiveConnected
-                ? 'bg-red-900/20 border-red-800'
-                : 'bg-slate-700/50 border-slate-600'
-          }`}>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium">Live Trading</h3>
-                  {tradingMode === 'live' && (
-                    <span className="px-1.5 py-0.5 bg-red-500/20 border border-red-500/50 rounded text-xs text-red-400 font-medium">
-                      Active Mode
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Live Trading → API Keys</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${alpacaLiveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-                <span className={`text-xs font-medium ${alpacaLiveConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
-                  {alpacaLiveConnected ? 'Connected' : 'Not connected'}
-                </span>
-              </div>
-            </div>
-
-            {alpacaLiveConnected ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={handleSyncLive}
-                    disabled={syncing}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                  >
-                    {syncing ? 'Syncing...' : 'Sync Live Portfolio'}
-                  </button>
-                  <button
-                    onClick={() => { disconnectAlpacaLive(); setLiveKeyId(''); setLiveSecret(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'live', null); }}
-                    className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Disconnect
-                  </button>
-                </div>
-                <p className="text-xs text-amber-400">
-                  Auto-trading is disabled whenever you switch to Live mode. You must manually enable it in Auto-Trading above.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={liveKeyId}
-                  onChange={(e) => setLiveKeyId(e.target.value.trim())}
-                  placeholder="Live Key ID (AK...)"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-                <input
-                  type="password"
-                  value={liveSecret}
-                  onChange={(e) => setLiveSecret(e.target.value.trim())}
-                  placeholder="Live Secret Key"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-                <button
-                  onClick={handleConnectLive}
-                  disabled={connecting || !liveKeyId || !liveSecret}
-                  className="w-full py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                >
-                  {connecting ? 'Connecting...' : 'Connect Live Account'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Alert Settings */}

@@ -30,6 +30,8 @@ export function Dashboard() {
     autoTradeConfig,
     alpacaConnected,
     alpacaSynced,
+    alpacaPaperConnected,
+    alpacaLiveConnected,
   } = useStore();
 
   // Backtest state
@@ -389,6 +391,12 @@ export function Dashboard() {
                   ? 'RSI(14) < 30 = Buy, RSI > 70 = Sell, 5% stop loss'
                   : 'Tests with your pattern rules'}
               </p>
+
+              {backtestStrategy === 'daytrade' && !(isPaperMode ? alpacaPaperConnected : alpacaLiveConnected) && (
+                <div className="p-3 bg-amber-900/40 border border-amber-700 rounded-lg text-sm text-amber-300">
+                  Alpaca account not connected. Go to Settings → Alpaca Markets to connect your {isPaperMode ? 'paper' : 'live'} account first.
+                </div>
+              )}
 
               {backtestError && (
                 <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-sm text-red-300">
