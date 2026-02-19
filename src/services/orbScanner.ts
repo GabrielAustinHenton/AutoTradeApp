@@ -136,16 +136,19 @@ async function runOrbScan(
   // Sync tradedToday with live Alpaca positions so page reloads don't re-buy
   try {
     const openPositions = await alpaca.getPositions(isPaper);
-    const heldSymbols = new Set(openPositions.map(p => p.symbol.toUpperCase()));
+    const positionMap = new Map(openPositions.map(p => [p.symbol.toUpperCase(), p]));
     for (const sym of symbols) {
-      if (heldSymbols.has(sym.toUpperCase())) {
+      const position = positionMap.get(sym.toUpperCase());
+      if (position) {
+        const entryPrice = parseFloat(position.avg_entry_price);
         const existing = orbMap.get(sym);
         if (existing && !existing.tradedToday) {
           existing.tradedToday = true;
-          console.log(`[ORB] ${sym}: already have a position — marking as traded`);
+          existing.entryPrice = entryPrice;
+          console.log(`[ORB] ${sym}: already have a position @ $${entryPrice.toFixed(2)} — marking as traded`);
         } else if (!existing) {
           // Position exists but no ORB data yet — pre-mark so we don't buy on top of it
-          orbMap.set(sym, { symbol: sym, orbHigh: 0, orbLow: 0, date: today, tradedToday: true });
+          orbMap.set(sym, { symbol: sym, orbHigh: 0, orbLow: 0, date: today, tradedToday: true, entryPrice });
         }
       }
     }

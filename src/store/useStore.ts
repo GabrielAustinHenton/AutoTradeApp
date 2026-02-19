@@ -602,7 +602,8 @@ export const useStore = create<AppState>()(
             alpaca.getPositions(isPaper),
           ]);
 
-          const cashBalance = parseFloat(account.buying_power);
+          const cashBalance = parseFloat(account.cash);          // uninvested cash
+          const buyingPower = parseFloat(account.buying_power);  // includes margin
           const totalValue = parseFloat(account.portfolio_value);
 
           const positions: Position[] = alpacaPositions
@@ -645,19 +646,33 @@ export const useStore = create<AppState>()(
 
           if (isPaper) {
             // Paper sync → update paperPortfolio so it doesn't bleed into live view
-            set((s) => ({
-              alpacaSynced: true,
-              paperPortfolio: {
-                ...s.paperPortfolio,
-                cashBalance,
-                positions,
-                shortPositions,
-              },
-            }));
+            set((s) => {
+              // Clear stale history that belongs to a previous account.
+              // Heuristic: if every snapshot is <50% of current portfolio value, it's old data.
+              const existingHistory = s.paperPortfolio.history || [];
+              const isStaleHistory =
+                existingHistory.length > 0 &&
+                existingHistory.every((h) => h.totalValue < totalValue * 0.5);
+              if (isStaleHistory) {
+                console.log(`[Store] Clearing stale history (last snapshot ~$${existingHistory[existingHistory.length - 1].totalValue.toFixed(0)}, current value ~$${totalValue.toFixed(0)})`);
+              }
+              return {
+                alpacaSynced: true,
+                paperPortfolio: {
+                  ...s.paperPortfolio,
+                  cashBalance,
+                  buyingPower,
+                  positions,
+                  shortPositions,
+                  history: isStaleHistory ? [] : existingHistory,
+                },
+              };
+            });
           } else {
             // Live sync → update top-level live state
+            // Use buying_power for live "Buying Power" card (unchanged behavior)
             set({
-              cashBalance,
+              cashBalance: buyingPower,
               positions,
               alpacaSynced: true,
               portfolioSummary: {
@@ -667,7 +682,7 @@ export const useStore = create<AppState>()(
                 totalGainPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
                 dayChange,
                 dayChangePercent,
-                cashBalance,
+                cashBalance: buyingPower,
               },
             });
           }

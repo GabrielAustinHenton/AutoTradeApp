@@ -20,9 +20,9 @@ export function useOrbScanner(): {
   const enabled = autoTradeConfig.enabled;
   const symbols = watchlist.filter(Boolean);
 
-  // Available cash: paper portfolio cash in paper mode, live cash otherwise
+  // Available capital: use buying_power (includes margin) since that's what Alpaca lets us deploy
   const availableCash = isPaper
-    ? (paperPortfolio?.cashBalance ?? 0)
+    ? (paperPortfolio?.buyingPower ?? paperPortfolio?.cashBalance ?? 0)
     : (cashBalance ?? 0);
 
   // Daily cap = available cash (can't spend what you don't have)

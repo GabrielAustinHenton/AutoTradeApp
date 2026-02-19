@@ -53,7 +53,11 @@ export function Dashboard() {
   const isPaperMode = tradingMode === 'paper';
   const isLiveNotConnected = tradingMode === 'live' && (!alpacaConnected || !alpacaSynced);
   const displayPositions = isPaperMode ? (paperPortfolio?.positions || []) : (isLiveNotConnected ? [] : positions);
+  // cashBalance = account.cash (uninvested); buyingPower = account.buying_power (tradable incl. margin)
   const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : (isLiveNotConnected ? null : cashBalance);
+  const displayBuyingPower = isPaperMode
+    ? (paperPortfolio?.buyingPower ?? paperPortfolio?.cashBalance ?? 10000)
+    : displayCash;
   const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : (isLiveNotConnected ? [] : trades);
 
   // Get unique symbols from positions - memoize to prevent infinite loops
@@ -239,7 +243,7 @@ export function Dashboard() {
         />
         <StatCard
           title="Buying Power"
-          value={displayCash !== null ? `$${displayCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+          value={displayBuyingPower !== null ? `$${displayBuyingPower.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
           subtitle={isLiveNotConnected ? 'Not connected' : 'Available to trade'}
         />
         <StatCard

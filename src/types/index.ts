@@ -177,7 +177,8 @@ export interface PortfolioSnapshot {
 
 // Paper Trading Portfolio
 export interface PaperPortfolio {
-  cashBalance: number;
+  cashBalance: number;     // Alpaca account.cash — uninvested cash (used for portfolio total)
+  buyingPower?: number;    // Alpaca account.buying_power — tradable capital incl. margin
   positions: Position[];
   shortPositions: ShortPosition[];  // Short positions
   trades: Trade[];
