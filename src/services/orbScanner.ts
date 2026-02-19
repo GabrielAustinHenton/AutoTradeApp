@@ -133,6 +133,26 @@ async function runOrbScan(
     if (data.date !== today) orbMap.delete(sym);
   }
 
+  // Sync tradedToday with live Alpaca positions so page reloads don't re-buy
+  try {
+    const openPositions = await alpaca.getPositions(isPaper);
+    const heldSymbols = new Set(openPositions.map(p => p.symbol.toUpperCase()));
+    for (const sym of symbols) {
+      if (heldSymbols.has(sym.toUpperCase())) {
+        const existing = orbMap.get(sym);
+        if (existing && !existing.tradedToday) {
+          existing.tradedToday = true;
+          console.log(`[ORB] ${sym}: already have a position — marking as traded`);
+        } else if (!existing) {
+          // Position exists but no ORB data yet — pre-mark so we don't buy on top of it
+          orbMap.set(sym, { symbol: sym, orbHigh: 0, orbLow: 0, date: today, tradedToday: true });
+        }
+      }
+    }
+  } catch {
+    // Non-fatal — if we can't check positions, continue with existing state
+  }
+
   // Determine which symbols still need their ORB calculated
   const needsOrb = symbols.filter(s => !orbMap.has(s));
 
