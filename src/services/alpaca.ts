@@ -213,6 +213,17 @@ class AlpacaService {
     return res.json();
   }
 
+  // Close ALL open positions and cancel all open orders in one call.
+  // Use at end of day to ensure flat (cash-only) overnight.
+  async closeAllPositions(isPaper: boolean): Promise<void> {
+    const res = await this.request(isPaper, '/positions?cancel_orders=true', { method: 'DELETE' });
+    // 207 = multi-status (partial success is still success), 204 = no positions to close
+    if (!res.ok && res.status !== 207 && res.status !== 204) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+  }
+
   async getOrders(isPaper: boolean, status = 'open'): Promise<AlpacaOrder[]> {
     const res = await this.request(isPaper, `/orders?status=${status}`);
     if (!res.ok) {

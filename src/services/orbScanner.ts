@@ -84,9 +84,20 @@ function isAfterOpeningRange(): boolean {
   return h * 60 + m >= 600; // 10:00 AM
 }
 
-function isBeforeTradeClose(): boolean {
+function isBeforeNewTradesCutoff(): boolean {
   const { h, m } = getETHourMinute();
-  return h * 60 + m < 930; // 3:30 PM
+  return h * 60 + m < 930; // no new entries after 3:30 PM
+}
+
+function isEODCloseWindow(): boolean {
+  const { h, m } = getETHourMinute();
+  const t = h * 60 + m;
+  return t >= 945 && t < 958; // 3:45–3:58 PM — force-close window
+}
+
+function isPastMarketHours(): boolean {
+  const { h, m } = getETHourMinute();
+  return h * 60 + m >= 958; // 3:58 PM — scanner fully shuts down
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -99,6 +110,7 @@ export let scannerRunning = false;
 let totalDeployedToday = 0;
 let deployedDate = '';        // YYYY-MM-DD ET — reset when date changes
 let dailyExposureCap = 0;     // set by startOrbScanner
+let eodCloseDate = '';        // YYYY-MM-DD ET — prevents duplicate EOD close calls
 
 export function getTotalDeployedToday(): number { return totalDeployedToday; }
 export function getDailyExposureCap(): number { return dailyExposureCap; }
@@ -113,13 +125,40 @@ async function runOrbScan(
   onError: (err: string) => void,
 ): Promise<void> {
   if (!isMarketWeekday()) return;
+
+  // Past 3:58 PM — full shutdown
+  if (isPastMarketHours()) {
+    console.log('[ORB] Market closed — stopping scanner.');
+    stopOrbScanner();
+    return;
+  }
+
+  // 3:45–3:58 PM — EOD forced close (once per day)
+  if (isEODCloseWindow()) {
+    const today = getETDateStr();
+    if (eodCloseDate !== today) {
+      eodCloseDate = today; // guard immediately to prevent re-entry next tick
+      console.log('[ORB] EOD close window — closing all positions and cancelling orders...');
+      try {
+        await alpaca.closeAllPositions(isPaper);
+        console.log('[ORB] EOD close complete. Flat for the night.');
+        onTrade('EOD_CLOSE', 0, 0, 'eod-close'); // triggers syncFromAlpaca in hook
+      } catch (err) {
+        eodCloseDate = ''; // reset so we retry next minute
+        onError(`EOD close failed: ${err}`);
+      }
+    }
+    return;
+  }
+
   if (!isAfterOpeningRange()) {
     console.log('[ORB] Waiting for 10:00 AM ET opening range to complete...');
     return;
   }
-  if (!isBeforeTradeClose()) {
-    console.log('[ORB] Past 3:30 PM ET — stopping scan for today.');
-    stopOrbScanner();
+
+  // After 3:30 PM cutoff — no new trades, but keep scanner alive for EOD close window
+  if (!isBeforeNewTradesCutoff()) {
+    console.log('[ORB] Past 3:30 PM ET — no new entries. Waiting for 3:45 PM EOD close...');
     return;
   }
 
@@ -308,6 +347,7 @@ export function resetOrbScanner(): void {
   totalDeployedToday = 0;
   deployedDate = '';
   dailyExposureCap = 0;
+  eodCloseDate = '';
   console.log('[ORB] Scanner state reset.');
 }
 
