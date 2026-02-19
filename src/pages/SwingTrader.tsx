@@ -841,24 +841,26 @@ export function SwingTrader() {
             </p>
 
             {/* Add Symbol */}
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                value={newSymbol}
-                onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSymbol()}
-                placeholder="Add symbol (e.g. AAPL)"
-                className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-emerald-500"
-              />
-              <button
-                onClick={handleAddSymbol}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium"
-              >
-                Add
-              </button>
+            <div className="flex flex-col gap-2 mb-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newSymbol}
+                  onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddSymbol()}
+                  placeholder="Add symbol (e.g. AAPL)"
+                  className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  onClick={handleAddSymbol}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium"
+                >
+                  Add
+                </button>
+              </div>
               <button
                 onClick={() => store.updateConfig({ symbols: [...DEFAULT_SWING_SYMBOLS] })}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300"
+                className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-400"
               >
                 Reset to Defaults
               </button>
