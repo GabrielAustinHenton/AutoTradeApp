@@ -12,6 +12,7 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  sendPasswordResetEmail,
   type User,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -36,6 +37,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   logOut: () => Promise<void>;
   updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
   isConfigured: boolean; // Whether Firebase is configured
 }
 
@@ -149,6 +151,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserProfile(null);
   };
 
+  // Send password reset email
+  const sendPasswordReset = async (email: string) => {
+    await sendPasswordResetEmail(auth!, email);
+  };
+
   // Update user profile in Firestore
   const updateUserProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
@@ -166,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     logOut,
     updateUserProfile,
+    sendPasswordReset,
     isConfigured,
   };
 
