@@ -503,7 +503,10 @@ export function Settings() {
             </p>
           </div>
           <button
-            onClick={() => updateAutoTradeConfig({ enabled: !autoTradeConfig.enabled })}
+            onClick={() => updateAutoTradeConfig({
+            enabled: !autoTradeConfig.enabled,
+            ...(!autoTradeConfig.enabled && { tradingHoursOnly: true }),
+          })}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
               autoTradeConfig.enabled ? 'bg-emerald-600' : 'bg-slate-600'
             }`}
