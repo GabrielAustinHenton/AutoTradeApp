@@ -3,7 +3,6 @@ import { NavLink } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useMultipleQuotes } from '../hooks/useStockData';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
-import { AlertsPanel } from '../components/alerts/AlertsPanel';
 import { runBacktest, runRSIBacktest, runHybridBacktest, runDayTradingBacktest, type DayTradeResult } from '../services/backtester';
 import type { BacktestResult } from '../types';
 import {
@@ -619,6 +618,9 @@ export function Dashboard() {
             )}
           </div>
 
+        </div>
+
+        <div className="space-y-4 md:space-y-6">
           <div className="bg-slate-800 rounded-xl p-4 md:p-6">
             <h2 className="text-lg md:text-xl font-semibold mb-4">Recent Trades</h2>
             {displayTrades.length === 0 ? (
@@ -656,10 +658,6 @@ export function Dashboard() {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="space-y-4 md:space-y-6">
-          <AlertsPanel />
 
           <WatchlistCard />
 
