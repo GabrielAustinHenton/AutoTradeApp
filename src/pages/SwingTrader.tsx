@@ -1,3 +1,11 @@
+// TODO: Add an informational note in the SwingTrader UI about extended hours trading:
+// - Alpaca supports pre-market (4 AM–9:30 AM ET) and after-hours (4 PM–8 PM ET)
+// - Limit orders only during extended hours (no market orders)
+// - Only liquid large-caps have meaningful volume outside regular hours
+// - The ORB strategy is regular-hours only; any swing strategy using extended hours
+//   would need separate backtesting and its own entry/exit logic
+// - To enable on Alpaca: add extended_hours: true + time_in_force: 'day' to order params
+
 import { useState, useMemo } from 'react';
 import { useSwingStore } from '../store/useSwingStore';
 import type { MarketRegime, SwingStrategyConfig, SwingEntryRule, SwingExitRule } from '../types';
