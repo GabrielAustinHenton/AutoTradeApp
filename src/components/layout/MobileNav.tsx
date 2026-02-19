@@ -106,26 +106,26 @@ export function MobileNav() {
               key={tab.path}
               to={tab.path}
               className={({ isActive }) =>
-                `flex-1 flex flex-col items-center justify-center py-2 pt-2.5 transition-colors ${
+                `flex-1 flex flex-col items-center justify-center py-2.5 pt-3 transition-colors ${
                   isActive || isSwingSection
                     ? 'text-emerald-400'
                     : 'text-slate-500 active:text-slate-300'
                 }`
               }
             >
-              <span className="text-lg leading-none">{tab.icon}</span>
-              <span className="text-[10px] mt-1">{tab.label}</span>
+              <span className="text-xl leading-none">{tab.icon}</span>
+              <span className="text-[11px] mt-1">{tab.label}</span>
             </NavLink>
             );
           })}
           <button
             onClick={() => setShowMore(!showMore)}
-            className={`flex-1 flex flex-col items-center justify-center py-2 pt-2.5 transition-colors ${
+            className={`flex-1 flex flex-col items-center justify-center py-2.5 pt-3 transition-colors ${
               showMore ? 'text-emerald-400' : 'text-slate-500 active:text-slate-300'
             }`}
           >
-            <span className="text-lg leading-none">{'•••'}</span>
-            <span className="text-[10px] mt-1">More</span>
+            <span className="text-xl leading-none">{'•••'}</span>
+            <span className="text-[11px] mt-1">More</span>
           </button>
         </div>
       </nav>
