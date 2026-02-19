@@ -320,51 +320,6 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
-            <h2 className="text-lg md:text-xl font-semibold mb-4">Positions</h2>
-            {displayPositions.filter(p => p.shares > 0).length === 0 ? (
-              <p className="text-slate-400">No positions yet. Start trading to build your portfolio.</p>
-            ) : (
-              <div className="space-y-3">
-                {displayPositions.filter(p => p.shares > 0).map((position) => {
-                  const quote = quotes.get(position.symbol);
-                  const isPositive = position.totalGain >= 0;
-                  const dayChangeAmount = quote ? quote.change * position.shares : 0;
-                  const dayIsPositive = dayChangeAmount >= 0;
-
-                  return (
-                    <div
-                      key={position.id}
-                      className="flex justify-between items-center p-3 md:p-4 bg-slate-700 rounded-lg"
-                    >
-                      <div className="min-w-0">
-                        <div className="font-semibold md:text-lg">{position.symbol}</div>
-                        <div className="text-xs md:text-sm text-slate-400">
-                          {position.shares} @ ${position.avgCost.toFixed(2)}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0 ml-2">
-                        <div className="font-semibold text-sm md:text-base">
-                          ${position.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                        <div className="flex flex-col md:flex-row md:gap-3 text-xs md:text-sm">
-                          <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
-                            {isPositive ? '+' : ''}{position.totalGainPercent.toFixed(2)}%
-                          </span>
-                          {quote && (
-                            <span className={`hidden md:inline ${dayIsPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                              Day: {dayIsPositive ? '+' : ''}${dayChangeAmount.toFixed(2)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           {/* Quick Backtest */}
           <div className="bg-slate-800 rounded-xl p-4 md:p-6">
             <h2 className="text-lg md:text-xl font-semibold mb-4">Quick Backtest</h2>
@@ -618,27 +573,50 @@ export function Dashboard() {
               )}
             </div>
           </div>
-        </div>
-
-        <div className="space-y-4 md:space-y-6">
-          <AlertsPanel />
-
-          <WatchlistCard />
 
           <div className="bg-slate-800 rounded-xl p-4 md:p-6">
-            <h2 className="text-lg md:text-xl font-semibold mb-4">Trading Rules</h2>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Active Rules</span>
-                <span className="font-semibold text-emerald-400">
-                  {tradingRules.filter((r) => r.enabled).length}
-                </span>
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Positions</h2>
+            {displayPositions.filter(p => p.shares > 0).length === 0 ? (
+              <p className="text-slate-400">No positions yet. Start trading to build your portfolio.</p>
+            ) : (
+              <div className="space-y-3">
+                {displayPositions.filter(p => p.shares > 0).map((position) => {
+                  const quote = quotes.get(position.symbol);
+                  const isPositive = position.totalGain >= 0;
+                  const dayChangeAmount = quote ? quote.change * position.shares : 0;
+                  const dayIsPositive = dayChangeAmount >= 0;
+
+                  return (
+                    <div
+                      key={position.id}
+                      className="flex justify-between items-center p-3 md:p-4 bg-slate-700 rounded-lg"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-semibold md:text-lg">{position.symbol}</div>
+                        <div className="text-xs md:text-sm text-slate-400">
+                          {position.shares} @ ${position.avgCost.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <div className="font-semibold text-sm md:text-base">
+                          ${position.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        <div className="flex flex-col md:flex-row md:gap-3 text-xs md:text-sm">
+                          <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
+                            {isPositive ? '+' : ''}{position.totalGainPercent.toFixed(2)}%
+                          </span>
+                          {quote && (
+                            <span className={`hidden md:inline ${dayIsPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                              Day: {dayIsPositive ? '+' : ''}${dayChangeAmount.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Total Rules</span>
-                <span>{tradingRules.length}</span>
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="bg-slate-800 rounded-xl p-4 md:p-6">
@@ -678,6 +656,29 @@ export function Dashboard() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="space-y-4 md:space-y-6">
+          <AlertsPanel />
+
+          <WatchlistCard />
+
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Trading Rules</h2>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Active Rules</span>
+                <span className="font-semibold text-emerald-400">
+                  {tradingRules.filter((r) => r.enabled).length}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Total Rules</span>
+                <span>{tradingRules.length}</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
