@@ -422,7 +422,33 @@ export function Portfolio() {
           <p className="text-xs md:text-sm text-slate-400 mb-4">
             Short positions profit when prices go DOWN. You've borrowed shares and sold them, hoping to buy back cheaper.
           </p>
-          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2">
+            {(paperPortfolio.shortPositions || []).map((short: ShortPosition) => {
+              const profitLoss = (short.entryPrice - short.currentPrice) * short.shares;
+              const profitLossPercent = ((short.entryPrice - short.currentPrice) / short.entryPrice) * 100;
+              return (
+                <div key={short.id} className="bg-slate-700/50 rounded-lg p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="font-semibold flex items-center gap-2">
+                      {short.symbol}
+                      <span className="text-xs bg-red-900/50 text-red-400 px-1.5 py-0.5 rounded">SHORT</span>
+                    </div>
+                    <span className={`font-medium text-sm ${profitLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)} ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs text-slate-400">
+                    <div><p className="text-slate-500">Shares</p>{short.shares}</div>
+                    <div><p className="text-slate-500">Entry</p>${short.entryPrice.toFixed(2)}</div>
+                    <div><p className="text-slate-500">Current</p>${short.currentPrice.toFixed(2)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700">
@@ -483,7 +509,33 @@ export function Portfolio() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+            <>
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-2">
+              {displayPositions.map((position) => (
+                <div key={position.id} className="bg-slate-700/50 rounded-lg p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="font-semibold">{position.symbol}</div>
+                      <div className="text-xs text-slate-400">{position.name}</div>
+                    </div>
+                    <span className={`font-medium text-sm ${position.totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {position.totalGain >= 0 ? '+' : ''}${position.totalGain.toLocaleString()} ({position.totalGainPercent.toFixed(2)}%)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs text-slate-400">
+                    <div><p className="text-slate-500">Shares</p>{position.shares}</div>
+                    <div><p className="text-slate-500">Avg Cost</p>${position.avgCost.toFixed(2)}</div>
+                    <div><p className="text-slate-500">Current</p>${position.currentPrice.toFixed(2)}</div>
+                  </div>
+                  <div className="mt-1.5 text-xs text-slate-400">
+                    <span className="text-slate-500">Value </span>${position.totalValue.toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-slate-400 border-b border-slate-700">
@@ -498,22 +550,17 @@ export function Portfolio() {
                 <tbody>
                   {displayPositions.map((position) => (
                     <tr key={position.id} className="border-b border-slate-700">
-                      <td className="py-3 md:py-4">
+                      <td className="py-4">
                         <div className="font-semibold">{position.symbol}</div>
-                        <div className="text-xs md:text-sm text-slate-400">{position.name}</div>
+                        <div className="text-sm text-slate-400">{position.name}</div>
                       </td>
-                      <td className="py-3 md:py-4">{position.shares}</td>
-                      <td className="py-3 md:py-4">${position.avgCost.toFixed(2)}</td>
-                      <td className="py-3 md:py-4">${position.currentPrice.toFixed(2)}</td>
-                      <td className="py-3 md:py-4">${position.totalValue.toLocaleString()}</td>
-                      <td className="py-3 md:py-4">
-                        <span
-                          className={
-                            position.totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'
-                          }
-                        >
-                          ${position.totalGain.toLocaleString()} (
-                          {position.totalGainPercent.toFixed(2)}%)
+                      <td className="py-4">{position.shares}</td>
+                      <td className="py-4">${position.avgCost.toFixed(2)}</td>
+                      <td className="py-4">${position.currentPrice.toFixed(2)}</td>
+                      <td className="py-4">${position.totalValue.toLocaleString()}</td>
+                      <td className="py-4">
+                        <span className={position.totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                          ${position.totalGain.toLocaleString()} ({position.totalGainPercent.toFixed(2)}%)
                         </span>
                       </td>
                     </tr>
@@ -521,6 +568,7 @@ export function Portfolio() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -589,7 +637,38 @@ export function Portfolio() {
       {isShowingPaper && paperPortfolio.trades.length > 0 && (
         <div className="bg-slate-800 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-4">Paper Trade History</h2>
-          <div className="overflow-x-auto">
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2">
+            {paperPortfolio.trades.slice(0, 20).map((trade) => (
+              <div key={trade.id} className="bg-slate-700/50 rounded-lg p-3">
+                <div className="flex justify-between items-start mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      trade.type === 'buy' ? 'bg-emerald-900 text-emerald-300'
+                      : trade.type === 'sell' ? 'bg-red-900 text-red-300'
+                      : trade.type === 'short' ? 'bg-purple-900 text-purple-300'
+                      : 'bg-amber-900 text-amber-300'
+                    }`}>{trade.type.toUpperCase()}</span>
+                    <span className="font-semibold">{trade.symbol}</span>
+                  </div>
+                  <span className="text-slate-300 font-medium text-sm">${trade.total.toLocaleString()}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs text-slate-400">
+                  <div><p className="text-slate-500">Shares</p>{trade.shares}</div>
+                  <div><p className="text-slate-500">Price</p>${trade.price.toFixed(2)}</div>
+                  <div><p className="text-slate-500">Date</p>{new Date(trade.date).toLocaleDateString()}</div>
+                </div>
+                {trade.notes && <p className="text-xs text-slate-500 mt-1">{trade.notes}</p>}
+              </div>
+            ))}
+            {paperPortfolio.trades.length > 20 && (
+              <p className="text-center text-slate-500 text-sm mt-2">
+                Showing 20 of {paperPortfolio.trades.length} trades
+              </p>
+            )}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700">
@@ -612,16 +691,11 @@ export function Portfolio() {
                     <td className="py-3 font-medium">{trade.symbol}</td>
                     <td className="py-3">
                       <span className={`px-2 py-1 rounded text-xs ${
-                        trade.type === 'buy'
-                          ? 'bg-emerald-900 text-emerald-300'
-                          : trade.type === 'sell'
-                          ? 'bg-red-900 text-red-300'
-                          : trade.type === 'short'
-                          ? 'bg-purple-900 text-purple-300'
-                          : 'bg-amber-900 text-amber-300'
-                      }`}>
-                        {trade.type.toUpperCase()}
-                      </span>
+                        trade.type === 'buy' ? 'bg-emerald-900 text-emerald-300'
+                        : trade.type === 'sell' ? 'bg-red-900 text-red-300'
+                        : trade.type === 'short' ? 'bg-purple-900 text-purple-300'
+                        : 'bg-amber-900 text-amber-300'
+                      }`}>{trade.type.toUpperCase()}</span>
                     </td>
                     <td className="py-3">{trade.shares}</td>
                     <td className="py-3">${trade.price.toFixed(2)}</td>
