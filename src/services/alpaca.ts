@@ -79,6 +79,9 @@ export interface CreateOrderParams {
   type: 'market' | 'limit';
   time_in_force?: string;
   limit_price?: number;
+  order_class?: 'bracket' | 'simple';
+  take_profit?: { limit_price: number };
+  stop_loss?: { stop_price: number };
 }
 
 const PAPER_BASE_URL = 'https://paper-api.alpaca.markets/v2';
@@ -188,13 +191,16 @@ class AlpacaService {
   }
 
   async createOrder(isPaper: boolean, params: CreateOrderParams): Promise<AlpacaOrder> {
-    const body = {
+    const body: Record<string, unknown> = {
       symbol: params.symbol,
       qty: params.qty.toString(),
       side: params.side,
       type: params.type,
       time_in_force: params.time_in_force ?? 'day',
       ...(params.limit_price !== undefined && { limit_price: params.limit_price.toString() }),
+      ...(params.order_class && { order_class: params.order_class }),
+      ...(params.take_profit && { take_profit: { limit_price: params.take_profit.limit_price.toFixed(2) } }),
+      ...(params.stop_loss && { stop_loss: { stop_price: params.stop_loss.stop_price.toFixed(2) } }),
     };
     const res = await this.request(isPaper, '/orders', {
       method: 'POST',
@@ -239,6 +245,88 @@ class AlpacaService {
 
   async sellLimit(isPaper: boolean, symbol: string, qty: number, limitPrice: number): Promise<AlpacaOrder> {
     return this.createOrder(isPaper, { symbol, qty, side: 'sell', type: 'limit', limit_price: limitPrice, time_in_force: 'gtc' });
+  }
+
+  // ── Multi-symbol Minute Bars (for ORB calculation) ──────────────────────────
+
+  async getMultipleMinuteBars(
+    isPaper: boolean,
+    symbols: string[],
+    start: string,  // ISO 8601 e.g. "2026-02-18T14:30:00Z"
+    end: string,    // ISO 8601 e.g. "2026-02-18T15:00:00Z"
+  ): Promise<Map<string, { t: string; o: number; h: number; l: number; c: number }[]>> {
+    const creds = isPaper ? this.paperCreds : this.liveCreds;
+    if (!creds || !creds.keyId || !creds.secretKey) {
+      throw new Error(`Alpaca ${isPaper ? 'paper' : 'live'} credentials not configured`);
+    }
+
+    const params = new URLSearchParams({
+      symbols: symbols.join(','),
+      timeframe: '1Min',
+      start,
+      end,
+      limit: '1000',
+      feed: 'iex',
+    });
+
+    const url = `https://data.alpaca.markets/v2/stocks/bars?${params}`;
+    const res = await fetch(url, {
+      headers: {
+        'APCA-API-KEY-ID': creds.keyId,
+        'APCA-API-SECRET-KEY': creds.secretKey,
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Alpaca multi-bars: ${res.status} ${text}`);
+    }
+
+    const data = await res.json();
+    const result = new Map<string, { t: string; o: number; h: number; l: number; c: number }[]>();
+    const barsObj: Record<string, any[]> = data.bars ?? {};
+    for (const [sym, bars] of Object.entries(barsObj)) {
+      result.set(sym, (bars as any[]).map(b => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c })));
+    }
+    return result;
+  }
+
+  // ── Latest Trade Prices (for breakout detection) ─────────────────────────────
+
+  async getLatestTradePrices(
+    isPaper: boolean,
+    symbols: string[],
+  ): Promise<Map<string, number>> {
+    const creds = isPaper ? this.paperCreds : this.liveCreds;
+    if (!creds || !creds.keyId || !creds.secretKey) {
+      throw new Error(`Alpaca ${isPaper ? 'paper' : 'live'} credentials not configured`);
+    }
+
+    const params = new URLSearchParams({
+      symbols: symbols.join(','),
+      feed: 'iex',
+    });
+
+    const url = `https://data.alpaca.markets/v2/stocks/trades/latest?${params}`;
+    const res = await fetch(url, {
+      headers: {
+        'APCA-API-KEY-ID': creds.keyId,
+        'APCA-API-SECRET-KEY': creds.secretKey,
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Alpaca latest trades: ${res.status} ${text}`);
+    }
+
+    const data = await res.json();
+    const result = new Map<string, number>();
+    const trades: Record<string, any> = data.trades ?? {};
+    for (const [sym, trade] of Object.entries(trades)) {
+      result.set(sym, (trade as any).p);
+    }
+    return result;
   }
 
   // ── Historical Market Data (Alpaca Data API — CORS-friendly, works in browser) ─

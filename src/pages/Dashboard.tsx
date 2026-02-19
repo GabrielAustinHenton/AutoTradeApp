@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useMultipleQuotes } from '../hooks/useStockData';
+import { useOrbScanner } from '../hooks/useOrbScanner';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
 import { runBacktest, runRSIBacktest, runHybridBacktest, runDayTradingBacktest, type DayTradeResult } from '../services/backtester';
 import type { BacktestResult } from '../types';
@@ -33,6 +34,8 @@ export function Dashboard() {
     alpacaPaperConnected,
     alpacaLiveConnected,
   } = useStore();
+
+  const { orbStates, isRunning: isOrbRunning } = useOrbScanner();
 
   // Backtest state
   const [backtestRunning, setBacktestRunning] = useState(false);
@@ -666,6 +669,31 @@ export function Dashboard() {
               </div>
             )}
           </div>
+
+          {isOrbRunning && (
+            <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                ORB Scanner
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+              </h2>
+              {orbStates.length === 0 ? (
+                <p className="text-slate-400 text-sm">Waiting for 10:00 AM ET opening range...</p>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  {orbStates.map(s => (
+                    <div key={s.symbol} className="flex justify-between">
+                      <span className="font-medium">{s.symbol}</span>
+                      <span className={s.tradedToday ? 'text-emerald-400' : 'text-slate-400'}>
+                        {s.tradedToday
+                          ? `Bought @ $${s.entryPrice?.toFixed(2)}`
+                          : `$${s.orbLow.toFixed(2)}–$${s.orbHigh.toFixed(2)}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <WatchlistCard />
 
