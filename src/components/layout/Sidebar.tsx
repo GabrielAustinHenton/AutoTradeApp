@@ -9,7 +9,7 @@ const navItems = [
   { path: '/history', label: 'Trade History', icon: '📜' },
   { path: '/charts', label: 'Charts', icon: '📈' },
   { path: '/rules', label: 'Trading Rules', icon: '⚙️' },
-  { path: '/swing-trader', label: 'Swing Trader', icon: '🔄' },
+  { path: '/swing-trader', label: 'SwingTrader App', icon: '🔄' },
   { path: '/backtest', label: 'Backtest', icon: '🔬' },
   { path: '/journal', label: 'Journal', icon: '📓' },
   { path: '/settings', label: 'Settings', icon: '🔧' },
