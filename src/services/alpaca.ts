@@ -260,6 +260,7 @@ class AlpacaService {
       end,
       limit: '10000',
       adjustment: 'split',
+      feed: 'iex',  // IEX feed works on free Alpaca accounts; SIP requires paid tier
     });
 
     const res = await fetch(
