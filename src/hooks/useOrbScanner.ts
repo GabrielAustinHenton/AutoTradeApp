@@ -11,7 +11,8 @@ export function useOrbScanner(): { orbStates: OrbData[]; isRunning: boolean } {
 
   const isPaper = tradingMode === 'paper';
   const enabled = autoTradeConfig.enabled;
-  const symbols = watchlist.map(s => s.symbol).filter(Boolean);
+  // watchlist is string[] in the store
+  const symbols = watchlist.filter(Boolean);
 
   useEffect(() => {
     if (!enabled || symbols.length === 0) {

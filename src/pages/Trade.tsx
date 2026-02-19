@@ -35,7 +35,7 @@ export function Trade() {
   } = useStore();
 
   // Use paper portfolio when in paper mode
-  const isLiveMode = tradingMode === 'live' && alpacaConnected;
+  const isLiveMode = tradingMode === 'live' && alpacaLiveConnected;
   const activeCashBalance = isLiveMode ? cashBalance : (alpacaPaperConnected ? paperPortfolio.cashBalance : null);
   const activePositions = isLiveMode ? positions : paperPortfolio.positions;
   const [symbol, setSymbol] = useState('');

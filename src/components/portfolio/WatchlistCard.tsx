@@ -1,10 +1,8 @@
-import { useMultipleQuotes } from '../../hooks/useStockData';
 import { useStore } from '../../store/useStore';
 import { useState } from 'react';
 
 export function WatchlistCard() {
   const { watchlist, addToWatchlist, removeFromWatchlist } = useStore();
-  const { quotes, loading, refetch } = useMultipleQuotes(watchlist, true);
   const [newSymbol, setNewSymbol] = useState('');
   const [expanded, setExpanded] = useState(false);
 
@@ -28,32 +26,19 @@ export function WatchlistCard() {
             {watchlist.length}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-slate-400">Updating...</span>}
-          <svg
-            className={`w-5 h-5 text-slate-400 group-hover:text-slate-200 transition-all duration-200 ${expanded ? 'rotate-180' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
+        <svg
+          className={`w-5 h-5 text-slate-400 group-hover:text-slate-200 transition-all duration-200 ${expanded ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
 
       {expanded && (
         <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-slate-700 pt-4">
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={refetch}
-              disabled={loading}
-              className="text-sm text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
-            >
-              {loading ? 'Updating...' : 'Refresh'}
-            </button>
-          </div>
-
           <form onSubmit={handleAddSymbol} className="mb-4">
             <div className="flex gap-2">
               <input
@@ -73,46 +58,20 @@ export function WatchlistCard() {
           </form>
 
           <div className="space-y-2">
-            {watchlist.map((symbol) => {
-              const quote = quotes.get(symbol);
-              const isPositive = quote ? quote.change >= 0 : true;
-
-              return (
-                <div
-                  key={symbol}
-                  className="flex justify-between items-center p-3 bg-slate-700 rounded-lg group"
+            {watchlist.map((symbol) => (
+              <div
+                key={symbol}
+                className="flex justify-between items-center p-3 bg-slate-700 rounded-lg group"
+              >
+                <span className="font-semibold">{symbol}</span>
+                <button
+                  onClick={() => removeFromWatchlist(symbol)}
+                  className="text-slate-500 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                 >
-                  <div>
-                    <span className="font-semibold">{symbol}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {quote ? (
-                      <div className="text-right">
-                        <div className="font-semibold">${quote.price?.toFixed(2) ?? '--'}</div>
-                        <div
-                          className={`text-sm ${
-                            isPositive ? 'text-emerald-400' : 'text-red-400'
-                          }`}
-                        >
-                          {isPositive ? '+' : ''}
-                          {quote.changePercent?.toFixed(2) ?? '0.00'}%
-                        </div>
-                      </div>
-                    ) : loading ? (
-                      <div className="animate-pulse h-8 w-16 bg-slate-600 rounded"></div>
-                    ) : (
-                      <span className="text-slate-500">--</span>
-                    )}
-                    <button
-                      onClick={() => removeFromWatchlist(symbol)}
-                      className="text-slate-500 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
