@@ -3,16 +3,27 @@ import { useStore } from '../store/useStore';
 import { runBacktest } from '../services/backtester';
 import type { BacktestResult } from '../types';
 
+// Returns the most recent weekday (skips Saturday/Sunday)
+function previousMarketDay(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  return d;
+}
+
 export function Backtest() {
-  const { tradingRules, backtestResults, addBacktestResult, removeBacktestResult, clearBacktestResults } = useStore();
+  const { tradingRules, backtestResults, addBacktestResult, removeBacktestResult, clearBacktestResults, tradingMode } = useStore();
 
   const [symbol, setSymbol] = useState('AAPL');
-  const [startDate, setStartDate] = useState(() => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - 3); // ~100 trading days available with free API
-    return date.toISOString().split('T')[0];
+  const [endDate, setEndDate] = useState(() => {
+    const d = previousMarketDay();
+    return d.toISOString().split('T')[0];
   });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(() => {
+    const d = previousMarketDay();
+    d.setFullYear(d.getFullYear() - 1);
+    return d.toISOString().split('T')[0];
+  });
   const [initialCapital, setInitialCapital] = useState('10000');
   const [positionSize, setPositionSize] = useState('10');
   const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
@@ -55,6 +66,7 @@ export function Backtest() {
         initialCapital: parseFloat(initialCapital),
         positionSize: parseFloat(positionSize),
         rules: selectedRules,
+        isPaper: tradingMode === 'paper',
       });
 
       addBacktestResult(result);

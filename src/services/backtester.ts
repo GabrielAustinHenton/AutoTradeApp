@@ -10,11 +10,11 @@
 // - Target: 60-70% win rate with positive expectancy on ANY stock
 
 import type { TradingRule, BacktestConfig, BacktestResult, BacktestTrade, CandlestickPattern } from '../types';
-import { getYahooDaily, getTiingoDaily } from './alphaVantage';
+import { getYahooDaily } from './alphaVantage';
+import { alpaca } from './alpaca';
 import { detectPatterns, type Candle } from './candlestickPatterns';
 import { getCachedData, setCachedData } from './historicalDataCache';
-import { HISTORICAL_DATA, getHistoricalData, getSymbolsForYear } from '../data/historical2008';
-import { YAHOO_HISTORICAL, getYahooHistoricalData, getYahooSymbolsForYear } from '../data/yahooHistorical';
+import { getHistoricalData, getSymbolsForYear } from '../data/historical2008';
 
 // Format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
 function formatLocalDate(d: Date): string {
@@ -148,10 +148,25 @@ function calculateADX(highs: number[], lows: number[], closes: number[], period:
 }
 
 export async function runBacktest(config: BacktestConfig): Promise<BacktestResult> {
-  const { symbol, startDate, endDate, initialCapital, positionSize, rules } = config;
+  const { symbol, startDate, endDate, initialCapital, positionSize, rules, isPaper } = config;
 
-  // Fetch historical data using Twelve Data (better rate limits than Alpha Vantage)
-  const historicalData = await getYahooDaily(symbol, '6mo');
+  // Fetch 1 year of daily bars from Alpaca; fall back to Yahoo Finance if not configured
+  const fetchStart = new Date(startDate);
+  fetchStart.setDate(fetchStart.getDate() - 60); // extra buffer for indicator warmup
+  const fetchStartStr = fetchStart.toISOString().split('T')[0];
+  const fetchEndStr = endDate.toISOString().split('T')[0];
+  const usePaper = isPaper !== false;
+
+  let historicalData: Awaited<ReturnType<typeof getYahooDaily>>;
+  try {
+    if (usePaper ? alpaca.isPaperConfigured() : alpaca.isLiveConfigured()) {
+      historicalData = await alpaca.getHistoricalBars(usePaper, symbol, fetchStartStr, fetchEndStr);
+    } else {
+      historicalData = await getYahooDaily(symbol, '1y');
+    }
+  } catch {
+    historicalData = await getYahooDaily(symbol, '1y');
+  }
 
   if (historicalData.length === 0) {
     throw new Error(`No historical data returned for ${symbol}. Check your API key or wait for rate limit to reset.`);
@@ -429,7 +444,7 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
  * - This strategy works best in ranging/sideways markets
  */
 export async function runRSIBacktest(config: BacktestConfig): Promise<BacktestResult> {
-  const { symbol, startDate, endDate, initialCapital, positionSize } = config;
+  const { symbol, startDate, endDate, initialCapital, positionSize, isPaper } = config;
 
   // RSI Strategy Parameters
   const RSI_OVERSOLD = 30;      // Buy signal
@@ -437,7 +452,22 @@ export async function runRSIBacktest(config: BacktestConfig): Promise<BacktestRe
   const STOP_LOSS_PERCENT = 5;  // 5% stop loss
   const RSI_PERIOD = 14;
 
-  const historicalData = await getYahooDaily(symbol, '6mo');
+  const fetchStart = new Date(startDate);
+  fetchStart.setDate(fetchStart.getDate() - 60);
+  const fetchStartStr = fetchStart.toISOString().split('T')[0];
+  const fetchEndStr = endDate.toISOString().split('T')[0];
+  const usePaper = isPaper !== false;
+
+  let historicalData: Awaited<ReturnType<typeof getYahooDaily>>;
+  try {
+    if (usePaper ? alpaca.isPaperConfigured() : alpaca.isLiveConfigured()) {
+      historicalData = await alpaca.getHistoricalBars(usePaper, symbol, fetchStartStr, fetchEndStr);
+    } else {
+      historicalData = await getYahooDaily(symbol, '1y');
+    }
+  } catch {
+    historicalData = await getYahooDaily(symbol, '1y');
+  }
 
   if (historicalData.length === 0) {
     throw new Error(`No historical data returned for ${symbol}.`);
@@ -597,7 +627,7 @@ export async function runRSIBacktest(config: BacktestConfig): Promise<BacktestRe
  * - Let winners run!
  */
 export async function runHybridBacktest(config: BacktestConfig): Promise<BacktestResult> {
-  const { symbol, startDate, endDate, initialCapital, positionSize } = config;
+  const { symbol, startDate, endDate, initialCapital, positionSize, isPaper } = config;
 
   // Conservative long-term trend parameters
   const TREND_MA = 200;           // 200-day MA - only trade clear long-term uptrends
@@ -605,7 +635,22 @@ export async function runHybridBacktest(config: BacktestConfig): Promise<Backtes
   const ADX_THRESHOLD = 20;       // Slightly lower threshold for 200 MA
   const MAX_HOLD_DAYS = 999;      // No time limit - ride the trend
 
-  const historicalData = await getYahooDaily(symbol, '1y');
+  const fetchStart = new Date(startDate);
+  fetchStart.setDate(fetchStart.getDate() - 60);
+  const fetchStartStr = fetchStart.toISOString().split('T')[0];
+  const fetchEndStr = endDate.toISOString().split('T')[0];
+  const usePaper = isPaper !== false;
+
+  let historicalData: Awaited<ReturnType<typeof getYahooDaily>>;
+  try {
+    if (usePaper ? alpaca.isPaperConfigured() : alpaca.isLiveConfigured()) {
+      historicalData = await alpaca.getHistoricalBars(usePaper, symbol, fetchStartStr, fetchEndStr);
+    } else {
+      historicalData = await getYahooDaily(symbol, '1y');
+    }
+  } catch {
+    historicalData = await getYahooDaily(symbol, '1y');
+  }
 
   console.log(`[TREND] Raw data: ${historicalData.length} days`);
 
@@ -1092,7 +1137,8 @@ export async function runDayTradingBacktest(
   commissionPerTrade: number = 0,    // $0 for Robinhood, ~$1 for others
   slippagePercent: number = 0.02,    // 0.02% slippage per side (realistic for liquid large-caps)
   // RISK MANAGEMENT
-  yearlyDrawdownLimit: number = 20   // Stop trading if down this % from year start
+  yearlyDrawdownLimit: number = 20,  // Stop trading if down this % from year start
+  isPaper: boolean = true            // Use paper credentials for market data
 ): Promise<DayTradeResult> {
   // Determine data range to fetch
   let dataRange: '1y' | '2y' | '5y' | '10y' | 'max' = '1y';
@@ -1112,94 +1158,113 @@ export async function runDayTradingBacktest(
   console.log(`[ORB] Transaction costs: $${commissionPerTrade}/trade commission + ${slippagePercent}% slippage each way`);
   console.log(`[ORB] Yearly drawdown limit: ${yearlyDrawdownLimit}% (stop trading if hit)`);
 
-  // Load historical data from LOCAL FILES - no API calls needed!
-  // 1996-2012: Simulated data (historical2008.ts)
-  // 2013-2026: Real Yahoo data (yahooHistorical.json)
+  // Load historical data:
+  // - Pre-2013: Local simulated data (historical2008.ts)
+  // - 2013+: Real market data from Alpaca using your watchlist stocks
   const allData: Map<string, any[]> = new Map();
+  const nowYear = new Date().getFullYear();
+
+  // Dow Jones stalwarts used as fallbacks when a watchlist stock has insufficient data
+  // (e.g. stock didn't exist at the start of the backtest period)
+  const DOW_FALLBACKS = ['AAPL', 'MSFT', 'JNJ', 'KO', 'PG', 'XOM', 'JPM', 'DIS', 'MCD', 'MMM', 'CAT', 'BA', 'WMT', 'HD', 'IBM', 'CVX', 'NKE'];
+
+  // Fetch watchlist symbols from Alpaca for a date range, substituting Dow stocks where needed
+  const fetchFromAlpaca = async (startStr: string, endStr: string): Promise<void> => {
+    const isConfigured = isPaper ? alpaca.isPaperConfigured() : alpaca.isLiveConfigured();
+    if (!isConfigured) {
+      throw new Error('Alpaca credentials required for backtesting. Connect your Alpaca account in Settings first.');
+    }
+
+    console.log(`[ORB] Fetching ${symbols.length} watchlist stocks from Alpaca (${startStr} to ${endStr})`);
+    const fetchResults = await Promise.allSettled(
+      symbols.map(async (sym) => ({
+        symbol: sym,
+        bars: await alpaca.getHistoricalBars(isPaper, sym, startStr, endStr),
+      }))
+    );
+
+    const symbolsMissingData: string[] = [];
+    for (const result of fetchResults) {
+      if (result.status === 'fulfilled' && result.value.bars.length >= 50) {
+        const { symbol: sym, bars } = result.value;
+        const existing = allData.get(sym) || [];
+        allData.set(sym, [...existing, ...bars].sort((a, b) => a.timestamp.localeCompare(b.timestamp)));
+      } else if (result.status === 'fulfilled') {
+        console.warn(`[ORB] ${result.value.symbol}: only ${result.value.bars.length} bars — will use Dow fallback`);
+        symbolsMissingData.push(result.value.symbol);
+      }
+    }
+
+    // Fetch Dow fallbacks for any watchlist stocks with insufficient data
+    if (symbolsMissingData.length > 0) {
+      const haveData = new Set(allData.keys());
+      const toFetch = DOW_FALLBACKS.filter(f => !haveData.has(f)).slice(0, symbolsMissingData.length);
+      if (toFetch.length > 0) {
+        console.log(`[ORB] Fetching ${toFetch.length} Dow fallbacks: ${toFetch.join(', ')}`);
+        const fallbackResults = await Promise.allSettled(
+          toFetch.map(async (sym) => ({
+            symbol: sym,
+            bars: await alpaca.getHistoricalBars(isPaper, sym, startStr, endStr),
+          }))
+        );
+        for (let i = 0; i < fallbackResults.length; i++) {
+          const result = fallbackResults[i];
+          if (result.status === 'fulfilled' && result.value.bars.length >= 50) {
+            const { symbol: sym, bars } = result.value;
+            const existing = allData.get(sym) || [];
+            allData.set(sym, [...existing, ...bars].sort((a, b) => a.timestamp.localeCompare(b.timestamp)));
+            console.log(`[ORB] Substituted ${symbolsMissingData[i]} → ${sym} (Dow fallback)`);
+          }
+        }
+      }
+    }
+  };
 
   if (specificYear) {
-    // Single year backtest - load from appropriate local source
     if (specificYear >= 1996 && specificYear <= 2012) {
-      // Use simulated data for old years
+      // Pre-2013: use local simulated data
       console.log(`[ORB] Loading SIMULATED data for ${specificYear} (pre-2013)`);
-      const availableSymbols = getSymbolsForYear(specificYear);
-
-      for (const symbol of availableSymbols) {
-        const data = getHistoricalData(symbol, specificYear);
-        if (data && data.length > 20) {
-          allData.set(symbol, data);
-        }
+      for (const sym of getSymbolsForYear(specificYear)) {
+        const data = getHistoricalData(sym, specificYear);
+        if (data && data.length > 20) allData.set(sym, data);
       }
-    } else if (specificYear >= 2013 && specificYear <= 2026) {
-      // Use real Yahoo data
-      console.log(`[ORB] Loading REAL Yahoo data for ${specificYear}`);
-      const availableSymbols = getYahooSymbolsForYear(specificYear);
-
-      for (const symbol of availableSymbols) {
-        const data = getYahooHistoricalData(symbol, specificYear);
-        if (data && data.length > 20) {
-          allData.set(symbol, data);
-        }
-      }
+    } else if (specificYear >= 2013) {
+      await fetchFromAlpaca(`${specificYear}-01-01`, `${specificYear}-12-31`);
     } else {
-      throw new Error(`No data available for year ${specificYear}. Supported: 1996-2026`);
+      throw new Error(`No data available for year ${specificYear}. Supported: 1996 onwards`);
     }
   } else {
-    // Multi-year backtest (last N years)
-    const currentYear = new Date().getFullYear();
-    const startYear = currentYear - yearsBack + 1;
-    console.log(`[ORB] Loading data for years ${startYear}-${currentYear}`);
+    const startYear = nowYear - yearsBack + 1;
+    console.log(`[ORB] Fetching data for years ${startYear}–${nowYear}`);
 
-    // Collect all symbols that have data in any of those years
-    const symbolsWithData = new Set<string>();
-
-    for (let year = startYear; year <= currentYear; year++) {
-      if (year >= 2013) {
-        getYahooSymbolsForYear(year).forEach(s => symbolsWithData.add(s));
-      } else if (year >= 1996) {
-        getSymbolsForYear(year).forEach(s => symbolsWithData.add(s));
+    // Load pre-2013 simulated data if the period includes those years
+    if (startYear < 2013) {
+      for (let year = Math.max(startYear, 1996); year <= Math.min(2012, nowYear); year++) {
+        for (const sym of getSymbolsForYear(year)) {
+          const data = getHistoricalData(sym, year);
+          if (data && data.length > 0) {
+            const existing = allData.get(sym) || [];
+            existing.push(...data);
+            allData.set(sym, existing);
+          }
+        }
+      }
+      for (const [sym, data] of allData.entries()) {
+        allData.set(sym, data.sort((a, b) => a.timestamp.localeCompare(b.timestamp)));
       }
     }
 
-    // Load data for each symbol across all years
-    for (const symbol of symbolsWithData) {
-      const combinedData: any[] = [];
-
-      for (let year = startYear; year <= currentYear; year++) {
-        let yearData: any[] | null = null;
-
-        if (year >= 2013) {
-          yearData = getYahooHistoricalData(symbol, year);
-        } else if (year >= 1996) {
-          yearData = getHistoricalData(symbol, year);
-        }
-
-        if (yearData && yearData.length > 0) {
-          combinedData.push(...yearData);
-        }
-      }
-
-      if (combinedData.length > 20) {
-        // Sort by date to ensure correct order
-        combinedData.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-        allData.set(symbol, combinedData);
-      }
+    // Fetch 2013+ from Alpaca
+    const alpacaStartYear = Math.max(startYear, 2013);
+    if (alpacaStartYear <= nowYear) {
+      await fetchFromAlpaca(`${alpacaStartYear}-01-01`, `${nowYear}-12-31`);
     }
   }
 
-  console.log(`[ORB] Loaded ${allData.size} stocks from LOCAL data (no API calls!)`);
+  console.log(`[ORB] Loaded ${allData.size} stocks: ${[...allData.keys()].join(', ')}`);
   if (allData.size === 0) {
-    throw new Error('No data available. Check that yahooHistorical.json exists and contains data.');
+    throw new Error('No data loaded. Connect your Alpaca account in Settings and try again.');
   }
-
-  // Log data range for each stock
-  allData.forEach((data, symbol) => {
-    if (data.length > 0) {
-      const firstDate = data[0].timestamp;
-      const lastDate = data[data.length - 1].timestamp;
-      console.log(`[ORB] ${symbol}: ${data.length} days (${firstDate} to ${lastDate})`);
-    }
-  });
 
   // Find all unique trading dates
   const allDates = new Set<string>();
@@ -1235,18 +1300,10 @@ export async function runDayTradingBacktest(
   }
 
   if (sortedDates.length < 30) {
-    // For old years, data source might not have data - give helpful error
-    const stocksWithOldData = Array.from(allData.entries())
-      .filter(([_, data]) => data.some(d => specificYear ? d.timestamp.startsWith(`${specificYear}-`) : true))
-      .map(([symbol]) => symbol);
-
-    const dataSource = useTiingo ? 'Tiingo' : 'Yahoo Finance';
     throw new Error(
-      `Not enough trading days for backtest: ${sortedDates.length} days found. ` +
-      `${specificYear ? `${dataSource} may not have data for ${specificYear}. ` : ''}` +
-      `${useTiingo ? 'Check your VITE_TIINGO_API_KEY in .env. ' : ''}` +
-      `Stocks with data: ${stocksWithOldData.join(', ') || 'none'}. ` +
-      `Try a more recent year (2015+) or use stocks that existed then.`
+      `Not enough trading days: ${sortedDates.length} days found. ` +
+      `${specificYear ? `Alpaca may not have data for year ${specificYear}. Try a more recent year (2015+).` : 'Try a shorter date range.'}` +
+      ` Stocks loaded: ${[...allData.keys()].join(', ') || 'none'}.`
     );
   }
 

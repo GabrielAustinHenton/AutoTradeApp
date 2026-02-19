@@ -241,6 +241,55 @@ class AlpacaService {
     return this.createOrder(isPaper, { symbol, qty, side: 'sell', type: 'limit', limit_price: limitPrice, time_in_force: 'gtc' });
   }
 
+  // ── Historical Market Data (Alpaca Data API — CORS-friendly, works in browser) ─
+
+  async getHistoricalBars(
+    isPaper: boolean,
+    symbol: string,
+    start: string,  // YYYY-MM-DD
+    end: string,    // YYYY-MM-DD
+  ): Promise<{ timestamp: string; open: number; high: number; low: number; close: number; volume: number }[]> {
+    const creds = isPaper ? this.paperCreds : this.liveCreds;
+    if (!creds || !creds.keyId || !creds.secretKey) {
+      throw new Error(`Alpaca ${isPaper ? 'paper' : 'live'} credentials not configured`);
+    }
+
+    const params = new URLSearchParams({
+      timeframe: '1Day',
+      start,
+      end,
+      limit: '10000',
+      adjustment: 'split',
+    });
+
+    const res = await fetch(
+      `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`,
+      {
+        headers: {
+          'APCA-API-KEY-ID': creds.keyId,
+          'APCA-API-SECRET-KEY': creds.secretKey,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Alpaca bars ${symbol}: ${res.status} ${text}`);
+    }
+
+    const data = await res.json();
+    return (data.bars || [])
+      .map((bar: any) => ({
+        timestamp: bar.t.split('T')[0],
+        open: bar.o,
+        high: bar.h,
+        low: bar.l,
+        close: bar.c,
+        volume: bar.v,
+      }))
+      .sort((a: any, b: any) => a.timestamp.localeCompare(b.timestamp));
+  }
+
 }
 
 // Singleton — load any saved credentials immediately on import

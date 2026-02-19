@@ -6,7 +6,6 @@ import { WatchlistCard } from '../components/portfolio/WatchlistCard';
 import { AlertsPanel } from '../components/alerts/AlertsPanel';
 import { runBacktest, runRSIBacktest, runHybridBacktest, runDayTradingBacktest, type DayTradeResult } from '../services/backtester';
 import type { BacktestResult } from '../types';
-import { PERMANENT_WATCHLIST } from '../config/watchlist';
 import {
   LineChart,
   Line,
@@ -24,6 +23,7 @@ export function Dashboard() {
     cashBalance,
     trades,
     tradingRules,
+    watchlist,
     updatePositionPrices,
     updatePaperPositionPrices,
     tradingMode,
@@ -139,7 +139,7 @@ export function Dashboard() {
         const specificYear = isSpecificYear ? parseInt(backtestYears) : undefined;
 
         const result = await runDayTradingBacktest(
-          PERMANENT_WATCHLIST,
+          watchlist,
           25000,  // $25k starting capital (PDT minimum)
           25,     // 25% position size (scales down as portfolio grows)
           2,      // 2% profit target
@@ -148,19 +148,22 @@ export function Dashboard() {
           specificYear,
           0,                          // $0 commission (like Robinhood)
           realisticCosts ? 0.02 : 0,  // 0.02% slippage per side (realistic for liquid large-caps)
-          15                          // 15% yearly drawdown limit - stop trading if hit
+          15,                         // 15% yearly drawdown limit - stop trading if hit
+          tradingMode === 'paper',
         );
         setDayTradeResult(result);
       } else {
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 6);
+        const endDate = new Date();
+        const startDate = new Date(endDate);
+        startDate.setFullYear(startDate.getFullYear() - 1);
 
         const config = {
           symbol: backtestSymbol.toUpperCase(),
           startDate,
-          endDate: new Date(),
+          endDate,
           initialCapital: 10000,
           positionSize: 20,
+          isPaper: tradingMode === 'paper',
           rules: tradingRules.filter(
             (r) => r.enabled && r.ruleType === 'pattern' && r.symbol.toUpperCase() === backtestSymbol.toUpperCase()
           ),

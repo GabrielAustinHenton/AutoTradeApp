@@ -225,6 +225,7 @@ export interface BacktestConfig {
   initialCapital: number;
   positionSize: number;
   rules: TradingRule[];
+  isPaper?: boolean;
 }
 
 // Backtest Trade
