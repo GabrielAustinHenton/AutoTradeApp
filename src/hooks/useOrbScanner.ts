@@ -4,7 +4,7 @@ import { startOrbScanner, stopOrbScanner, getOrbStates } from '../services/orbSc
 import type { OrbData } from '../services/orbScanner';
 
 export function useOrbScanner(): { orbStates: OrbData[]; isRunning: boolean } {
-  const { autoTradeConfig, tradingMode, watchlist, addAlert, syncFromAlpaca } = useStore();
+  const { autoTradeConfig, tradingMode, watchlist, syncFromAlpaca } = useStore();
   const [orbStates, setOrbStates] = useState<OrbData[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -29,17 +29,12 @@ export function useOrbScanner(): { orbStates: OrbData[]; isRunning: boolean } {
     const capitalPerTrade = autoTradeConfig.maxTradeDollarAmount ?? 3750;
 
     const onTrade = (symbol: string, qty: number, price: number, orderId: string) => {
-      addAlert({
-        type: 'success',
-        title: `ORB Breakout: ${symbol}`,
-        message: `Bought ${qty} shares @ $${price.toFixed(2)} — bracket order ${orderId}`,
-      });
+      console.log(`[ORB] Trade executed: ${symbol} x${qty} @ $${price.toFixed(2)} — order ${orderId}`);
       setTimeout(() => syncFromAlpaca(), 3000);
     };
 
     const onError = (err: string) => {
       console.error('[ORB]', err);
-      addAlert({ type: 'error', title: 'ORB Scanner Error', message: err });
     };
 
     startOrbScanner(symbols, isPaper, capitalPerTrade, onTrade, onError);

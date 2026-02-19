@@ -44,7 +44,9 @@ function AppContent() {
 
   return (
     <>
-      <AlertToast />
+      <ErrorBoundary section="Alerts">
+        <AlertToast />
+      </ErrorBoundary>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<ErrorBoundary section="Dashboard"><Dashboard /></ErrorBoundary>} />
