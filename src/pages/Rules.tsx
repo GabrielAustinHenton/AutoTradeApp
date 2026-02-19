@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import type { TradingRule, RuleCondition, RuleAction, CandlestickPattern } from '../types';
 import { PATTERN_INFO } from '../services/candlestickPatterns';
@@ -197,7 +198,15 @@ export function Rules() {
   return (
     <div className="text-white">
       <div className="flex justify-between items-center mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold">Trading Rules</h1>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/swing-trader"
+            className="text-slate-400 hover:text-white text-sm flex items-center gap-1"
+          >
+            &larr; SwingTrader
+          </Link>
+          <h1 className="text-2xl md:text-3xl font-bold">Trading Rules</h1>
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
           className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-semibold transition-colors"
