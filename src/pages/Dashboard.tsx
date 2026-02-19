@@ -116,7 +116,7 @@ export function Dashboard() {
   // In live mode, we don't have a meaningful "starting balance" stored in the app —
   // only paper portfolio tracks its own starting balance.
   // For live mode, show unrealized P&L (positions gain/loss) instead of inception gain.
-  const startingBalance = isPaperMode ? (paperPortfolio?.startingBalance ?? 25000) : null;
+  const startingBalance = isPaperMode ? (paperPortfolio?.startingBalance ?? 100000) : null;
   const totalPnL = isPaperMode && startingBalance !== null && totalPortfolioValue !== null
     ? totalPortfolioValue - startingBalance
     : null;
