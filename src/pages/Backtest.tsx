@@ -125,14 +125,14 @@ export function Backtest() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-400 mb-2">Start Date</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div>
@@ -141,12 +141,12 @@ export function Backtest() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-400 mb-2">Initial Capital</label>
                   <input
@@ -154,7 +154,7 @@ export function Backtest() {
                     value={initialCapital}
                     onChange={(e) => setInitialCapital(e.target.value)}
                     min="100"
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div>
@@ -165,7 +165,7 @@ export function Backtest() {
                     onChange={(e) => setPositionSize(e.target.value)}
                     min="1"
                     max="100"
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
