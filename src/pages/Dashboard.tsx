@@ -668,9 +668,12 @@ export function Dashboard() {
               ) : (
                 <div className="space-y-1 text-sm">
                   {orbStates.map(s => (
-                    <div key={s.symbol} className="flex justify-between">
-                      <span className="font-medium">{s.symbol}</span>
-                      <span className={s.tradedToday ? 'text-emerald-400' : 'text-slate-400'}>
+                    <div key={s.symbol} className="flex items-center justify-between gap-2">
+                      <span className="font-medium w-12 shrink-0">{s.symbol}</span>
+                      <span className="flex-1 text-center text-xs text-slate-500">
+                        {s.tradedToday ? (s.tradedAt ?? s.date) : s.date}
+                      </span>
+                      <span className={`text-right shrink-0 ${s.tradedToday ? 'text-emerald-400' : 'text-slate-400'}`}>
                         {s.tradedToday
                           ? `Bought @ $${s.entryPrice?.toFixed(2)}`
                           : `$${s.orbLow.toFixed(2)}–$${s.orbHigh.toFixed(2)}`}

@@ -17,6 +17,7 @@ export interface OrbData {
   date: string;         // YYYY-MM-DD ET
   tradedToday: boolean;
   entryPrice?: number;
+  tradedAt?: string;    // HH:MM AM/PM ET — when the order was placed
 }
 
 // ── ET timezone helpers ──────────────────────────────────────────────────────
@@ -59,6 +60,15 @@ function getETHourMinute(): { h: number; m: number } {
   const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
   const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
   return { h, m };
+}
+
+function getETTimeStr(): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date());
 }
 
 function isMarketWeekday(): boolean {
@@ -145,10 +155,11 @@ async function runOrbScan(
         if (existing && !existing.tradedToday) {
           existing.tradedToday = true;
           existing.entryPrice = entryPrice;
+          existing.tradedAt = existing.tradedAt ?? getETTimeStr();
           console.log(`[ORB] ${sym}: already have a position @ $${entryPrice.toFixed(2)} — marking as traded`);
         } else if (!existing) {
           // Position exists but no ORB data yet — pre-mark so we don't buy on top of it
-          orbMap.set(sym, { symbol: sym, orbHigh: 0, orbLow: 0, date: today, tradedToday: true, entryPrice });
+          orbMap.set(sym, { symbol: sym, orbHigh: 0, orbLow: 0, date: today, tradedToday: true, entryPrice, tradedAt: getETTimeStr() });
         }
       }
     }
@@ -226,6 +237,7 @@ async function runOrbScan(
       // Mark as traded immediately to prevent duplicate orders during async call
       orbData.tradedToday = true;
       orbData.entryPrice = price;
+      orbData.tradedAt = getETTimeStr();
 
       try {
         const order = await alpaca.createOrder(isPaper, {
