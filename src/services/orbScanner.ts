@@ -92,12 +92,12 @@ function isBeforeNewTradesCutoff(): boolean {
 function isEODCloseWindow(): boolean {
   const { h, m } = getETHourMinute();
   const t = h * 60 + m;
-  return t >= 945 && t < 958; // 3:45–3:58 PM — force-close window
+  return t >= 955 && t < 960; // 3:55–4:00 PM — force-close window
 }
 
 function isPastMarketHours(): boolean {
   const { h, m } = getETHourMinute();
-  return h * 60 + m >= 958; // 3:58 PM — scanner fully shuts down
+  return h * 60 + m >= 960; // 4:00 PM — scanner fully shuts down
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
