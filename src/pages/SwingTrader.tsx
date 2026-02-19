@@ -351,6 +351,12 @@ export function SwingTrader() {
         </div>
         <div className="flex items-center flex-wrap gap-2">
           <Link
+            to="/backtest"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300"
+          >
+            Backtest
+          </Link>
+          <Link
             to="/journal"
             className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300"
           >

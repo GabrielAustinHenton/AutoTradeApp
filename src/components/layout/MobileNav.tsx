@@ -15,7 +15,6 @@ const primaryTabs = [
 const moreItems = [
   { path: '/trade', label: 'Trade', icon: '💹' },
   { path: '/history', label: 'Trade History', icon: '📜' },
-  { path: '/backtest', label: 'Backtest', icon: '🔬' },
   { path: '/settings', label: 'Settings', icon: '🔧' },
 ];
 

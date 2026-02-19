@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { runBacktest } from '../services/backtester';
 import type { BacktestResult } from '../types';
@@ -88,7 +89,15 @@ export function Backtest() {
   return (
     <div className="text-white">
       <div className="flex justify-between items-center mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold">Backtesting</h1>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/swing-trader"
+            className="text-slate-400 hover:text-white text-sm flex items-center gap-1"
+          >
+            &larr; SwingTrader
+          </Link>
+          <h1 className="text-2xl md:text-3xl font-bold">Backtesting</h1>
+        </div>
         {backtestResults.length > 0 && (
           <button
             onClick={clearBacktestResults}
