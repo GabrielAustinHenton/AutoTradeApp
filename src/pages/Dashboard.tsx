@@ -238,7 +238,7 @@ export function Dashboard() {
           subtitle={isLiveNotConnected ? 'Not connected' : 'Total assets'}
         />
         <StatCard
-          title="Cash Balance"
+          title="Buying Power"
           value={displayCash !== null ? `$${displayCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
           subtitle={isLiveNotConnected ? 'Not connected' : 'Available to trade'}
         />

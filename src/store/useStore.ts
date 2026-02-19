@@ -602,7 +602,7 @@ export const useStore = create<AppState>()(
             alpaca.getPositions(isPaper),
           ]);
 
-          const cashBalance = parseFloat(account.cash);
+          const cashBalance = parseFloat(account.buying_power);
           const totalValue = parseFloat(account.portfolio_value);
 
           const positions: Position[] = alpacaPositions
