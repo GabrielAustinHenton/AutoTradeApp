@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
-import { useDailyData, useIntradayData } from '../hooks/useStockData';
+import { alpaca } from '../services/alpaca';
 import { CandlestickChartSVG } from '../components/charts/CandlestickChartSVG';
 
 type TimeFrame = '1D' | '5D' | '1M' | '3M';
@@ -38,44 +38,53 @@ export function Charts() {
   const [macdSlow, setMacdSlow] = useState(26);
   const [macdSignal, setMacdSignal] = useState(9);
 
-  // Get data based on timeframe
-  const { data: dailyData, loading: dailyLoading } = useDailyData(
-    timeframe !== '1D' ? selectedSymbol : null,
-    timeframe === '3M' ? 'full' : 'compact'
-  );
-  const { data: intradayData, loading: intradayLoading } = useIntradayData(
-    timeframe === '1D' ? selectedSymbol : null,
-    '15min'
-  );
+  const isPaper = tradingMode === 'paper';
 
-  // Process data based on timeframe
-  const chartData = (() => {
-    if (timeframe === '1D') {
-      return intradayData.slice(-26).map((d) => ({
-        date: d.timestamp.split(' ')[1]?.slice(0, 5) || d.timestamp,
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-        volume: d.volume,
-      }));
+  // Fetch chart data from Alpaca
+  type ChartCandle = { date: string; open: number; high: number; low: number; close: number; volume: number };
+  const [chartData, setChartData] = useState<ChartCandle[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchChartData = useCallback(async () => {
+    setChartData([]);
+    setLoading(true);
+    try {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const toDateStr = (d: Date) =>
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const today = new Date();
+      const todayStr = toDateStr(today);
+
+      if (timeframe === '1D') {
+        const bars = await alpaca.getIntradayBars(isPaper, selectedSymbol, todayStr);
+        setChartData(bars);
+      } else {
+        const daysBack = timeframe === '5D' ? 10 : timeframe === '1M' ? 40 : 100;
+        const start = new Date(today);
+        start.setDate(start.getDate() - daysBack);
+        const bars = await alpaca.getHistoricalBars(isPaper, selectedSymbol, toDateStr(start), todayStr);
+        const sliceCount = timeframe === '5D' ? 5 : timeframe === '1M' ? 30 : 63;
+        setChartData(
+          bars.slice(-sliceCount).map((b) => ({
+            date: b.timestamp,
+            open: b.open,
+            high: b.high,
+            low: b.low,
+            close: b.close,
+            volume: b.volume,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('[Charts] Failed to fetch data:', err);
+    } finally {
+      setLoading(false);
     }
+  }, [selectedSymbol, timeframe, isPaper]);
 
-    let sliceCount = 30;
-    if (timeframe === '5D') sliceCount = 5;
-    if (timeframe === '3M') sliceCount = 63;
-
-    return dailyData.slice(-sliceCount).map((d) => ({
-      date: d.timestamp.split(' ')[0],
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
-      volume: d.volume,
-    }));
-  })();
-
-  const loading = timeframe === '1D' ? intradayLoading : dailyLoading;
+  useEffect(() => {
+    fetchChartData();
+  }, [fetchChartData]);
 
   // Use the already computed symbols list
   const allSymbols = allAvailableSymbols;

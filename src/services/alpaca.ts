@@ -340,6 +340,51 @@ class AlpacaService {
     return result;
   }
 
+  // ── Intraday Bars (15-minute candles for a single trading day) ───────────────
+
+  async getIntradayBars(
+    isPaper: boolean,
+    symbol: string,
+    date: string,   // YYYY-MM-DD
+  ): Promise<{ timestamp: string; open: number; high: number; low: number; close: number; volume: number }[]> {
+    const creds = isPaper ? this.paperCreds : this.liveCreds;
+    if (!creds || !creds.keyId || !creds.secretKey) {
+      throw new Error(`Alpaca ${isPaper ? 'paper' : 'live'} credentials not configured`);
+    }
+
+    // Use UTC times that cover 9:30–16:00 ET regardless of DST
+    const params = new URLSearchParams({
+      timeframe: '15Min',
+      start: `${date}T13:00:00Z`,  // 9:00 AM ET in UTC (catches both EST/EDT opens)
+      end:   `${date}T21:30:00Z`,  // 5:30 PM ET in UTC (catches both EST/EDT closes)
+      limit: '400',
+      feed:  'iex',
+    });
+
+    const url = `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`;
+    const res = await fetch(url, {
+      headers: {
+        'APCA-API-KEY-ID': creds.keyId,
+        'APCA-API-SECRET-KEY': creds.secretKey,
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Alpaca intraday bars ${symbol}: ${res.status} ${text}`);
+    }
+
+    const data = await res.json();
+    return (data.bars || []).map((bar: any) => ({
+      timestamp: bar.t.substring(11, 16),  // "HH:MM" from ISO string
+      open:  bar.o,
+      high:  bar.h,
+      low:   bar.l,
+      close: bar.c,
+      volume: bar.v,
+    }));
+  }
+
   // ── Historical Market Data (Alpaca Data API — CORS-friendly, works in browser) ─
 
   async getHistoricalBars(
