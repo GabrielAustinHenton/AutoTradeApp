@@ -125,22 +125,22 @@ export function Backtest() {
                     className="w-20 bg-slate-700 border border-emerald-600/60 rounded-lg px-2 py-2 text-base font-bold text-center uppercase focus:outline-none focus:border-emerald-400"
                   />
                 </div>
-                <div className="flex-1">
+                <div className="shrink-0">
                   <label className="block text-xs text-slate-400 mb-1.5">Start Date</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500 [&::-webkit-date-and-time-value]:text-left"
+                    className="w-auto bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500"
                   />
                 </div>
-                <div className="flex-1">
+                <div className="shrink-0">
                   <label className="block text-xs text-slate-400 mb-1.5">End Date</label>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500 [&::-webkit-date-and-time-value]:text-left"
+                    className="w-auto bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
