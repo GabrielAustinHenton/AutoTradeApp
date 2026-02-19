@@ -114,39 +114,42 @@ export function Backtest() {
           <div className="bg-slate-800 rounded-xl p-4 md:p-6">
             <h2 className="text-lg md:text-xl font-semibold mb-4">Configuration</h2>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Symbol</label>
-                <input
-                  type="text"
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 md:px-4 py-2 text-sm md:text-base focus:outline-none focus:border-emerald-500"
-                />
+            <div className="space-y-3">
+              {/* Row 1: Symbol (compact) + Start Date + End Date */}
+              <div className="flex gap-2 items-end">
+                <div className="shrink-0">
+                  <label className="block text-xs text-slate-400 mb-1.5 text-center">Symbol</label>
+                  <input
+                    type="text"
+                    value={symbol}
+                    onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                    className="w-20 bg-slate-700 border border-emerald-600/60 rounded-lg px-2 py-2 text-base font-bold text-center uppercase focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-slate-400 mb-1.5">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-slate-400 mb-1.5">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Start Date</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">End Date</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Row 2: Initial Capital + Position Size */}
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-2">Initial Capital</label>
+                  <label className="block text-xs text-slate-400 mb-1.5">Initial Capital</label>
                   <input
                     type="number"
                     value={initialCapital}
@@ -156,7 +159,7 @@ export function Backtest() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-2">Position Size %</label>
+                  <label className="block text-xs text-slate-400 mb-1.5">Position Size %</label>
                   <input
                     type="number"
                     value={positionSize}
