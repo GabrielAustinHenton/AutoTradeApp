@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import type { JournalEntry } from '../types';
 import { format } from 'date-fns';
@@ -80,7 +81,15 @@ export function Journal() {
   return (
     <div className="text-white">
       <div className="flex justify-between items-center mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold">Trading Journal</h1>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/swing-trader"
+            className="text-slate-400 hover:text-white text-sm flex items-center gap-1"
+          >
+            &larr; SwingTrader
+          </Link>
+          <h1 className="text-2xl md:text-3xl font-bold">Trading Journal</h1>
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
           className="bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-sm md:text-base font-semibold transition-colors"

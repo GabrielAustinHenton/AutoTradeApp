@@ -10,7 +10,6 @@ const navItems = [
   { path: '/charts', label: 'Charts', icon: '📈' },
   { path: '/swing-trader', label: 'SwingTrader App', icon: '🔄' },
   { path: '/backtest', label: 'Backtest', icon: '🔬' },
-  { path: '/journal', label: 'Journal', icon: '📓' },
   { path: '/settings', label: 'Settings', icon: '🔧' },
 ];
 

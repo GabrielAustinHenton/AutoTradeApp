@@ -16,7 +16,6 @@ const moreItems = [
   { path: '/trade', label: 'Trade', icon: '💹' },
   { path: '/history', label: 'Trade History', icon: '📜' },
   { path: '/backtest', label: 'Backtest', icon: '🔬' },
-  { path: '/journal', label: 'Journal', icon: '📓' },
   { path: '/settings', label: 'Settings', icon: '🔧' },
 ];
 
