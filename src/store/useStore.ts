@@ -238,7 +238,6 @@ interface AppState {
 
   // Watchlist
   watchlist: string[];
-  alpacaWatchlistId: string | null; // ID of the "AutoTrader" watchlist on Alpaca
 
   // Trading
   trades: Trade[];
@@ -283,7 +282,6 @@ interface AppState {
   addToWatchlist: (symbol: string) => void;
   removeFromWatchlist: (symbol: string) => void;
   syncRulesWithWatchlist: () => void; // Generate rules for all watchlist symbols that don't have them
-  syncWatchlistWithAlpaca: () => Promise<void>; // Two-way merge with Alpaca "AutoTrader" watchlist
 
   // Actions - Trades
   addTrade: (trade: Trade) => void;
@@ -364,7 +362,6 @@ export const useStore = create<AppState>()(
       portfolioSummary: initialPortfolioSummary,
       cashBalance: 10000,
       watchlist: [...PERMANENT_WATCHLIST],
-      alpacaWatchlistId: null,
       trades: [],
       tradingRules: defaultPatternRules,
       journalEntries: [],
@@ -441,22 +438,12 @@ export const useStore = create<AppState>()(
             : state.tradingRules,
         });
 
-        // Push to Alpaca watchlist if synced
-        const { alpacaWatchlistId, alpacaConnected, tradingMode } = get();
-        if (alpacaWatchlistId && alpacaConnected) {
-          alpaca.addSymbolToWatchlist(tradingMode === 'paper', alpacaWatchlistId, symbol).catch(console.error);
-        }
       },
 
       removeFromWatchlist: (symbol) => {
         const state = get();
         set({ watchlist: state.watchlist.filter((s) => s !== symbol) });
 
-        // Remove from Alpaca watchlist if synced
-        const { alpacaWatchlistId, alpacaConnected, tradingMode } = get();
-        if (alpacaWatchlistId && alpacaConnected) {
-          alpaca.removeSymbolFromWatchlist(tradingMode === 'paper', alpacaWatchlistId, symbol).catch(console.error);
-        }
       },
 
       // Generate rules for all watchlist symbols that don't have them
@@ -479,64 +466,6 @@ export const useStore = create<AppState>()(
             tradingRules: [...state.tradingRules, ...newRules],
           };
         }),
-
-      syncWatchlistWithAlpaca: async () => {
-        const state = get();
-        if (!state.alpacaConnected) return;
-        const isPaper = state.tradingMode === 'paper';
-
-        try {
-          // Find or create the AutoTrader watchlist
-          const watchlists = await alpaca.getWatchlists(isPaper);
-          const existing = watchlists.find(w => w.name === 'AutoTrader');
-
-          let watchlistId: string;
-          let alpacaSymbols: string[];
-
-          if (existing) {
-            const full = await alpaca.getWatchlist(isPaper, existing.id);
-            watchlistId = full.id;
-            alpacaSymbols = (full.assets ?? []).map(a => a.symbol);
-            console.log(`[Watchlist] Found AutoTrader watchlist with ${alpacaSymbols.length} symbols:`, alpacaSymbols);
-          } else {
-            const created = await alpaca.createWatchlist(isPaper, 'AutoTrader', []);
-            watchlistId = created.id;
-            alpacaSymbols = [];
-            console.log(`[Watchlist] Created AutoTrader watchlist`);
-          }
-
-          // Two-way merge: union of both sides
-          const merged = Array.from(new Set([...state.watchlist, ...alpacaSymbols]));
-
-          // Add symbols missing from Alpaca one by one
-          const toAdd = merged.filter(s => !alpacaSymbols.includes(s));
-          console.log(`[Watchlist] Adding ${toAdd.length} symbols to Alpaca:`, toAdd);
-          for (const symbol of toAdd) {
-            await alpaca.addSymbolToWatchlist(isPaper, watchlistId, symbol);
-          }
-
-          // Update app with merged list + any new rules for new symbols
-          const newRules: TradingRule[] = [];
-          for (const symbol of merged) {
-            if (!state.watchlist.includes(symbol)) {
-              const hasRules = state.tradingRules.some(r => r.symbol === symbol);
-              if (!hasRules) newRules.push(...createRulesForSymbol(symbol));
-            }
-          }
-
-          set({
-            watchlist: merged,
-            alpacaWatchlistId: watchlistId,
-            tradingRules: newRules.length > 0
-              ? [...state.tradingRules, ...newRules]
-              : state.tradingRules,
-          });
-
-          console.log(`[Watchlist] Synced with Alpaca — ${merged.length} symbols`);
-        } catch (err) {
-          console.error('[Watchlist] Sync failed:', err);
-        }
-      },
 
       // Trade actions
       addTrade: (trade) =>

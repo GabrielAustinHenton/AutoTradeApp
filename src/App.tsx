@@ -22,13 +22,12 @@ import { migrateLocalStorageToUser, loadFromFirestore, scheduleSyncToFirestore, 
 import { alpaca } from './services/alpaca';
 
 function AppContent() {
-  const { syncRulesWithWatchlist, tradingMode, alpacaConnected, syncFromAlpaca, syncWatchlistWithAlpaca } = useStore();
+  const { syncRulesWithWatchlist, tradingMode, alpacaConnected, syncFromAlpaca } = useStore();
 
   // Auto-sync Alpaca portfolio on app load if credentials are already configured
   useEffect(() => {
     if (alpacaConnected) {
       syncFromAlpaca().catch(() => {});
-      syncWatchlistWithAlpaca().catch(() => {});
     }
   }, [tradingMode]); // re-sync when mode changes (switches between paper/live data)
 
