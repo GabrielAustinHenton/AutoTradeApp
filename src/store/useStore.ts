@@ -73,13 +73,11 @@ const BEARISH_PATTERNS: Array<{ pattern: CandlestickPattern; name: string }> = [
 
 // Create a BUY rule - fixed targets, no trailing stop
 const createPatternBuyRule = (
-  symbol: string,
   pattern: CandlestickPattern,
   patternName: string
 ): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Buy`,
-  symbol,
+  name: `${patternName} Buy`,
   enabled: true,
   type: 'buy',
   ruleType: 'pattern',
@@ -98,13 +96,11 @@ const createPatternBuyRule = (
 
 // Create pattern ALERT rule (no auto-trade) - for manual decision making
 const createPatternSellRule = (
-  symbol: string,
   pattern: CandlestickPattern,
   patternName: string
 ): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Alert`,
-  symbol,
+  name: `${patternName} Alert`,
   enabled: true,
   type: 'sell',
   ruleType: 'pattern',
@@ -118,10 +114,9 @@ const createPatternSellRule = (
 });
 
 // Create a MACD buy rule - fixed targets, no trailing stop
-const createMACDBuyRule = (symbol: string): TradingRule => ({
+const createMACDBuyRule = (): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} MACD Buy`,
-  symbol,
+  name: 'MACD Buy',
   enabled: true,
   type: 'buy',
   ruleType: 'macd',
@@ -143,10 +138,9 @@ const createMACDBuyRule = (symbol: string): TradingRule => ({
 });
 
 // Create a MACD sell ALERT (no auto-trade) - trailing stop handles exits
-const createMACDSellRule = (symbol: string): TradingRule => ({
+const createMACDSellRule = (): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} MACD Sell Alert`,
-  symbol,
+  name: 'MACD Sell Alert',
   enabled: true,
   type: 'sell',
   ruleType: 'macd',
@@ -170,13 +164,11 @@ const createMACDSellRule = (symbol: string): TradingRule => ({
 
 // Create a SHORT rule - fixed targets, no trailing stop
 const createPatternShortRule = (
-  symbol: string,
   pattern: CandlestickPattern,
   patternName: string
 ): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} ${patternName} Short`,
-  symbol,
+  name: `${patternName} Short`,
   enabled: true,
   type: 'short',
   ruleType: 'pattern',
@@ -194,10 +186,9 @@ const createPatternShortRule = (
 });
 
 // Create MACD short rule - fixed targets, no trailing stop
-const createMACDShortRule = (symbol: string): TradingRule => ({
+const createMACDShortRule = (): TradingRule => ({
   id: crypto.randomUUID(),
-  name: `${symbol} MACD Short`,
-  symbol,
+  name: 'MACD Short',
   enabled: true,
   type: 'short',
   ruleType: 'macd',
@@ -218,16 +209,13 @@ const createMACDShortRule = (symbol: string): TradingRule => ({
   volumeFilter: { enabled: true, minMultiplier: 1.5 },
 });
 
-// Generate all rules for a symbol (LONG-ONLY - no shorting)
-const createRulesForSymbol = (symbol: string): TradingRule[] => [
-  // BUY on bullish patterns
-  ...BULLISH_PATTERNS.map(({ pattern, name }) => createPatternBuyRule(symbol, pattern, name)),
-  // MACD buy rule only
-  createMACDBuyRule(symbol),
+// Generate one shared set of symbol-agnostic default rules
+const createDefaultRules = (): TradingRule[] => [
+  ...BULLISH_PATTERNS.map(({ pattern, name }) => createPatternBuyRule(pattern, name)),
+  createMACDBuyRule(),
 ];
 
-// Generate all rules for all watchlist stocks
-const defaultPatternRules: TradingRule[] = PERMANENT_WATCHLIST.flatMap(createRulesForSymbol);
+const defaultPatternRules: TradingRule[] = createDefaultRules();
 
 // ============================================================================
 interface AppState {
@@ -427,17 +415,7 @@ export const useStore = create<AppState>()(
       addToWatchlist: (symbol) => {
         const state = get();
         if (state.watchlist.includes(symbol)) return;
-
-        const hasRulesForSymbol = state.tradingRules.some(r => r.symbol === symbol);
-        const newRules: TradingRule[] = hasRulesForSymbol ? [] : createRulesForSymbol(symbol);
-
-        set({
-          watchlist: [...state.watchlist, symbol],
-          tradingRules: newRules.length > 0
-            ? [...state.tradingRules, ...newRules]
-            : state.tradingRules,
-        });
-
+        set({ watchlist: [...state.watchlist, symbol] });
       },
 
       removeFromWatchlist: (symbol) => {
@@ -446,25 +424,11 @@ export const useStore = create<AppState>()(
 
       },
 
-      // Generate rules for all watchlist symbols that don't have them
+      // Ensure at least the default symbol-agnostic rules exist
       syncRulesWithWatchlist: () =>
         set((state) => {
-          const newRules: TradingRule[] = [];
-
-          for (const symbol of state.watchlist) {
-            const hasRulesForSymbol = state.tradingRules.some((r) => r.symbol === symbol);
-            if (!hasRulesForSymbol) {
-              newRules.push(...createRulesForSymbol(symbol));
-            }
-          }
-
-          if (newRules.length === 0) {
-            return {};
-          }
-
-          return {
-            tradingRules: [...state.tradingRules, ...newRules],
-          };
+          if (state.tradingRules.length > 0) return {};
+          return { tradingRules: createDefaultRules() };
         }),
 
       // Trade actions
@@ -1196,16 +1160,16 @@ export const useStore = create<AppState>()(
 
           // Merge trading rules: keep user settings, add missing rules for new patterns/stocks
           const existingRules = Array.isArray(persisted.tradingRules)
-            ? persisted.tradingRules.filter((r): r is TradingRule => r && typeof r === 'object' && 'symbol' in r)
+            ? persisted.tradingRules.filter((r): r is TradingRule => r && typeof r === 'object' && 'ruleType' in r)
             : [];
 
           const existingRuleKeys = new Set(
-            existingRules.map(r => `${r.symbol}-${r.ruleType || ''}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`)
+            existingRules.map(r => `${r.ruleType || ''}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`)
           );
 
           // Find rules that don't exist yet
           const missingRules = defaultPatternRules.filter(r => {
-            const key = `${r.symbol}-${r.ruleType || ''}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`;
+            const key = `${r.ruleType || ''}-${r.pattern || ''}-${r.macdSettings?.crossoverType || ''}`;
             return !existingRuleKeys.has(key);
           });
 

@@ -66,7 +66,7 @@ export function Rules() {
       const rule: TradingRule = {
         id: crypto.randomUUID(),
         name: name || `${PATTERN_INFO[selectedPattern].name} - ${tradeType === 'buy' ? 'Buy' : 'Sell'} Signal`,
-        symbol: symbol.toUpperCase(),
+        symbol: symbol.trim() || undefined,
         enabled: true,
         type: tradeType,
         ruleType: 'pattern',
@@ -94,8 +94,8 @@ export function Rules() {
     } else if (ruleType === 'macd') {
       const rule: TradingRule = {
         id: crypto.randomUUID(),
-        name: name || `${symbol.toUpperCase()} MACD ${macdCrossoverType === 'bullish' ? 'Bullish' : 'Bearish'} Crossover`,
-        symbol: symbol.toUpperCase(),
+        name: name || `MACD ${macdCrossoverType === 'bullish' ? 'Bullish' : 'Bearish'} Crossover`,
+        symbol: symbol.trim() || undefined,
         enabled: true,
         type: macdCrossoverType === 'bullish' ? 'buy' : 'sell',
         ruleType: 'macd',
@@ -133,8 +133,8 @@ export function Rules() {
 
       const rule: TradingRule = {
         id: crypto.randomUUID(),
-        name: name || `${symbol.toUpperCase()} Price Rule`,
-        symbol: symbol.toUpperCase(),
+        name: name || `Price Rule${symbol.trim() ? ` — ${symbol.trim().toUpperCase()}` : ''}`,
+        symbol: symbol.trim() || undefined,
         enabled: true,
         type: tradeType,
         ruleType: 'price',
@@ -271,14 +271,13 @@ export function Rules() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-2">Symbol</label>
+                <label className="block text-sm text-slate-400 mb-2">Symbol <span className="text-slate-500 font-normal">(optional — leave blank to apply to any stock)</span></label>
                 <input
                   type="text"
                   value={symbol}
                   onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                  placeholder="AAPL"
+                  placeholder="Any symbol"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
-                  required
                 />
               </div>
             </div>
@@ -740,9 +739,11 @@ export function Rules() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold">{rule.name}</h3>
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
-                        {rule.symbol}
-                      </span>
+                      {rule.symbol && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
+                          {rule.symbol}
+                        </span>
+                      )}
                       <span
                         className={`text-xs px-2 py-1 rounded ${
                           rule.type === 'buy'
@@ -858,9 +859,11 @@ export function Rules() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold">{rule.name}</h3>
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
-                        {rule.symbol}
-                      </span>
+                      {rule.symbol && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
+                          {rule.symbol}
+                        </span>
+                      )}
                       <span
                         className={`text-xs px-2 py-1 rounded ${
                           rule.type === 'buy'
@@ -976,9 +979,11 @@ export function Rules() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold">{rule.name}</h3>
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
-                        {rule.symbol}
-                      </span>
+                      {rule.symbol && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
+                          {rule.symbol}
+                        </span>
+                      )}
                       <span
                         className={`text-xs px-2 py-1 rounded ${
                           rule.type === 'buy'

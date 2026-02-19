@@ -45,8 +45,7 @@ export function Backtest() {
   };
 
   const selectAllRules = () => {
-    const symbolRules = patternRules.filter((r) => r.symbol.toUpperCase() === symbol.toUpperCase());
-    setSelectedRuleIds(new Set(symbolRules.map((r) => r.id)));
+    setSelectedRuleIds(new Set(patternRules.map((r) => r.id)));
   };
 
   const handleRunBacktest = async () => {
@@ -132,7 +131,7 @@ export function Backtest() {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500 [&::-webkit-date-and-time-value]:text-left"
                   />
                 </div>
                 <div className="flex-1">
@@ -141,7 +140,7 @@ export function Backtest() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-emerald-500 [&::-webkit-date-and-time-value]:text-left"
                   />
                 </div>
               </div>
@@ -178,7 +177,7 @@ export function Backtest() {
                     onClick={selectAllRules}
                     className="text-xs text-emerald-400 hover:text-emerald-300"
                   >
-                    Select All for {symbol}
+                    Select All
                   </button>
                 </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -199,7 +198,7 @@ export function Backtest() {
                           className="rounded border-slate-500"
                         />
                         <span className="text-sm flex-1">{rule.name}</span>
-                        <span className="text-xs text-slate-500">{rule.symbol}</span>
+                        {rule.symbol && <span className="text-xs text-slate-500">{rule.symbol}</span>}
                       </label>
                     ))
                   )}

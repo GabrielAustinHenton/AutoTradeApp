@@ -77,7 +77,7 @@ export type CandlestickPattern =
 export interface TradingRule {
   id: string;
   name: string;
-  symbol: string;
+  symbol?: string;  // optional — if absent, rule applies to any symbol
   enabled: boolean;
   type: 'buy' | 'sell' | 'short' | 'cover';  // short = open short position, cover = close short
   ruleType: 'price' | 'pattern' | 'macd';

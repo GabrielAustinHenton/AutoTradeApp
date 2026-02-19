@@ -168,7 +168,7 @@ export function usePatternScanner() {
         (r) =>
           r.enabled &&
           r.ruleType === 'pattern' &&
-          r.symbol === symbol
+          (!r.symbol || r.symbol === symbol)
       );
 
       // Detect patterns
@@ -248,7 +248,7 @@ export function usePatternScanner() {
         (r) =>
           r.enabled &&
           r.ruleType === 'macd' &&
-          r.symbol === symbol &&
+          (!r.symbol || r.symbol === symbol) &&
           r.macdSettings
       );
 
@@ -312,10 +312,10 @@ export function usePatternScanner() {
 
     scanningRef.current = true;
 
-    // Get unique symbols from rules and watchlist
-    const enabledRules = tradingRules.filter((r) => r.enabled && (r.ruleType === 'pattern' || r.ruleType === 'macd'));
-    const ruleSymbols = enabledRules.map((r) => r.symbol);
-    const allSymbols = [...new Set([...ruleSymbols, ...watchlist])];
+    // Scan the watchlist; also include any symbol-specific rules not already in the watchlist
+    const enabledRules = tradingRules.filter((r) => r.enabled && r.symbol && (r.ruleType === 'pattern' || r.ruleType === 'macd'));
+    const ruleSymbols = enabledRules.map((r) => r.symbol as string);
+    const allSymbols = [...new Set([...watchlist, ...ruleSymbols])];
 
     // Rate limiting: Only scan MAX_CALLS_PER_MINUTE stocks per cycle, rotating through the list
     const startIndex = scanBatchIndexRef.current * MAX_CALLS_PER_MINUTE;
