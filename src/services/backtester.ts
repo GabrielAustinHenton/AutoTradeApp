@@ -1192,7 +1192,7 @@ export async function runDayTradingBacktest(
     const symbolsMissingData: string[] = [];
     for (let i = 0; i < fetchResults.length; i++) {
       const result = fetchResults[i];
-      if (result.status === 'fulfilled' && result.value.bars.length >= 50) {
+      if (result.status === 'fulfilled' && result.value.bars.length >= 20) {
         const { symbol: sym, bars } = result.value;
         const existing = allData.get(sym) || [];
         allData.set(sym, [...existing, ...bars].sort((a, b) => a.timestamp.localeCompare(b.timestamp)));
@@ -1220,7 +1220,7 @@ export async function runDayTradingBacktest(
         );
         for (let i = 0; i < fallbackResults.length; i++) {
           const result = fallbackResults[i];
-          if (result.status === 'fulfilled' && result.value.bars.length >= 50) {
+          if (result.status === 'fulfilled' && result.value.bars.length >= 20) {
             const { symbol: sym, bars } = result.value;
             const existing = allData.get(sym) || [];
             allData.set(sym, [...existing, ...bars].sort((a, b) => a.timestamp.localeCompare(b.timestamp)));
@@ -1245,8 +1245,14 @@ export async function runDayTradingBacktest(
       throw new Error(`No data available for year ${specificYear}. Supported: 1996 onwards`);
     }
   } else {
-    const startYear = nowYear - yearsBack + 1;
-    console.log(`[ORB] Fetching data for years ${startYear}–${nowYear}`);
+    // Use a rolling date range: today minus N years → today
+    const endDateRolling = new Date();
+    const startDateRolling = new Date();
+    startDateRolling.setFullYear(startDateRolling.getFullYear() - yearsBack);
+    const rollingStart = startDateRolling.toISOString().split('T')[0];
+    const rollingEnd = endDateRolling.toISOString().split('T')[0];
+    const startYear = startDateRolling.getFullYear();
+    console.log(`[ORB] Fetching data for rolling range ${rollingStart}–${rollingEnd}`);
 
     // Load pre-2013 simulated data if the period includes those years
     if (startYear < 2013) {
@@ -1265,11 +1271,9 @@ export async function runDayTradingBacktest(
       }
     }
 
-    // Fetch 2013+ from Alpaca
-    const alpacaStartYear = Math.max(startYear, 2013);
-    if (alpacaStartYear <= nowYear) {
-      await fetchFromAlpaca(`${alpacaStartYear}-01-01`, `${nowYear}-12-31`);
-    }
+    // Fetch 2013+ from Alpaca using the rolling start date
+    const alpacaStart = startYear >= 2013 ? rollingStart : '2013-01-01';
+    await fetchFromAlpaca(alpacaStart, rollingEnd);
   }
 
   console.log(`[ORB] Loaded ${allData.size} stocks: ${[...allData.keys()].join(', ')}`);
