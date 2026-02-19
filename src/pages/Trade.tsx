@@ -81,11 +81,12 @@ export function Trade() {
     setSubmitting(true);
 
     const sharesNum = parseInt(shares);
-    // For market orders, use the current quote price; for limit orders, use the entered price
-    const priceNum = orderType === 'market' ? (quote?.price || 0) : parseFloat(price);
+    // Limit orders need a price from the user; market orders are filled by Alpaca at market price
+    const priceNum = orderType === 'limit' ? parseFloat(price) : (quote?.price || 0);
 
-    if (orderType === 'market' && !quote) {
-      setOrderStatus({ type: 'error', message: 'Unable to get current market price. Please try again.' });
+    // Limit orders always need a price; market orders don't (Alpaca handles it)
+    if (orderType === 'limit' && !priceNum) {
+      setOrderStatus({ type: 'error', message: 'Enter a limit price.' });
       setSubmitting(false);
       return;
     }
