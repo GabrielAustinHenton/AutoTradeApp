@@ -179,6 +179,7 @@ export interface PortfolioSnapshot {
 export interface PaperPortfolio {
   cashBalance: number;     // Alpaca account.cash — uninvested cash (used for portfolio total)
   buyingPower?: number;    // Alpaca account.buying_power — tradable capital incl. margin
+  dayChange?: number;      // Today's P&L from Alpaca (equity - last_equity)
   positions: Position[];
   shortPositions: ShortPosition[];  // Short positions
   trades: Trade[];

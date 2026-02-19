@@ -662,6 +662,7 @@ export const useStore = create<AppState>()(
                   ...s.paperPortfolio,
                   cashBalance,
                   buyingPower,
+                  dayChange,
                   positions,
                   shortPositions,
                   history: isStaleHistory ? [] : existingHistory,

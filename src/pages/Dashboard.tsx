@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { useMultipleQuotes } from '../hooks/useStockData';
 import { useOrbScanner } from '../hooks/useOrbScanner';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
 import { runBacktest, runRSIBacktest, runHybridBacktest, runDayTradingBacktest, type DayTradeResult } from '../services/backtester';
@@ -21,11 +20,10 @@ export function Dashboard() {
   const {
     positions,
     cashBalance,
+    portfolioSummary,
     trades,
     tradingRules,
     watchlist,
-    updatePositionPrices,
-    updatePaperPositionPrices,
     tradingMode,
     paperPortfolio,
     autoTradeConfig,
@@ -33,6 +31,7 @@ export function Dashboard() {
     alpacaSynced,
     alpacaPaperConnected,
     alpacaLiveConnected,
+    syncFromAlpaca,
   } = useStore();
 
   const { orbStates, isRunning: isOrbRunning, totalDeployed, exposureCap } = useOrbScanner();
@@ -60,43 +59,21 @@ export function Dashboard() {
     : displayCash;
   const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : (isLiveNotConnected ? [] : trades);
 
-  // Get unique symbols from positions - memoize to prevent infinite loops
-  const positionSymbols = useMemo(
-    () => displayPositions.filter(p => p.shares > 0).map((p) => p.symbol),
-    [displayPositions]
-  );
-  const { quotes, loading: quotesLoading } = useMultipleQuotes(positionSymbols, true);
-
-  // Update position prices when quotes change
-  // Use quotes.size as dependency instead of quotes object to avoid infinite loops
-  const quotesJson = useMemo(() => {
-    const obj: Record<string, number> = {};
-    quotes.forEach((q, symbol) => { obj[symbol] = q.price; });
-    return JSON.stringify(obj);
-  }, [quotes]);
-
+  // Sync from Alpaca every 60s to keep positions and prices fresh
   useEffect(() => {
-    if (quotes.size > 0) {
-      const priceMap = new Map<string, number>();
-      quotes.forEach((quote, symbol) => {
-        priceMap.set(symbol, quote.price);
-      });
-      // Update the correct portfolio based on mode
-      if (isPaperMode) {
-        updatePaperPositionPrices(priceMap);
-      } else {
-        updatePositionPrices(priceMap);
-      }
-    }
-  }, [quotesJson, updatePositionPrices, updatePaperPositionPrices, isPaperMode]);
+    const interval = setInterval(() => {
+      syncFromAlpaca().catch(() => {/* silent — already logged in store */});
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [syncFromAlpaca]);
 
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
   const totalPortfolioValue = isLiveNotConnected ? null : totalPositionValue + (displayCash ?? 0);
   const totalGain = isLiveNotConnected ? null : displayPositions.reduce((sum, p) => sum + p.totalGain, 0);
-  const dayChange = isLiveNotConnected ? null : Array.from(quotes.values()).reduce(
-    (sum, q) => sum + q.change * (displayPositions.find((p) => p.symbol === q.symbol)?.shares || 0),
-    0
-  );
+  // Day change comes from Alpaca account (equity - last_equity), stored on each sync
+  const dayChange = isLiveNotConnected ? null
+    : isPaperMode ? (paperPortfolio?.dayChange ?? null)
+    : (portfolioSummary?.dayChange ?? null);
 
   // Calculate portfolio performance from history
   const chartData = useMemo(() => {
@@ -215,11 +192,6 @@ export function Dashboard() {
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {quotesLoading && (
-            <span className="text-xs md:text-sm text-slate-400 animate-pulse">
-              Updating...
-            </span>
-          )}
           <NavLink
             to="/swing-trader"
             className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm font-medium transition-colors"
@@ -595,10 +567,7 @@ export function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {displayPositions.filter(p => p.shares > 0).map((position) => {
-                  const quote = quotes.get(position.symbol);
                   const isPositive = position.totalGain >= 0;
-                  const dayChangeAmount = quote ? quote.change * position.shares : 0;
-                  const dayIsPositive = dayChangeAmount >= 0;
 
                   return (
                     <div
@@ -615,15 +584,10 @@ export function Dashboard() {
                         <div className="font-semibold text-sm md:text-base">
                           ${position.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
-                        <div className="flex flex-col md:flex-row md:gap-3 text-xs md:text-sm">
+                        <div className="text-xs md:text-sm">
                           <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
-                            {isPositive ? '+' : ''}{position.totalGainPercent.toFixed(2)}%
+                            {isPositive ? '+' : ''}${position.totalGain.toFixed(2)} ({isPositive ? '+' : ''}{position.totalGainPercent.toFixed(2)}%)
                           </span>
-                          {quote && (
-                            <span className={`hidden md:inline ${dayIsPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                              Day: {dayIsPositive ? '+' : ''}${dayChangeAmount.toFixed(2)}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
