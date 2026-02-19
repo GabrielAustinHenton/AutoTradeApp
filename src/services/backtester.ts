@@ -1175,16 +1175,23 @@ export async function runDayTradingBacktest(
       throw new Error('Alpaca credentials required for backtesting. Connect your Alpaca account in Settings first.');
     }
 
-    console.log(`[ORB] Fetching ${symbols.length} watchlist stocks from Alpaca (${startStr} to ${endStr})`);
+    // If watchlist is empty, fall back entirely to Dow stocks
+    const fetchSymbols = symbols.length > 0 ? symbols : DOW_FALLBACKS.slice(0, 5);
+    if (symbols.length === 0) {
+      console.warn('[ORB] Watchlist is empty — using Dow fallback stocks');
+    }
+
+    console.log(`[ORB] Fetching ${fetchSymbols.length} stocks from Alpaca (${startStr} to ${endStr})`);
     const fetchResults = await Promise.allSettled(
-      symbols.map(async (sym) => ({
+      fetchSymbols.map(async (sym) => ({
         symbol: sym,
         bars: await alpaca.getHistoricalBars(isPaper, sym, startStr, endStr),
       }))
     );
 
     const symbolsMissingData: string[] = [];
-    for (const result of fetchResults) {
+    for (let i = 0; i < fetchResults.length; i++) {
+      const result = fetchResults[i];
       if (result.status === 'fulfilled' && result.value.bars.length >= 50) {
         const { symbol: sym, bars } = result.value;
         const existing = allData.get(sym) || [];
@@ -1192,6 +1199,10 @@ export async function runDayTradingBacktest(
       } else if (result.status === 'fulfilled') {
         console.warn(`[ORB] ${result.value.symbol}: only ${result.value.bars.length} bars — will use Dow fallback`);
         symbolsMissingData.push(result.value.symbol);
+      } else {
+        // Fetch was rejected (API error, network error, etc.) — use Dow fallback
+        console.error(`[ORB] ${fetchSymbols[i]} fetch failed:`, result.reason);
+        symbolsMissingData.push(fetchSymbols[i]);
       }
     }
 
@@ -1263,7 +1274,11 @@ export async function runDayTradingBacktest(
 
   console.log(`[ORB] Loaded ${allData.size} stocks: ${[...allData.keys()].join(', ')}`);
   if (allData.size === 0) {
-    throw new Error('No data loaded. Connect your Alpaca account in Settings and try again.');
+    throw new Error(
+      'No market data returned from Alpaca. This usually means your API keys lack data access, ' +
+      'or all requested symbols failed. Check the browser console for details. ' +
+      'Note: Alpaca free-tier accounts may have limited data access.'
+    );
   }
 
   // Find all unique trading dates
