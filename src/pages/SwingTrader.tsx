@@ -1,3 +1,23 @@
+// TODO: Add "Research" button/panel to SwingTrader for Robinhood-style stock research:
+//
+// Phase 1 — Alpaca only (no new API key needed):
+//   - News headlines: GET https://data.alpaca.markets/v1beta1/news?symbols=AAPL&limit=10
+//     Returns: headline, summary, author, source, url, created_at, images
+//   - Snapshot (price stats): GET https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL&feed=iex
+//     Returns: daily bar (o/h/l/c/v), latest trade price, 52-week high/low, prev close
+//   - Company name: already fetched via alpaca.getAssetName() in Charts page — reuse pattern
+//
+// Phase 2 — Finnhub (free tier: 60 req/min, no credit card):
+//   - Key: https://finnhub.io/register → set in Settings
+//   - Company profile: GET https://finnhub.io/api/v1/stock/profile2?symbol=AAPL&token=KEY
+//     Returns: name, exchange, country, currency, IPO date, logo, market cap, sector, weburl
+//   - Basic financials: GET https://finnhub.io/api/v1/stock/metric?symbol=AAPL&metric=all&token=KEY
+//     Returns: P/E ratio, EPS, 52-week high/low, beta, dividend yield, revenue, earnings dates
+//   - Display: company description, market cap, P/E, EPS, 52W range, dividend yield, sector
+//
+// UI suggestion: In SwingTrader stock list, tapping a row opens a bottom sheet or modal
+// with tabs: Overview | News | Financials (Phase 2 only)
+
 // TODO: Add an informational note in the SwingTrader UI about extended hours trading:
 // - Alpaca supports pre-market (4 AM–9:30 AM ET) and after-hours (4 PM–8 PM ET)
 // - Limit orders only during extended hours (no market orders)
@@ -7,7 +27,10 @@
 // - To enable on Alpaca: add extended_hours: true + time_in_force: 'day' to order params
 
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useSwingStore } from '../store/useSwingStore';
+import { usePatternScanner } from '../hooks/usePatternScanner';
+import { AlertToast } from '../components/alerts/AlertToast';
 import type { MarketRegime, SwingStrategyConfig, SwingEntryRule, SwingExitRule } from '../types';
 import {
   DEFAULT_SWING_SYMBOLS,
@@ -257,6 +280,9 @@ export function SwingTrader() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [newSymbol, setNewSymbol] = useState('');
 
+  // Pattern scanner + alerts only run while SwingTrader is open
+  usePatternScanner();
+
   // Computed values
   const equity = store.getCurrentEquity();
   const winRate = store.getWinRate();
@@ -324,6 +350,12 @@ export function SwingTrader() {
           </p>
         </div>
         <div className="flex items-center flex-wrap gap-2">
+          <Link
+            to="/rules"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300"
+          >
+            Trading Rules
+          </Link>
           <button
             onClick={handleReset}
             className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300"
@@ -791,7 +823,7 @@ export function SwingTrader() {
       {activeTab === 'watchlist' && (
         <div className="space-y-4">
           <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">Swing Trader Watchlist</h2>
+            <h2 className="text-lg font-semibold mb-4">SwingTrader Watchlist</h2>
             <p className="text-sm text-slate-400 mb-4">
               These symbols are monitored independently from the day trading watchlist. The swing trader will analyze market regime and generate signals for each.
             </p>
@@ -842,6 +874,8 @@ export function SwingTrader() {
           </div>
         </div>
       )}
+
+      <AlertToast />
     </div>
   );
 }

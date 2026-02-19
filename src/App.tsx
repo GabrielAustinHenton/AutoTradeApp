@@ -12,9 +12,7 @@ import { Journal } from './pages/Journal';
 import { Settings } from './pages/Settings';
 import { SwingTrader } from './pages/SwingTrader';
 import { Auth } from './pages/Auth';
-import { AlertToast } from './components/alerts/AlertToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { usePatternScanner } from './hooks/usePatternScanner';
 import { usePositionMonitor } from './hooks/usePositionMonitor';
 import { useStore } from './store/useStore';
 import { useAuth } from './contexts/AuthContext';
@@ -31,10 +29,7 @@ function AppContent() {
     }
   }, [tradingMode]); // re-sync when mode changes (switches between paper/live data)
 
-  // Initialize pattern scanner
-  usePatternScanner();
-
-  // Initialize position monitor for take-profit/stop-loss
+  // Initialize position monitor for take-profit/stop-loss (ORB bracket orders)
   usePositionMonitor();
 
   // Sync trading rules with watchlist on startup
@@ -44,9 +39,6 @@ function AppContent() {
 
   return (
     <>
-      <ErrorBoundary section="Alerts">
-        <AlertToast />
-      </ErrorBoundary>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<ErrorBoundary section="Dashboard"><Dashboard /></ErrorBoundary>} />
