@@ -1,7 +1,9 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../contexts/AuthContext';
+
+const SWING_TRADER_PATHS = ['/swing-trader', '/backtest', '/journal', '/rules'];
 
 // Primary tabs shown in the bottom bar
 const primaryTabs = [
@@ -22,6 +24,7 @@ export function MobileNav() {
   const [showMore, setShowMore] = useState(false);
   const { alpacaConnected } = useStore();
   const { user, userProfile, logOut, isConfigured } = useAuth();
+  const location = useLocation();
 
   return (
     <>
@@ -96,13 +99,15 @@ export function MobileNav() {
       {/* Bottom tab bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 md:hidden bg-slate-900 border-t border-slate-800 safe-area-bottom">
         <div className="flex items-stretch">
-          {primaryTabs.map((tab) => (
+          {primaryTabs.map((tab) => {
+            const isSwingSection = tab.path === '/swing-trader' && SWING_TRADER_PATHS.includes(location.pathname);
+            return (
             <NavLink
               key={tab.path}
               to={tab.path}
               className={({ isActive }) =>
                 `flex-1 flex flex-col items-center justify-center py-2 pt-2.5 transition-colors ${
-                  isActive
+                  isActive || isSwingSection
                     ? 'text-emerald-400'
                     : 'text-slate-500 active:text-slate-300'
                 }`
@@ -111,7 +116,8 @@ export function MobileNav() {
               <span className="text-lg leading-none">{tab.icon}</span>
               <span className="text-[10px] mt-1">{tab.label}</span>
             </NavLink>
-          ))}
+            );
+          })}
           <button
             onClick={() => setShowMore(!showMore)}
             className={`flex-1 flex flex-col items-center justify-center py-2 pt-2.5 transition-colors ${
