@@ -255,6 +255,12 @@ class AlpacaService {
     return res.json();
   }
 
+  async getWatchlist(isPaper: boolean, id: string): Promise<AlpacaWatchlist> {
+    const res = await this.request(isPaper, `/watchlists/${id}`);
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
   async createWatchlist(isPaper: boolean, name: string, symbols: string[]): Promise<AlpacaWatchlist> {
     const res = await this.request(isPaper, '/watchlists', {
       method: 'POST',

@@ -493,8 +493,10 @@ export const useStore = create<AppState>()(
           let alpacaSymbols: string[];
 
           if (existing) {
-            watchlistId = existing.id;
-            alpacaSymbols = existing.assets.map(a => a.symbol);
+            // Fetch full watchlist — the list endpoint may not include assets
+            const full = await alpaca.getWatchlist(isPaper, existing.id);
+            watchlistId = full.id;
+            alpacaSymbols = (full.assets ?? []).map(a => a.symbol);
           } else {
             const created = await alpaca.createWatchlist(isPaper, 'AutoTrader', state.watchlist);
             watchlistId = created.id;
