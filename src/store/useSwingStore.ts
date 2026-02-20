@@ -26,6 +26,11 @@ import {
 // ============================================================================
 
 interface SwingStoreState extends SwingTraderState {
+  // Alpaca swing trader connection
+  alpacaSwingConnected: boolean;
+  connectAlpacaSwing: (keyId: string, secretKey: string) => void;
+  disconnectAlpacaSwing: () => void;
+
   // Actions - Config
   updateConfig: (updates: Partial<SwingTraderConfig>) => void;
   resetConfig: () => void;
@@ -66,6 +71,10 @@ interface SwingStoreState extends SwingTraderState {
 
 const defaultConfig = createDefaultSwingConfig();
 
+const defaultConnectionState = {
+  alpacaSwingConnected: false,
+};
+
 const defaultState: SwingTraderState = {
   config: defaultConfig,
   cashBalance: defaultConfig.initialCapital,
@@ -98,6 +107,17 @@ export const useSwingStore = create<SwingStoreState>()(
   persist(
     (set, get) => ({
       ...defaultState,
+      ...defaultConnectionState,
+
+      // ============================
+      // Alpaca Swing Connection
+      // ============================
+
+      connectAlpacaSwing: (_keyId: string, _secretKey: string) =>
+        set({ alpacaSwingConnected: true }),
+
+      disconnectAlpacaSwing: () =>
+        set({ alpacaSwingConnected: false }),
 
       // ============================
       // Config Actions

@@ -1,14 +1,21 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
+import { useSwingStore } from '../store/useSwingStore';
 import { alpaca } from '../services/alpaca';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
 import { resetOrbScanner } from '../services/orbScanner';
+import { resetSwingScanner } from '../services/swingScanner';
 import { saveAlpacaCredsToFirestore } from '../services/firestoreSync';
 import { useAuth } from '../contexts/AuthContext';
 import type { Alert } from '../types';
 
 export function Settings() {
   const { user, userProfile, logOut, updateUserProfile, isConfigured } = useAuth();
+  const {
+    alpacaSwingConnected,
+    connectAlpacaSwing,
+    disconnectAlpacaSwing,
+  } = useSwingStore();
   const {
     alpacaPaperConnected,
     alpacaLiveConnected,
@@ -42,6 +49,8 @@ export function Settings() {
   const [paperSecret, setPaperSecret] = useState('');  // never pre-fill secrets
   const [liveKeyId, setLiveKeyId] = useState(alpaca.getLiveKeyId());
   const [liveSecret, setLiveSecret] = useState('');
+  const [swingKeyId, setSwingKeyId] = useState(alpaca.getSwingTraderKeyId());
+  const [swingSecret, setSwingSecret] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +173,32 @@ export function Settings() {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setError(msg.includes('401')
         ? 'Invalid live API keys. Get them from app.alpaca.markets → Live Trading → API Keys.'
+        : `Connection failed: ${msg}`);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleConnectSwing = async () => {
+    if (!swingKeyId || !swingSecret) {
+      setError('Enter both Swing Trader Key ID and Secret Key.');
+      return;
+    }
+    setError(null);
+    setSuccess(null);
+    setConnecting(true);
+    try {
+      alpaca.configureSwingTrader(swingKeyId, swingSecret);
+      await alpaca.getSwingAccount(); // verify credentials
+      connectAlpacaSwing(swingKeyId, swingSecret);
+      resetSwingScanner();
+      setSwingSecret('');
+      setSuccess('Swing Trader account connected! The swing scanner will use this account for trades.');
+    } catch (err) {
+      alpaca.clearSwingTrader();
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setError(msg.includes('401')
+        ? 'Invalid swing trader API keys. Get them from your separate swing trader Alpaca account.'
         : `Connection failed: ${msg}`);
     } finally {
       setConnecting(false);
@@ -411,6 +446,71 @@ export function Settings() {
                 >
                   {connecting ? 'Connecting...' : 'Connect Paper Account'}
                 </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Swing Trader Account ── */}
+          <div className={`p-4 rounded-lg border transition-all ${
+            alpacaSwingConnected
+              ? 'bg-purple-900/20 border-purple-700'
+              : 'bg-slate-700/50 border-slate-600'
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">Swing Trader Account</h3>
+                  <span className="px-1.5 py-0.5 bg-purple-500/20 border border-purple-500/50 rounded text-xs text-purple-400 font-medium">
+                    Separate Account
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Dedicated $5k account for the Swing Trader auto-scanner. Register at alpaca.markets with a different email.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${alpacaSwingConnected ? 'bg-purple-500 animate-pulse' : 'bg-slate-500'}`} />
+                <span className={`text-xs font-medium ${alpacaSwingConnected ? 'text-purple-400' : 'text-slate-400'}`}>
+                  {alpacaSwingConnected ? 'Connected' : 'Not connected'}
+                </span>
+              </div>
+            </div>
+
+            {alpacaSwingConnected ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { alpaca.clearSwingTrader(); disconnectAlpacaSwing(); setSwingKeyId(''); setSwingSecret(''); resetSwingScanner(); }}
+                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={swingKeyId}
+                  onChange={(e) => setSwingKeyId(e.target.value.trim())}
+                  placeholder="Swing Trader Key ID"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                />
+                <input
+                  type="password"
+                  value={swingSecret}
+                  onChange={(e) => setSwingSecret(e.target.value.trim())}
+                  placeholder="Swing Trader Secret Key"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                />
+                <button
+                  onClick={handleConnectSwing}
+                  disabled={connecting || !swingKeyId || !swingSecret}
+                  className="w-full py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+                >
+                  {connecting ? 'Connecting...' : 'Connect Swing Trader Account'}
+                </button>
+                <p className="text-xs text-slate-500">
+                  This account is used exclusively by the Swing Trader scanner. It is completely separate from your day trading paper/live accounts.
+                </p>
               </div>
             )}
           </div>

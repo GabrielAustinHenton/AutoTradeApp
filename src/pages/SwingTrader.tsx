@@ -30,6 +30,7 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useSwingStore } from '../store/useSwingStore';
 import { usePatternScanner } from '../hooks/usePatternScanner';
+import { useSwingScanner } from '../hooks/useSwingScanner';
 import { AlertToast } from '../components/alerts/AlertToast';
 import type { MarketRegime, SwingStrategyConfig, SwingEntryRule, SwingExitRule } from '../types';
 import {
@@ -283,6 +284,9 @@ export function SwingTrader() {
   // Pattern scanner + alerts only run while SwingTrader is open
   usePatternScanner();
 
+  // Swing auto-scanner (starts when isRunning && swing account connected)
+  const { scanStates, isRunning: isScannerRunning, pdtDayTrades, pdtWarning, pdtBlocked } = useSwingScanner();
+
   // Computed values
   const equity = store.getCurrentEquity();
   const winRate = store.getWinRate();
@@ -507,31 +511,115 @@ export function SwingTrader() {
             )}
           </div>
 
+          {/* Swing Scanner Status */}
+          {store.isRunning && (
+            <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  Auto-Scanner
+                  {isScannerRunning && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                  )}
+                </h2>
+                {!store.alpacaSwingConnected && (
+                  <Link to="/settings" className="text-xs text-amber-400 hover:text-amber-300">
+                    Connect swing account in Settings
+                  </Link>
+                )}
+              </div>
+
+              {/* PDT Warning */}
+              {pdtBlocked && (
+                <div className="mb-3 p-3 bg-red-900/30 border border-red-700 rounded-lg text-sm text-red-300">
+                  PDT limit reached ({pdtDayTrades}/3 day trades in 5 days). No new trades until the oldest day trade falls outside the 5-day window.
+                </div>
+              )}
+              {pdtWarning && !pdtBlocked && (
+                <div className="mb-3 p-3 bg-amber-900/30 border border-amber-700 rounded-lg text-sm text-amber-300">
+                  Approaching PDT limit: {pdtDayTrades}/3 day trades in the last 5 business days.
+                </div>
+              )}
+
+              {!store.alpacaSwingConnected ? (
+                <p className="text-slate-400 text-sm">
+                  Connect your swing trader Alpaca account in Settings to enable auto-scanning.
+                </p>
+              ) : scanStates.length === 0 ? (
+                <p className="text-slate-400 text-sm">
+                  Scans run at 9:35 AM ET (morning) and 3:45 PM ET (EOD) on weekdays.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {scanStates.map((s) => (
+                    <div key={s.symbol} className="flex items-center justify-between text-sm py-2 border-b border-slate-700/50 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{s.symbol}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          s.regime === 'uptrend' ? 'bg-emerald-500/20 text-emerald-400' :
+                          s.regime === 'sideways' ? 'bg-amber-500/20 text-amber-400' :
+                          'bg-red-500/20 text-red-400'
+                        }`}>
+                          {s.regime}
+                        </span>
+                        {s.rsi !== undefined && (
+                          <span className="text-xs text-slate-500">RSI {s.rsi.toFixed(0)}</span>
+                        )}
+                      </div>
+                      <span className={s.tradedToday ? 'text-emerald-400' : 'text-slate-400'}>
+                        {s.tradedToday
+                          ? `Bought @ $${s.entryPrice?.toFixed(2)}`
+                          : s.skipReason ?? (s.price ? `$${s.price.toFixed(2)}` : 'Pending scan')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-slate-500 mt-3">
+                PDT: {pdtDayTrades}/3 day trades this week. Swing positions held overnight avoid PDT classification.
+              </p>
+            </div>
+          )}
+
           {/* How It Works */}
           <div className="bg-slate-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-3">How Swing Trader Works</h2>
+            <h2 className="text-lg font-semibold mb-3">How the Auto-Scanner Works</h2>
             <div className="grid md:grid-cols-3 gap-4 text-sm text-slate-400">
               <div className="bg-slate-700/50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <RegimeBadge regime="uptrend" />
-                  <span className="text-white font-medium">Uptrend</span>
+                  <span className="text-white font-medium">Uptrend — Primary</span>
                 </div>
-                <p>Buys pullbacks to SMA support. Rides momentum with wider take-profit targets (8%). Uses trailing stop to lock in gains.</p>
-              </div>
-              <div className="bg-slate-700/50 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <RegimeBadge regime="downtrend" />
-                  <span className="text-white font-medium">Downtrend</span>
-                </div>
-                <p>Shorts rallies to SMA resistance. Smaller position sizes and tighter stop losses. Can buy extreme oversold bounces.</p>
+                <p>
+                  Price is above its 50-day SMA. Scanner looks for RSI(14) between 30–50 (pullback, not breakdown)
+                  with MACD histogram turning positive. Bracket order: 15% TP / 5% SL.
+                </p>
               </div>
               <div className="bg-slate-700/50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <RegimeBadge regime="sideways" />
-                  <span className="text-white font-medium">Sideways</span>
+                  <span className="text-white font-medium">Sideways — Mean Reversion</span>
                 </div>
-                <p>Mean reversion at Bollinger Band extremes. Buys at lower band, shorts at upper band. Quick in-and-out trades.</p>
+                <p>
+                  Price is within ±3% of its 50-day SMA (range-bound). Scanner requires RSI below 35 and MACD
+                  recovering. Tighter bracket: 8% TP / 4% SL. More whipsaws possible.
+                </p>
               </div>
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <RegimeBadge regime="downtrend" />
+                  <span className="text-white font-medium">Downtrend — Skipped</span>
+                </div>
+                <p>
+                  Price is below its 50-day SMA. The scanner skips long entries in downtrend — buying into a
+                  falling stock is high-risk. Sit on cash and wait for an uptrend to re-establish.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-slate-700/50 rounded-lg text-xs text-slate-400 space-y-1">
+              <p><span className="text-white">Scan times:</span> 9:35 AM ET (morning open) and 3:45 PM ET (EOD) on trading days.</p>
+              <p><span className="text-white">Exit strategy:</span> Bracket orders are placed server-side on Alpaca — TP and SL execute even when this tab is closed.</p>
+              <p><span className="text-white">PDT awareness:</span> With a sub-$25k account, you have 3 day trades per 5 business days. Positions held overnight do NOT count as day trades.</p>
             </div>
           </div>
 

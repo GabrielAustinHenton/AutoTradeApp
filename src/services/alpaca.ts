@@ -89,10 +89,12 @@ const LIVE_BASE_URL = 'https://api.alpaca.markets/v2';
 
 const PAPER_STORAGE_KEY = 'alpaca_paper_config';
 const LIVE_STORAGE_KEY = 'alpaca_live_config';
+const SWING_TRADER_STORAGE_KEY = 'alpaca_swing_trader_config';
 
 class AlpacaService {
   private paperCreds: AlpacaCredentials | null = null;
   private liveCreds: AlpacaCredentials | null = null;
+  private swingTraderCreds: AlpacaCredentials | null = null;
 
   private baseUrl(isPaper: boolean): string {
     return isPaper ? PAPER_BASE_URL : LIVE_BASE_URL;
@@ -142,6 +144,10 @@ class AlpacaService {
       const live = localStorage.getItem(LIVE_STORAGE_KEY);
       if (live) this.liveCreds = JSON.parse(live);
     } catch { /* ignore */ }
+    try {
+      const swing = localStorage.getItem(SWING_TRADER_STORAGE_KEY);
+      if (swing) this.swingTraderCreds = JSON.parse(swing);
+    } catch { /* ignore */ }
   }
 
   clearPaper(): void {
@@ -168,6 +174,42 @@ class AlpacaService {
 
   getLiveKeyId(): string {
     return this.liveCreds?.keyId ?? '';
+  }
+
+  configureSwingTrader(keyId: string, secretKey: string): void {
+    this.swingTraderCreds = { keyId, secretKey };
+    localStorage.setItem(SWING_TRADER_STORAGE_KEY, JSON.stringify({ keyId, secretKey }));
+  }
+
+  clearSwingTrader(): void {
+    this.swingTraderCreds = null;
+    localStorage.removeItem(SWING_TRADER_STORAGE_KEY);
+  }
+
+  isSwingTraderConfigured(): boolean {
+    return this.swingTraderCreds !== null && this.swingTraderCreds.keyId.length > 0;
+  }
+
+  getSwingTraderKeyId(): string {
+    return this.swingTraderCreds?.keyId ?? '';
+  }
+
+  // ── Private swing trader request helper ──────────────────────────────────────
+
+  private swingRequest(path: string, options: RequestInit = {}): Promise<Response> {
+    if (!this.swingTraderCreds?.keyId || !this.swingTraderCreds.secretKey) {
+      throw new Error('Alpaca swing trader credentials not configured');
+    }
+    const url = `${LIVE_BASE_URL}${path}`;
+    return fetch(url, {
+      ...options,
+      headers: {
+        'APCA-API-KEY-ID': this.swingTraderCreds.keyId,
+        'APCA-API-SECRET-KEY': this.swingTraderCreds.secretKey,
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string> | undefined),
+      },
+    });
   }
 
   // ── API Methods (all require isPaper to pick correct endpoint + credentials) ─
@@ -331,6 +373,111 @@ class AlpacaService {
       throw new Error(`Alpaca latest trades: ${res.status} ${text}`);
     }
 
+    const data = await res.json();
+    const result = new Map<string, number>();
+    const trades: Record<string, any> = data.trades ?? {};
+    for (const [sym, trade] of Object.entries(trades)) {
+      result.set(sym, (trade as any).p);
+    }
+    return result;
+  }
+
+  // ── Swing Trader Account Methods (separate $5k account credentials) ──────────
+
+  async getSwingAccount(): Promise<AlpacaAccount> {
+    const res = await this.swingRequest('/account');
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
+  async getSwingPositions(): Promise<AlpacaPosition[]> {
+    const res = await this.swingRequest('/positions');
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
+  async createSwingOrder(params: CreateOrderParams): Promise<AlpacaOrder> {
+    const body: Record<string, unknown> = {
+      symbol: params.symbol,
+      qty: params.qty.toString(),
+      side: params.side,
+      type: params.type,
+      time_in_force: params.time_in_force ?? 'gtc',  // GTC for multi-day swing holds
+      ...(params.limit_price !== undefined && { limit_price: params.limit_price.toString() }),
+      ...(params.order_class && { order_class: params.order_class }),
+      ...(params.take_profit && { take_profit: { limit_price: params.take_profit.limit_price.toFixed(2) } }),
+      ...(params.stop_loss && { stop_loss: { stop_price: params.stop_loss.stop_price.toFixed(2) } }),
+    };
+    const res = await this.swingRequest('/orders', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
+  // Historical daily bars using swing trader credentials (data API)
+  async getSwingHistoricalBars(
+    symbol: string,
+    start: string,  // YYYY-MM-DD
+    end: string,    // YYYY-MM-DD
+  ): Promise<{ timestamp: string; open: number; high: number; low: number; close: number; volume: number }[]> {
+    if (!this.swingTraderCreds?.keyId || !this.swingTraderCreds.secretKey) {
+      throw new Error('Alpaca swing trader credentials not configured');
+    }
+    const params = new URLSearchParams({
+      timeframe: '1Day',
+      start,
+      end,
+      limit: '10000',
+      feed: 'iex',
+    });
+    const url = `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`;
+    const res = await fetch(url, {
+      headers: {
+        'APCA-API-KEY-ID': this.swingTraderCreds.keyId,
+        'APCA-API-SECRET-KEY': this.swingTraderCreds.secretKey,
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Alpaca swing bars ${symbol}: ${res.status} ${text}`);
+    }
+    const data = await res.json();
+    return (data.bars || [])
+      .map((bar: any) => ({
+        timestamp: bar.t.split('T')[0],
+        open: bar.o, high: bar.h, low: bar.l, close: bar.c, volume: bar.v,
+      }))
+      .sort((a: any, b: any) => a.timestamp.localeCompare(b.timestamp));
+  }
+
+  // Latest trade prices using swing trader credentials
+  async getSwingLatestPrices(symbols: string[]): Promise<Map<string, number>> {
+    if (!this.swingTraderCreds?.keyId || !this.swingTraderCreds.secretKey) {
+      throw new Error('Alpaca swing trader credentials not configured');
+    }
+    const params = new URLSearchParams({ symbols: symbols.join(','), feed: 'iex' });
+    const url = `https://data.alpaca.markets/v2/stocks/trades/latest?${params}`;
+    const res = await fetch(url, {
+      headers: {
+        'APCA-API-KEY-ID': this.swingTraderCreds.keyId,
+        'APCA-API-SECRET-KEY': this.swingTraderCreds.secretKey,
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Alpaca swing latest prices: ${res.status} ${text}`);
+    }
     const data = await res.json();
     const result = new Map<string, number>();
     const trades: Record<string, any> = data.trades ?? {};
