@@ -1,39 +1,18 @@
 /**
- * Permanent Watchlist Configuration
- * This file is auto-updated when you add/remove stocks in the app.
+ * Default Watchlist Configuration
+ * These are the symbols loaded for new users or after a watchlist reset.
+ * Users can add/remove symbols freely — changes persist across refreshes.
  */
 
 export const PERMANENT_STOCKS = [
-  'AAPL',
   'MSFT',
   'GOOGL',
   'AMZN',
-  'NVDA',
-  'META',
   'TSLA',
-  'AMD',
-  'INTC',
-  'AVGO',
-  'JPM',
-  'V',
-  'BAC',
-  'MA',
-  'GS',
-  'UNH',
-  'JNJ',
-  'PFE',
+  'SPY',
   'KO',
-  'WMT',
-  'COST',
-  'HD',
-  'XOM',
-  'CVX',
-  'NFLX',
-  'DIS',
-  'PYPL',
-  'CRM',
-  'ORCL',
-  'UBER',
+  'POR',
+  'EPD',
   'HOOD',
 ];
 

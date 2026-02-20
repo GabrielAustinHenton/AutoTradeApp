@@ -1153,10 +1153,15 @@ export const useStore = create<AppState>()(
           const persisted = (persistedState as Partial<AppState>) || {};
           const merged = { ...currentState, ...persisted };
 
-          // Merge permanent watchlist with user-added stocks (filter out old crypto)
-          const cryptoSymbols = ['ETH', 'BTC', 'SOL', 'ADA', 'DOT', 'DOGE', 'AVAX', 'POL', 'LINK', 'XRP', 'MATIC'];
-          const userStocks = (merged.watchlist || []).filter((s: string) => !cryptoSymbols.includes(s));
-          merged.watchlist = [...new Set([...PERMANENT_WATCHLIST, ...userStocks])];
+          // Use persisted watchlist as-is so user deletions stick.
+          // One-time migration: if stored list is larger than 15 symbols (old hardcoded defaults),
+          // reset to the current default list so users don't get stuck with the old bloated set.
+          const storedWatchlist = Array.isArray(persisted.watchlist) ? persisted.watchlist : [];
+          merged.watchlist = storedWatchlist.length > 15
+            ? [...PERMANENT_WATCHLIST]
+            : storedWatchlist.length > 0
+              ? storedWatchlist
+              : [...PERMANENT_WATCHLIST];
 
           // Merge trading rules: keep user settings, add missing rules for new patterns/stocks
           const existingRules = Array.isArray(persisted.tradingRules)
