@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import type { TradingRule, RuleCondition, RuleAction, CandlestickPattern } from '../types';
+import type { TradingRule, RuleCondition, CandlestickPattern } from '../types';
 import { PATTERN_INFO } from '../services/candlestickPatterns';
 
 function formatTimeAgo(date: Date | undefined): string {
@@ -14,11 +14,11 @@ function formatTimeAgo(date: Date | undefined): string {
 }
 
 export function Rules() {
-  const { tradingRules, addTradingRule, toggleTradingRule, removeTradingRule, updateTradingRule, resetTradingRules, autoTradeConfig } = useStore();
+  const { tradingRules, addTradingRule, toggleTradingRule, removeTradingRule, resetTradingRules } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [ruleType, setRuleType] = useState<'price' | 'pattern' | 'macd'>('pattern');
   const [name, setName] = useState('');
-  const [symbol, setSymbol] = useState('AAPL');
+  const [symbol, setSymbol] = useState('');
   const [tradeType, setTradeType] = useState<'buy' | 'sell' | 'short'>('buy');
 
   // Pattern rule state
@@ -29,25 +29,6 @@ export function Rules() {
   const [conditionOperator, setConditionOperator] = useState<RuleCondition['operator']>('lt');
   const [conditionValue, setConditionValue] = useState('');
 
-  // Action state
-  const [actionType, setActionType] = useState<'market' | 'limit'>('market');
-  const [actionShares, setActionShares] = useState('10');
-
-  // Auto-trade state
-  const [autoTradeEnabled, setAutoTradeEnabled] = useState(false);
-  const [cooldownMinutes, setCooldownMinutes] = useState('5');
-  const [takeProfitPercent, setTakeProfitPercent] = useState('');
-  const [stopLossPercent, setStopLossPercent] = useState('');
-  const [trailingStopPercent, setTrailingStopPercent] = useState('');
-  // RSI filter state
-  const [rsiFilterEnabled, setRsiFilterEnabled] = useState(false);
-  const [rsiMin, setRsiMin] = useState('');
-  const [rsiMax, setRsiMax] = useState('');
-  // Minimum confidence threshold
-  const [minConfidence, setMinConfidence] = useState('70');
-  // Volume filter state
-  const [volumeFilterEnabled, setVolumeFilterEnabled] = useState(false);
-  const [volumeMultiplier, setVolumeMultiplier] = useState('1.5');
   // MACD settings state
   const [macdFastPeriod, setMacdFastPeriod] = useState('12');
   const [macdSlowPeriod, setMacdSlowPeriod] = useState('26');
@@ -57,45 +38,26 @@ export function Rules() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const action: RuleAction = {
-      type: actionType,
-      shares: parseInt(actionShares),
-    };
-
     if (ruleType === 'pattern') {
       const rule: TradingRule = {
         id: crypto.randomUUID(),
-        name: name || `${PATTERN_INFO[selectedPattern].name} - ${tradeType === 'buy' ? 'Buy' : 'Sell'} Signal`,
-        symbol: symbol.trim() || undefined,
+        name: name || `${PATTERN_INFO[selectedPattern].name} ${tradeType === 'buy' ? 'Buy' : tradeType === 'sell' ? 'Sell' : 'Short'} Signal`,
+        symbol: symbol.trim().toUpperCase() || undefined,
         enabled: true,
         type: tradeType,
         ruleType: 'pattern',
         pattern: selectedPattern,
-        action,
+        action: { type: 'market' },
         createdAt: new Date(),
-        autoTrade: autoTradeEnabled,
-        cooldownMinutes: parseInt(cooldownMinutes) || 5,
-        takeProfitPercent: takeProfitPercent ? parseFloat(takeProfitPercent) : undefined,
-        stopLossPercent: stopLossPercent ? parseFloat(stopLossPercent) : undefined,
-        trailingStopPercent: trailingStopPercent ? parseFloat(trailingStopPercent) : undefined,
-        rsiFilter: rsiFilterEnabled ? {
-          enabled: true,
-          period: 14,
-          minRSI: rsiMin ? parseFloat(rsiMin) : undefined,
-          maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
-        } : undefined,
-        minConfidence: minConfidence ? parseInt(minConfidence) : undefined,
-        volumeFilter: volumeFilterEnabled ? {
-          enabled: true,
-          minMultiplier: parseFloat(volumeMultiplier) || 1.5,
-        } : undefined,
+        autoTrade: false,
+        cooldownMinutes: 5,
       };
       addTradingRule(rule);
     } else if (ruleType === 'macd') {
       const rule: TradingRule = {
         id: crypto.randomUUID(),
-        name: name || `MACD ${macdCrossoverType === 'bullish' ? 'Bullish' : 'Bearish'} Crossover`,
-        symbol: symbol.trim() || undefined,
+        name: name || `MACD ${macdCrossoverType === 'bullish' ? 'Bullish' : 'Bearish'} Signal`,
+        symbol: symbol.trim().toUpperCase() || undefined,
         enabled: true,
         type: macdCrossoverType === 'bullish' ? 'buy' : 'sell',
         ruleType: 'macd',
@@ -105,23 +67,10 @@ export function Rules() {
           signalPeriod: parseInt(macdSignalPeriod) || 9,
           crossoverType: macdCrossoverType,
         },
-        action,
+        action: { type: 'market' },
         createdAt: new Date(),
-        autoTrade: autoTradeEnabled,
-        cooldownMinutes: parseInt(cooldownMinutes) || 5,
-        takeProfitPercent: takeProfitPercent ? parseFloat(takeProfitPercent) : undefined,
-        stopLossPercent: stopLossPercent ? parseFloat(stopLossPercent) : undefined,
-        trailingStopPercent: trailingStopPercent ? parseFloat(trailingStopPercent) : undefined,
-        rsiFilter: rsiFilterEnabled ? {
-          enabled: true,
-          period: 14,
-          minRSI: rsiMin ? parseFloat(rsiMin) : undefined,
-          maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
-        } : undefined,
-        volumeFilter: volumeFilterEnabled ? {
-          enabled: true,
-          minMultiplier: parseFloat(volumeMultiplier) || 1.5,
-        } : undefined,
+        autoTrade: false,
+        cooldownMinutes: 5,
       };
       addTradingRule(rule);
     } else {
@@ -130,28 +79,18 @@ export function Rules() {
         operator: conditionOperator,
         value: parseFloat(conditionValue),
       };
-
       const rule: TradingRule = {
         id: crypto.randomUUID(),
-        name: name || `Price Rule${symbol.trim() ? ` — ${symbol.trim().toUpperCase()}` : ''}`,
-        symbol: symbol.trim() || undefined,
+        name: name || `Price Alert${symbol.trim() ? ` — ${symbol.trim().toUpperCase()}` : ''}`,
+        symbol: symbol.trim().toUpperCase() || undefined,
         enabled: true,
         type: tradeType,
         ruleType: 'price',
         conditions: [condition],
-        action,
+        action: { type: 'market' },
         createdAt: new Date(),
-        autoTrade: autoTradeEnabled,
-        cooldownMinutes: parseInt(cooldownMinutes) || 5,
-        takeProfitPercent: takeProfitPercent ? parseFloat(takeProfitPercent) : undefined,
-        stopLossPercent: stopLossPercent ? parseFloat(stopLossPercent) : undefined,
-        trailingStopPercent: trailingStopPercent ? parseFloat(trailingStopPercent) : undefined,
-        rsiFilter: rsiFilterEnabled ? {
-          enabled: true,
-          period: 14,
-          minRSI: rsiMin ? parseFloat(rsiMin) : undefined,
-          maxRSI: rsiMax ? parseFloat(rsiMax) : undefined,
-        } : undefined,
+        autoTrade: false,
+        cooldownMinutes: 5,
       };
       addTradingRule(rule);
     }
@@ -162,18 +101,12 @@ export function Rules() {
 
   const resetForm = () => {
     setName('');
-    setSymbol('AAPL');
+    setSymbol('');
     setTradeType('buy');
     setSelectedPattern('hammer');
     setConditionField('price');
     setConditionOperator('lt');
     setConditionValue('');
-    setActionType('market');
-    setActionShares('10');
-    setAutoTradeEnabled(false);
-    setCooldownMinutes('5');
-    setTakeProfitPercent('');
-    setStopLossPercent('');
     setMacdFastPeriod('12');
     setMacdSlowPeriod('26');
     setMacdSignalPeriod('9');
@@ -181,13 +114,7 @@ export function Rules() {
   };
 
   const getConditionText = (condition: RuleCondition) => {
-    const operators: Record<string, string> = {
-      gt: '>',
-      lt: '<',
-      eq: '=',
-      gte: '>=',
-      lte: '<=',
-    };
+    const operators: Record<string, string> = { gt: '>', lt: '<', eq: '=', gte: '>=', lte: '<=' };
     return `${condition.field} ${operators[condition.operator]} ${condition.value}`;
   };
 
@@ -199,18 +126,15 @@ export function Rules() {
     <div className="text-white">
       <div className="flex justify-between items-center mb-6 md:mb-8">
         <div className="flex items-center gap-3">
-          <Link
-            to="/swing-trader"
-            className="text-slate-400 hover:text-white text-sm flex items-center gap-1"
-          >
+          <Link to="/swing-trader" className="text-slate-400 hover:text-white text-sm flex items-center gap-1">
             &larr; SwingTrader
           </Link>
-          <h1 className="text-2xl md:text-3xl font-bold">Trading Rules</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Trading Signals</h1>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              if (confirm('Reset all trading rules back to defaults? This will remove any custom rules you added.')) {
+              if (confirm('Reset all trading signals back to defaults? This will remove any custom signals you added.')) {
                 resetTradingRules();
               }
             }}
@@ -219,53 +143,36 @@ export function Rules() {
             Reset to Defaults
           </button>
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => { setShowForm(!showForm); if (showForm) resetForm(); }}
             className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-semibold transition-colors"
           >
-            {showForm ? 'Cancel' : '+ New Rule'}
+            {showForm ? 'Cancel' : '+ New Signal'}
           </button>
         </div>
       </div>
 
+      <p className="text-slate-400 text-sm mb-6">
+        Signals generate alerts when patterns are detected on your watchlist. Auto-trading is handled by the ORB Scanner — enable it in Settings.
+      </p>
+
       {showForm && (
         <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-6">
-          <h2 className="text-lg md:text-xl font-semibold mb-4">Create Trading Rule</h2>
-          <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
-            {/* Rule Type Selection */}
+          <h2 className="text-lg md:text-xl font-semibold mb-4">Create Signal</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Signal Type */}
             <div>
-              <label className="block text-sm text-slate-400 mb-2">Rule Type</label>
-              <div className="flex flex-wrap gap-2 md:gap-4">
-                <button
-                  type="button"
-                  onClick={() => setRuleType('pattern')}
-                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
-                    ruleType === 'pattern'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-slate-700 text-slate-300'
-                  }`}
-                >
+              <label className="block text-sm text-slate-400 mb-2">Signal Type</label>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setRuleType('pattern')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${ruleType === 'pattern' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
                   Candlestick Pattern
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setRuleType('macd')}
-                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
-                    ruleType === 'macd'
-                      ? 'bg-orange-600 text-white'
-                      : 'bg-slate-700 text-slate-300'
-                  }`}
-                >
+                <button type="button" onClick={() => setRuleType('macd')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${ruleType === 'macd' ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
                   MACD Crossover
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setRuleType('price')}
-                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
-                    ruleType === 'price'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-slate-300'
-                  }`}
-                >
+                <button type="button" onClick={() => setRuleType('price')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${ruleType === 'price' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
                   Price Condition
                 </button>
               </div>
@@ -273,173 +180,86 @@ export function Rules() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-slate-400 mb-2">Rule Name (optional)</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                <label className="block text-sm text-slate-400 mb-2">Signal Name <span className="text-slate-500">(optional)</span></label>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)}
                   placeholder="Auto-generated if empty"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
-                />
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500" />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-2">Symbol <span className="text-slate-500 font-normal">(optional — leave blank to apply to any stock)</span></label>
-                <input
-                  type="text"
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                  placeholder="Any symbol"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
-                />
+                <label className="block text-sm text-slate-400 mb-2">Symbol <span className="text-slate-500">(optional — leave blank for any stock)</span></label>
+                <input type="text" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                  placeholder="e.g. AAPL"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500" />
               </div>
             </div>
 
-            {/* Buy/Sell/Short Selection - hidden for MACD since crossover type determines it */}
+            {/* Direction — hidden for MACD since crossover type determines it */}
             {ruleType !== 'macd' && (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTradeType('buy')}
-                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
-                    tradeType === 'buy'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-700 text-slate-300'
-                  }`}
-                >
-                  Buy
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTradeType('sell')}
-                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
-                    tradeType === 'sell'
-                      ? 'bg-red-600 text-white'
-                      : 'bg-slate-700 text-slate-300'
-                  }`}
-                >
-                  Sell
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTradeType('short')}
-                  className={`flex-1 py-2 md:py-3 rounded-lg text-sm md:text-base font-semibold transition-colors ${
-                    tradeType === 'short'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-slate-700 text-slate-300'
-                  }`}
-                  title="Short sell - profit when price drops"
-                >
-                  Short
-                </button>
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Signal Direction</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setTradeType('buy')}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${tradeType === 'buy' ? 'bg-emerald-600' : 'bg-slate-700 text-slate-300'}`}>
+                    Buy Signal
+                  </button>
+                  <button type="button" onClick={() => setTradeType('sell')}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${tradeType === 'sell' ? 'bg-red-600' : 'bg-slate-700 text-slate-300'}`}>
+                    Sell Signal
+                  </button>
+                  <button type="button" onClick={() => setTradeType('short')}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${tradeType === 'short' ? 'bg-purple-600' : 'bg-slate-700 text-slate-300'}`}>
+                    Short Signal
+                  </button>
+                </div>
               </div>
-            )}
-            {tradeType === 'short' && (
-              <p className="text-xs text-purple-400">Short rules open a short position when the pattern is detected. You profit when price drops.</p>
             )}
 
             {/* Pattern Selection */}
             {ruleType === 'pattern' && (
-              <div className="bg-slate-700 rounded-lg p-3 md:p-4">
-                <h3 className="font-semibold text-sm md:text-base mb-3">Select Pattern</h3>
+              <div className="bg-slate-700 rounded-lg p-4">
+                <h3 className="font-semibold text-sm mb-3">Select Pattern</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {(Object.keys(PATTERN_INFO) as CandlestickPattern[]).map((pattern) => (
-                    <button
-                      key={pattern}
-                      type="button"
-                      onClick={() => setSelectedPattern(pattern)}
-                      className={`p-2 md:p-3 rounded-lg text-left transition-colors ${
-                        selectedPattern === pattern
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-slate-600 hover:bg-slate-500'
-                      }`}
-                    >
+                    <button key={pattern} type="button" onClick={() => setSelectedPattern(pattern)}
+                      className={`p-2 rounded-lg text-left transition-colors ${selectedPattern === pattern ? 'bg-purple-600 text-white' : 'bg-slate-600 hover:bg-slate-500'}`}>
                       <div className="font-semibold text-sm">{PATTERN_INFO[pattern].name}</div>
-                      <div className={`text-xs ${
-                        selectedPattern === pattern ? 'text-purple-200' : 'text-slate-400'
-                      }`}>
+                      <div className={`text-xs ${selectedPattern === pattern ? 'text-purple-200' : 'text-slate-400'}`}>
                         {PATTERN_INFO[pattern].signal === 'buy' ? '↑ Bullish' : '↓ Bearish'}
                       </div>
                     </button>
                   ))}
                 </div>
-                <p className="mt-3 text-sm text-slate-400">
-                  {PATTERN_INFO[selectedPattern].description}
-                </p>
+                <p className="mt-3 text-sm text-slate-400">{PATTERN_INFO[selectedPattern].description}</p>
               </div>
             )}
 
-            {/* MACD Crossover Settings */}
+            {/* MACD Settings */}
             {ruleType === 'macd' && (
               <div className="bg-slate-700 rounded-lg p-4">
-                <h3 className="font-semibold mb-3">MACD Crossover Settings</h3>
-                <p className="text-sm text-slate-400 mb-4">
-                  MACD (Moving Average Convergence Divergence) detects momentum changes by comparing two EMAs.
-                  A bullish crossover (MACD crosses above signal) suggests buying, while a bearish crossover suggests selling.
-                </p>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <button
-                    type="button"
-                    onClick={() => setMacdCrossoverType('bullish')}
-                    className={`py-3 rounded-lg font-semibold transition-colors ${
-                      macdCrossoverType === 'bullish'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-600 text-slate-300'
-                    }`}
-                  >
-                    Bullish Crossover (Buy)
+                <h3 className="font-semibold mb-3">MACD Settings</h3>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <button type="button" onClick={() => setMacdCrossoverType('bullish')}
+                    className={`py-2 rounded-lg font-semibold transition-colors text-sm ${macdCrossoverType === 'bullish' ? 'bg-emerald-600' : 'bg-slate-600 text-slate-300'}`}>
+                    Bullish Cross (Buy)
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setMacdCrossoverType('bearish')}
-                    className={`py-3 rounded-lg font-semibold transition-colors ${
-                      macdCrossoverType === 'bearish'
-                        ? 'bg-red-600 text-white'
-                        : 'bg-slate-600 text-slate-300'
-                    }`}
-                  >
-                    Bearish Crossover (Sell)
+                  <button type="button" onClick={() => setMacdCrossoverType('bearish')}
+                    className={`py-2 rounded-lg font-semibold transition-colors text-sm ${macdCrossoverType === 'bearish' ? 'bg-red-600' : 'bg-slate-600 text-slate-300'}`}>
+                    Bearish Cross (Sell)
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-xs text-orange-400 mb-1 block">Fast EMA Period</label>
-                    <input
-                      type="number"
-                      value={macdFastPeriod}
-                      onChange={(e) => setMacdFastPeriod(e.target.value)}
-                      placeholder="12"
-                      min="2"
-                      max="50"
-                      className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Default: 12</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-orange-400 mb-1 block">Slow EMA Period</label>
-                    <input
-                      type="number"
-                      value={macdSlowPeriod}
-                      onChange={(e) => setMacdSlowPeriod(e.target.value)}
-                      placeholder="26"
-                      min="2"
-                      max="100"
-                      className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Default: 26</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-orange-400 mb-1 block">Signal Line Period</label>
-                    <input
-                      type="number"
-                      value={macdSignalPeriod}
-                      onChange={(e) => setMacdSignalPeriod(e.target.value)}
-                      placeholder="9"
-                      min="2"
-                      max="50"
-                      className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Default: 9</p>
-                  </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Fast EMA', value: macdFastPeriod, set: setMacdFastPeriod, placeholder: '12' },
+                    { label: 'Slow EMA', value: macdSlowPeriod, set: setMacdSlowPeriod, placeholder: '26' },
+                    { label: 'Signal', value: macdSignalPeriod, set: setMacdSignalPeriod, placeholder: '9' },
+                  ].map(({ label, value, set, placeholder }) => (
+                    <div key={label}>
+                      <label className="text-xs text-orange-400 mb-1 block">{label}</label>
+                      <input type="number" value={value} onChange={(e) => set(e.target.value)}
+                        placeholder={placeholder} min="2" max="100"
+                        className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center text-sm" />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -448,646 +268,134 @@ export function Rules() {
             {ruleType === 'price' && (
               <div className="bg-slate-700 rounded-lg p-4">
                 <h3 className="font-semibold mb-3">Condition</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <select
-                    value={conditionField}
-                    onChange={(e) => setConditionField(e.target.value as RuleCondition['field'])}
-                    className="bg-slate-600 border border-slate-500 rounded-lg px-4 py-2"
-                  >
+                <div className="grid grid-cols-3 gap-3">
+                  <select value={conditionField} onChange={(e) => setConditionField(e.target.value as RuleCondition['field'])}
+                    className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-sm">
                     <option value="price">Price</option>
                     <option value="change">Change ($)</option>
                     <option value="changePercent">Change (%)</option>
                     <option value="volume">Volume</option>
                   </select>
-                  <select
-                    value={conditionOperator}
-                    onChange={(e) => setConditionOperator(e.target.value as RuleCondition['operator'])}
-                    className="bg-slate-600 border border-slate-500 rounded-lg px-4 py-2"
-                  >
+                  <select value={conditionOperator} onChange={(e) => setConditionOperator(e.target.value as RuleCondition['operator'])}
+                    className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-sm">
                     <option value="lt">Less than</option>
                     <option value="lte">Less or equal</option>
                     <option value="eq">Equal to</option>
                     <option value="gte">Greater or equal</option>
                     <option value="gt">Greater than</option>
                   </select>
-                  <input
-                    type="number"
-                    value={conditionValue}
-                    onChange={(e) => setConditionValue(e.target.value)}
-                    placeholder="150"
-                    step="0.01"
-                    className="bg-slate-600 border border-slate-500 rounded-lg px-4 py-2"
-                    required={ruleType === 'price'}
-                  />
+                  <input type="number" value={conditionValue} onChange={(e) => setConditionValue(e.target.value)}
+                    placeholder="150" step="0.01" required
+                    className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
             )}
 
-            {/* Action */}
-            <div className="bg-slate-700 rounded-lg p-4">
-              <h3 className="font-semibold mb-3">Action</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <select
-                  value={actionType}
-                  onChange={(e) => setActionType(e.target.value as 'market' | 'limit')}
-                  className="bg-slate-600 border border-slate-500 rounded-lg px-4 py-2"
-                >
-                  <option value="market">Market Order</option>
-                  <option value="limit">Limit Order</option>
-                </select>
-                <input
-                  type="number"
-                  value={actionShares}
-                  onChange={(e) => setActionShares(e.target.value)}
-                  placeholder="Shares"
-                  min="1"
-                  className="bg-slate-600 border border-slate-500 rounded-lg px-4 py-2"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Auto-Trade Settings */}
-            <div className="bg-slate-700 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Auto-Trade</h3>
-                <button
-                  type="button"
-                  onClick={() => setAutoTradeEnabled(!autoTradeEnabled)}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                    autoTradeEnabled
-                      ? 'bg-amber-600 hover:bg-amber-700'
-                      : 'bg-slate-600 hover:bg-slate-500'
-                  }`}
-                >
-                  {autoTradeEnabled ? 'Enabled' : 'Disabled'}
-                </button>
-              </div>
-              {autoTradeEnabled && (
-                <>
-                  <p className="text-sm text-amber-400 mb-3">
-                    Trades will execute automatically when this pattern is detected.
-                  </p>
-                  <div className="flex items-center gap-3 mb-3">
-                    <label className="text-sm text-slate-400">Cooldown:</label>
-                    <input
-                      type="number"
-                      value={cooldownMinutes}
-                      onChange={(e) => setCooldownMinutes(e.target.value)}
-                      min="1"
-                      className="w-20 bg-slate-600 border border-slate-500 rounded-lg px-3 py-1 text-center"
-                    />
-                    <span className="text-sm text-slate-400">minutes between trades</span>
-                  </div>
-
-                  {/* Take Profit / Stop Loss for BUY rules */}
-                  {tradeType === 'buy' && (
-                    <>
-                    <div className="mt-4 p-3 bg-slate-800 rounded-lg">
-                      <h4 className="text-sm font-semibold text-slate-300 mb-3">Auto-Sell Targets (optional)</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-xs text-emerald-400 mb-1 block">Take Profit %</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              value={takeProfitPercent}
-                              onChange={(e) => setTakeProfitPercent(e.target.value)}
-                              placeholder="5"
-                              step="0.5"
-                              min="0.1"
-                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                            />
-                            <span className="text-slate-400">%</span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">Auto-sell when up this %</p>
-                        </div>
-                        <div>
-                          <label className="text-xs text-red-400 mb-1 block">Stop Loss %</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              value={stopLossPercent}
-                              onChange={(e) => setStopLossPercent(e.target.value)}
-                              placeholder="3"
-                              step="0.5"
-                              min="0.1"
-                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                            />
-                            <span className="text-slate-400">%</span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">Auto-sell when down this %</p>
-                        </div>
-                        <div>
-                          <label className="text-xs text-blue-400 mb-1 block">Trailing Stop %</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              value={trailingStopPercent}
-                              onChange={(e) => setTrailingStopPercent(e.target.value)}
-                              placeholder="5"
-                              step="0.5"
-                              min="0.1"
-                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                            />
-                            <span className="text-slate-400">%</span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">Trail this % below highest price</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* RSI Filter */}
-                    <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={rsiFilterEnabled}
-                          onChange={(e) => setRsiFilterEnabled(e.target.checked)}
-                          className="w-4 h-4 rounded"
-                        />
-                        <span className="text-sm font-medium">RSI Filter</span>
-                        <span className="text-xs text-slate-400">(only trade when RSI meets criteria)</span>
-                      </label>
-                      {rsiFilterEnabled && (
-                        <div className="mt-3 grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-xs text-emerald-400 mb-1 block">Min RSI (oversold)</label>
-                            <input
-                              type="number"
-                              value={rsiMin}
-                              onChange={(e) => setRsiMin(e.target.value)}
-                              placeholder="30"
-                              min="0"
-                              max="100"
-                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">Buy when RSI &gt;= this</p>
-                          </div>
-                          <div>
-                            <label className="text-xs text-red-400 mb-1 block">Max RSI (overbought)</label>
-                            <input
-                              type="number"
-                              value={rsiMax}
-                              onChange={(e) => setRsiMax(e.target.value)}
-                              placeholder="70"
-                              min="0"
-                              max="100"
-                              className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">Sell when RSI &lt;= this</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Minimum Confidence Threshold */}
-                    <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
-                      <label className="text-sm font-medium text-amber-400 mb-2 block">
-                        Minimum Confidence Threshold
-                      </label>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="range"
-                          value={minConfidence}
-                          onChange={(e) => setMinConfidence(e.target.value)}
-                          min="0"
-                          max="100"
-                          step="5"
-                          className="flex-1 h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer"
-                        />
-                        <div className="flex items-center gap-1 min-w-[60px]">
-                          <input
-                            type="number"
-                            value={minConfidence}
-                            onChange={(e) => setMinConfidence(e.target.value)}
-                            min="0"
-                            max="100"
-                            className="w-14 bg-slate-600 border border-slate-500 rounded px-2 py-1 text-center text-sm"
-                          />
-                          <span className="text-slate-400">%</span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-2">
-                        Only execute trades when pattern confidence is at least this value. Higher = fewer but more reliable trades.
-                      </p>
-                    </div>
-
-                    {/* Volume Filter */}
-                    <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={volumeFilterEnabled}
-                          onChange={(e) => setVolumeFilterEnabled(e.target.checked)}
-                          className="w-4 h-4 rounded"
-                        />
-                        <span className="text-sm font-medium text-cyan-400">Volume Confirmation</span>
-                        <span className="text-xs text-slate-400">(only trade on high volume)</span>
-                      </label>
-                      {volumeFilterEnabled && (
-                        <div className="mt-3">
-                          <label className="text-xs text-cyan-400 mb-1 block">Minimum Volume (x average)</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              value={volumeMultiplier}
-                              onChange={(e) => setVolumeMultiplier(e.target.value)}
-                              placeholder="1.5"
-                              step="0.1"
-                              min="0.5"
-                              max="5"
-                              className="w-24 bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-center"
-                            />
-                            <span className="text-slate-400">x avg volume</span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">
-                            1.5x = 50% above average. Higher volume = stronger signals.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    </>
-                  )}
-
-                  {!autoTradeConfig.enabled && (
-                    <p className="text-sm text-red-400 mt-2">
-                      Note: Global auto-trading is disabled. Enable it in Settings.
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 py-3 rounded-lg font-semibold transition-colors"
-            >
-              Create Rule
+            <button type="submit"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 py-3 rounded-lg font-semibold transition-colors">
+              Create Signal
             </button>
           </form>
         </div>
       )}
 
-      {/* Candlestick Pattern Rules */}
-      <div className="bg-slate-800 rounded-xl p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <span className="text-purple-400">◆</span> Candlestick Pattern Rules
-        </h2>
-        {patternRules.length === 0 ? (
-          <p className="text-slate-400">No candlestick pattern rules configured.</p>
-        ) : (
-          <div className="space-y-3">
-            {patternRules.map((rule) => (
-              <div
-                key={rule.id}
-                className={`p-4 rounded-lg border ${
-                  rule.enabled
-                    ? 'bg-slate-700 border-slate-600'
-                    : 'bg-slate-800 border-slate-700 opacity-60'
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold">{rule.name}</h3>
-                      {rule.symbol && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
-                          {rule.symbol}
-                        </span>
-                      )}
-                      <span
-                        className={`text-xs px-2 py-1 rounded ${
-                          rule.type === 'buy'
-                            ? 'bg-emerald-900 text-emerald-300'
-                            : rule.type === 'sell'
-                            ? 'bg-red-900 text-red-300'
-                            : rule.type === 'short'
-                            ? 'bg-purple-900 text-purple-300'
-                            : 'bg-amber-900 text-amber-300'
-                        }`}
-                      >
-                        {rule.type.toUpperCase()}
-                      </span>
-                      {rule.autoTrade && (
-                        <span className="text-xs px-2 py-1 rounded bg-amber-900 text-amber-300">
-                          AUTO
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-400 mt-1">
-                      When <span className="text-purple-400 font-medium">{rule.pattern && PATTERN_INFO[rule.pattern]?.name}</span> pattern detected
-                    </p>
-                    <p className="text-sm text-slate-400">
-                      → {rule.action.type} order for {rule.action.shares} shares
-                    </p>
-                    {rule.autoTrade && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.minConfidence || rule.volumeFilter?.enabled) && (
-                          <span className="ml-2">
-                            {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
-                            {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
-                            {rule.stopLossPercent && <span className="text-red-400">SL: {rule.stopLossPercent}%</span>}
-                            {rule.stopLossPercent && rule.trailingStopPercent && ' • '}
-                            {rule.trailingStopPercent && <span className="text-blue-400">Trail: {rule.trailingStopPercent}%</span>}
-                            {rule.rsiFilter?.enabled && (
-                              <span className="text-purple-400 ml-2">
-                                RSI: {rule.rsiFilter.minRSI !== undefined && `≥${rule.rsiFilter.minRSI}`}
-                                {rule.rsiFilter.minRSI !== undefined && rule.rsiFilter.maxRSI !== undefined && ' & '}
-                                {rule.rsiFilter.maxRSI !== undefined && `≤${rule.rsiFilter.maxRSI}`}
-                              </span>
-                            )}
-                            {rule.minConfidence && (
-                              <span className="text-amber-400 ml-2">
-                                Min Conf: {rule.minConfidence}%
-                              </span>
-                            )}
-                            {rule.volumeFilter?.enabled && (
-                              <span className="text-cyan-400 ml-2">
-                                Vol: ≥{rule.volumeFilter.minMultiplier}x
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateTradingRule(rule.id, { autoTrade: !rule.autoTrade })}
-                      className={`px-3 py-1 rounded text-sm ${
-                        rule.autoTrade
-                          ? 'bg-amber-600 hover:bg-amber-700'
-                          : 'bg-slate-600 hover:bg-slate-500'
-                      }`}
-                      title={rule.autoTrade ? 'Disable auto-trade' : 'Enable auto-trade'}
-                    >
-                      Auto
-                    </button>
-                    <button
-                      onClick={() => toggleTradingRule(rule.id)}
-                      className={`px-3 py-1 rounded text-sm ${
-                        rule.enabled
-                          ? 'bg-emerald-600 hover:bg-emerald-700'
-                          : 'bg-slate-600 hover:bg-slate-500'
-                      }`}
-                    >
-                      {rule.enabled ? 'Enabled' : 'Disabled'}
-                    </button>
-                    <button
-                      onClick={() => removeTradingRule(rule.id)}
-                      className="text-red-400 hover:text-red-300 px-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Pattern Rules */}
+      <RuleSection
+        title="Candlestick Patterns"
+        color="text-purple-400"
+        icon="◆"
+        rules={patternRules}
+        getDescription={(rule) => rule.pattern ? `When ${PATTERN_INFO[rule.pattern]?.name ?? rule.pattern} detected` : ''}
+        onToggle={toggleTradingRule}
+        onRemove={removeTradingRule}
+        formatTimeAgo={formatTimeAgo}
+      />
 
-      {/* MACD Crossover Rules */}
-      <div className="bg-slate-800 rounded-xl p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <span className="text-orange-400">◈</span> MACD Crossover Rules
-        </h2>
-        {macdRules.length === 0 ? (
-          <p className="text-slate-400">No MACD crossover rules configured.</p>
-        ) : (
-          <div className="space-y-3">
-            {macdRules.map((rule) => (
-              <div
-                key={rule.id}
-                className={`p-4 rounded-lg border ${
-                  rule.enabled
-                    ? 'bg-slate-700 border-slate-600'
-                    : 'bg-slate-800 border-slate-700 opacity-60'
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold">{rule.name}</h3>
-                      {rule.symbol && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
-                          {rule.symbol}
-                        </span>
-                      )}
-                      <span
-                        className={`text-xs px-2 py-1 rounded ${
-                          rule.type === 'buy'
-                            ? 'bg-emerald-900 text-emerald-300'
-                            : rule.type === 'sell'
-                            ? 'bg-red-900 text-red-300'
-                            : rule.type === 'short'
-                            ? 'bg-purple-900 text-purple-300'
-                            : 'bg-amber-900 text-amber-300'
-                        }`}
-                      >
-                        {rule.type.toUpperCase()}
-                      </span>
-                      {rule.autoTrade && (
-                        <span className="text-xs px-2 py-1 rounded bg-amber-900 text-amber-300">
-                          AUTO
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-400 mt-1">
-                      When <span className="text-orange-400 font-medium">
-                        {rule.macdSettings?.crossoverType === 'bullish' ? 'Bullish' : 'Bearish'} MACD Crossover
-                      </span> detected
-                      <span className="text-slate-500 ml-2">
-                        ({rule.macdSettings?.fastPeriod}/{rule.macdSettings?.slowPeriod}/{rule.macdSettings?.signalPeriod})
-                      </span>
-                    </p>
-                    <p className="text-sm text-slate-400">
-                      → {rule.action.type} order for {rule.action.shares} shares
-                    </p>
-                    {rule.autoTrade && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.volumeFilter?.enabled) && (
-                          <span className="ml-2">
-                            {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
-                            {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
-                            {rule.stopLossPercent && <span className="text-red-400">SL: {rule.stopLossPercent}%</span>}
-                            {rule.stopLossPercent && rule.trailingStopPercent && ' • '}
-                            {rule.trailingStopPercent && <span className="text-blue-400">Trail: {rule.trailingStopPercent}%</span>}
-                            {rule.rsiFilter?.enabled && (
-                              <span className="text-purple-400 ml-2">
-                                RSI: {rule.rsiFilter.minRSI !== undefined && `≥${rule.rsiFilter.minRSI}`}
-                                {rule.rsiFilter.minRSI !== undefined && rule.rsiFilter.maxRSI !== undefined && ' & '}
-                                {rule.rsiFilter.maxRSI !== undefined && `≤${rule.rsiFilter.maxRSI}`}
-                              </span>
-                            )}
-                            {rule.volumeFilter?.enabled && (
-                              <span className="text-cyan-400 ml-2">
-                                Vol: ≥{rule.volumeFilter.minMultiplier}x
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateTradingRule(rule.id, { autoTrade: !rule.autoTrade })}
-                      className={`px-3 py-1 rounded text-sm ${
-                        rule.autoTrade
-                          ? 'bg-amber-600 hover:bg-amber-700'
-                          : 'bg-slate-600 hover:bg-slate-500'
-                      }`}
-                      title={rule.autoTrade ? 'Disable auto-trade' : 'Enable auto-trade'}
-                    >
-                      Auto
-                    </button>
-                    <button
-                      onClick={() => toggleTradingRule(rule.id)}
-                      className={`px-3 py-1 rounded text-sm ${
-                        rule.enabled
-                          ? 'bg-emerald-600 hover:bg-emerald-700'
-                          : 'bg-slate-600 hover:bg-slate-500'
-                      }`}
-                    >
-                      {rule.enabled ? 'Enabled' : 'Disabled'}
-                    </button>
-                    <button
-                      onClick={() => removeTradingRule(rule.id)}
-                      className="text-red-400 hover:text-red-300 px-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <RuleSection
+        title="MACD Crossovers"
+        color="text-orange-400"
+        icon="◈"
+        rules={macdRules}
+        getDescription={(rule) =>
+          `When ${rule.macdSettings?.crossoverType === 'bullish' ? 'bullish' : 'bearish'} MACD crossover detected` +
+          ` (${rule.macdSettings?.fastPeriod}/${rule.macdSettings?.slowPeriod}/${rule.macdSettings?.signalPeriod})`
+        }
+        onToggle={toggleTradingRule}
+        onRemove={removeTradingRule}
+        formatTimeAgo={formatTimeAgo}
+      />
 
-      {/* Price-Based Rules */}
-      <div className="bg-slate-800 rounded-xl p-6">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <span className="text-blue-400">●</span> Price-Based Rules
-        </h2>
-        {priceRules.length === 0 ? (
-          <p className="text-slate-400">No price-based rules configured.</p>
-        ) : (
-          <div className="space-y-3">
-            {priceRules.map((rule) => (
-              <div
-                key={rule.id}
-                className={`p-4 rounded-lg border ${
-                  rule.enabled
-                    ? 'bg-slate-700 border-slate-600'
-                    : 'bg-slate-800 border-slate-700 opacity-60'
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold">{rule.name}</h3>
-                      {rule.symbol && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-300">
-                          {rule.symbol}
-                        </span>
-                      )}
-                      <span
-                        className={`text-xs px-2 py-1 rounded ${
-                          rule.type === 'buy'
-                            ? 'bg-emerald-900 text-emerald-300'
-                            : rule.type === 'sell'
-                            ? 'bg-red-900 text-red-300'
-                            : rule.type === 'short'
-                            ? 'bg-purple-900 text-purple-300'
-                            : 'bg-amber-900 text-amber-300'
-                        }`}
-                      >
-                        {rule.type.toUpperCase()}
-                      </span>
-                      {rule.autoTrade && (
-                        <span className="text-xs px-2 py-1 rounded bg-amber-900 text-amber-300">
-                          AUTO
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-400 mt-1">
-                      When {rule.conditions?.map(getConditionText).join(' AND ')}
-                    </p>
-                    <p className="text-sm text-slate-400">
-                      → {rule.action.type} order for {rule.action.shares} shares
-                    </p>
-                    {rule.autoTrade && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Cooldown: {rule.cooldownMinutes}min • Last executed: {formatTimeAgo(rule.lastExecutedAt)}
-                        {(rule.takeProfitPercent || rule.stopLossPercent || rule.trailingStopPercent || rule.rsiFilter?.enabled || rule.minConfidence || rule.volumeFilter?.enabled) && (
-                          <span className="ml-2">
-                            {rule.takeProfitPercent && <span className="text-emerald-400">TP: {rule.takeProfitPercent}%</span>}
-                            {rule.takeProfitPercent && (rule.stopLossPercent || rule.trailingStopPercent) && ' • '}
-                            {rule.stopLossPercent && <span className="text-red-400">SL: {rule.stopLossPercent}%</span>}
-                            {rule.stopLossPercent && rule.trailingStopPercent && ' • '}
-                            {rule.trailingStopPercent && <span className="text-blue-400">Trail: {rule.trailingStopPercent}%</span>}
-                            {rule.rsiFilter?.enabled && (
-                              <span className="text-purple-400 ml-2">
-                                RSI: {rule.rsiFilter.minRSI !== undefined && `≥${rule.rsiFilter.minRSI}`}
-                                {rule.rsiFilter.minRSI !== undefined && rule.rsiFilter.maxRSI !== undefined && ' & '}
-                                {rule.rsiFilter.maxRSI !== undefined && `≤${rule.rsiFilter.maxRSI}`}
-                              </span>
-                            )}
-                            {rule.minConfidence && (
-                              <span className="text-amber-400 ml-2">
-                                Min Conf: {rule.minConfidence}%
-                              </span>
-                            )}
-                            {rule.volumeFilter?.enabled && (
-                              <span className="text-cyan-400 ml-2">
-                                Vol: ≥{rule.volumeFilter.minMultiplier}x
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateTradingRule(rule.id, { autoTrade: !rule.autoTrade })}
-                      className={`px-3 py-1 rounded text-sm ${
-                        rule.autoTrade
-                          ? 'bg-amber-600 hover:bg-amber-700'
-                          : 'bg-slate-600 hover:bg-slate-500'
-                      }`}
-                      title={rule.autoTrade ? 'Disable auto-trade' : 'Enable auto-trade'}
-                    >
-                      Auto
-                    </button>
-                    <button
-                      onClick={() => toggleTradingRule(rule.id)}
-                      className={`px-3 py-1 rounded text-sm ${
-                        rule.enabled
-                          ? 'bg-emerald-600 hover:bg-emerald-700'
-                          : 'bg-slate-600 hover:bg-slate-500'
-                      }`}
-                    >
-                      {rule.enabled ? 'Enabled' : 'Disabled'}
-                    </button>
-                    <button
-                      onClick={() => removeTradingRule(rule.id)}
-                      className="text-red-400 hover:text-red-300 px-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
+      <RuleSection
+        title="Price Alerts"
+        color="text-blue-400"
+        icon="●"
+        rules={priceRules}
+        getDescription={(rule) => rule.conditions?.map(getConditionText).join(' AND ') ?? ''}
+        onToggle={toggleTradingRule}
+        onRemove={removeTradingRule}
+        formatTimeAgo={formatTimeAgo}
+      />
+    </div>
+  );
+}
+
+function RuleSection({
+  title, color, icon, rules, getDescription, onToggle, onRemove, formatTimeAgo,
+}: {
+  title: string;
+  color: string;
+  icon: string;
+  rules: import('../types').TradingRule[];
+  getDescription: (rule: import('../types').TradingRule) => string;
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => void;
+  formatTimeAgo: (d: Date | undefined) => string;
+}) {
+  return (
+    <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4">
+      <h2 className="text-lg md:text-xl font-semibold mb-4 flex items-center gap-2">
+        <span className={color}>{icon}</span> {title}
+      </h2>
+      {rules.length === 0 ? (
+        <p className="text-slate-500 text-sm">No {title.toLowerCase()} configured.</p>
+      ) : (
+        <div className="space-y-2">
+          {rules.map((rule) => (
+            <div key={rule.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+              rule.enabled ? 'bg-slate-700 border-slate-600' : 'bg-slate-800 border-slate-700 opacity-50'
+            }`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-sm">{rule.name}</span>
+                  {rule.symbol && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-600 text-slate-300">{rule.symbol}</span>
+                  )}
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${
+                    rule.type === 'buy' ? 'bg-emerald-900/60 text-emerald-300' :
+                    rule.type === 'sell' ? 'bg-red-900/60 text-red-300' :
+                    'bg-purple-900/60 text-purple-300'
+                  }`}>
+                    {rule.type === 'buy' ? 'BUY' : rule.type === 'sell' ? 'SELL' : 'SHORT'}
+                  </span>
                 </div>
+                <p className="text-xs text-slate-400 mt-0.5">{getDescription(rule)}</p>
+                <p className="text-xs text-slate-600 mt-0.5">Last triggered: {formatTimeAgo(rule.lastTriggered)}</p>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => onToggle(rule.id)}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                    rule.enabled ? 'bg-emerald-700 hover:bg-emerald-600' : 'bg-slate-600 hover:bg-slate-500'
+                  }`}>
+                  {rule.enabled ? 'On' : 'Off'}
+                </button>
+                <button onClick={() => onRemove(rule.id)} className="text-slate-500 hover:text-red-400 px-1.5 py-1 text-sm">
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

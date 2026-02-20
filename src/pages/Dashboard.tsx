@@ -150,7 +150,7 @@ export function Dashboard() {
           positionSize: 20,
           isPaper: tradingMode === 'paper',
           rules: tradingRules.filter(
-            (r) => r.enabled && r.ruleType === 'pattern' && r.symbol.toUpperCase() === backtestSymbol.toUpperCase()
+            (r) => r.enabled && r.ruleType === 'pattern' && (!r.symbol || r.symbol.toUpperCase() === backtestSymbol.toUpperCase())
           ),
         };
 
