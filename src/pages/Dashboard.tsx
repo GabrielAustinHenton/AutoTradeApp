@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { useOrbScanner } from '../hooks/useOrbScanner';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
 import { runBacktest, runRSIBacktest, runHybridBacktest, runDayTradingBacktest, type DayTradeResult } from '../services/backtester';
 import type { BacktestResult } from '../types';
@@ -26,15 +25,12 @@ export function Dashboard() {
     watchlist,
     tradingMode,
     paperPortfolio,
-    autoTradeConfig,
     alpacaConnected,
     alpacaSynced,
     alpacaPaperConnected,
     alpacaLiveConnected,
     syncFromAlpaca,
   } = useStore();
-
-  const { orbStates, isRunning: isOrbRunning, totalDeployed, exposureCap } = useOrbScanner();
 
   // Backtest state
   const [backtestRunning, setBacktestRunning] = useState(false);
@@ -185,11 +181,6 @@ export function Dashboard() {
           }`}>
             {isPaperMode ? 'PAPER' : 'LIVE'}
           </span>
-          {autoTradeConfig.enabled && (
-            <span className="px-2 py-0.5 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium bg-purple-900 text-purple-300">
-              AUTO
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <NavLink
@@ -637,53 +628,6 @@ export function Dashboard() {
               </div>
             )}
           </div>
-
-          {isOrbRunning && (
-            <div className="bg-slate-800 rounded-xl p-4 md:p-6">
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                ORB Scanner
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-              </h2>
-
-              {/* Daily exposure bar */}
-              {exposureCap > 0 && (
-                <div className="mb-3">
-                  <div className="flex justify-between text-xs text-slate-400 mb-1">
-                    <span>Daily deployed</span>
-                    <span>${totalDeployed.toLocaleString(undefined, { maximumFractionDigits: 0 })} / ${exposureCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        totalDeployed / exposureCap > 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${Math.min((totalDeployed / exposureCap) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {orbStates.length === 0 ? (
-                <p className="text-slate-400 text-sm">Loading opening ranges from Alpaca...</p>
-              ) : (
-                <div className="space-y-1 text-sm">
-                  {orbStates.map(s => (
-                    <div key={s.symbol} className="flex items-center justify-between gap-2">
-                      <span className="font-medium w-12 shrink-0">{s.symbol}</span>
-                      <span className="flex-1 text-center text-xs text-slate-500">
-                        {s.tradedToday ? (s.tradedAt ?? s.date) : s.date}
-                      </span>
-                      <span className={`text-right shrink-0 ${s.tradedToday ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {s.tradedToday
-                          ? `Bought @ $${s.entryPrice?.toFixed(2)}`
-                          : `$${s.orbLow.toFixed(2)}–$${s.orbHigh.toFixed(2)}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           <WatchlistCard />
 
