@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { github } from '../services/github';
+import type { OrbScannerStatus } from '../services/github';
 import { WatchlistCard } from '../components/portfolio/WatchlistCard';
 import { runBacktest, runRSIBacktest, runHybridBacktest, runDayTradingBacktest, type DayTradeResult } from '../services/backtester';
 import type { BacktestResult } from '../types';
@@ -62,6 +64,50 @@ export function Dashboard() {
     }, 60_000);
     return () => clearInterval(interval);
   }, [syncFromAlpaca]);
+
+  // ORB scanner status via GitHub API
+  const [orbStatus, setOrbStatus] = useState<OrbScannerStatus | null>(null);
+  const [orbStatusBusy, setOrbStatusBusy] = useState(false);
+
+  useEffect(() => {
+    if (!github.isConfigured()) return;
+    const fetchStatus = () => {
+      github.getOrbScannerStatus().then(setOrbStatus).catch(() => {});
+    };
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleOrbToggle = async () => {
+    if (!orbStatus || orbStatusBusy) return;
+    setOrbStatusBusy(true);
+    try {
+      if (orbStatus.state === 'active') {
+        await github.disableOrbScanner();
+      } else {
+        await github.enableOrbScanner();
+      }
+      const updated = await github.getOrbScannerStatus();
+      setOrbStatus(updated);
+    } catch { /* silent */ } finally {
+      setOrbStatusBusy(false);
+    }
+  };
+
+  const handleOrbStop = async () => {
+    if (!orbStatus?.runId || orbStatusBusy) return;
+    setOrbStatusBusy(true);
+    try {
+      await github.cancelOrbRun(orbStatus.runId);
+      // Give GitHub a moment to process the cancel
+      await new Promise(r => setTimeout(r, 2000));
+      const updated = await github.getOrbScannerStatus();
+      setOrbStatus(updated);
+    } catch { /* silent */ } finally {
+      setOrbStatusBusy(false);
+    }
+  };
 
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
   const totalPortfolioValue = isLiveNotConnected ? null : totalPositionValue + (displayCash ?? 0);
@@ -628,6 +674,56 @@ export function Dashboard() {
               </div>
             )}
           </div>
+
+          {github.isConfigured() && orbStatus && (
+            <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold">ORB Scanner</h2>
+                <div className="flex items-center gap-2">
+                  {orbStatus.running && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  )}
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    orbStatus.running
+                      ? 'bg-emerald-900 text-emerald-300'
+                      : orbStatus.state === 'disabled'
+                      ? 'bg-slate-700 text-slate-400'
+                      : 'bg-slate-700 text-slate-300'
+                  }`}>
+                    {orbStatus.running ? 'Running' : orbStatus.state === 'disabled' ? 'Disabled' : 'Idle'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">
+                  {orbStatus.state === 'active' ? 'Scheduled weekdays 9:30 AM ET' : 'Cron paused'}
+                </span>
+                <div className="flex gap-2">
+                  {orbStatus.running && (
+                    <button
+                      onClick={handleOrbStop}
+                      disabled={orbStatusBusy}
+                      className="px-3 py-1.5 bg-red-700 hover:bg-red-600 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-colors"
+                    >
+                      Stop
+                    </button>
+                  )}
+                  <button
+                    onClick={handleOrbToggle}
+                    disabled={orbStatusBusy}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
+                      orbStatus.state === 'active' ? 'bg-emerald-600' : 'bg-slate-600'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      orbStatus.state === 'active' ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <WatchlistCard />
 

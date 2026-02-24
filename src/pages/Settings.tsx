@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useSwingStore } from '../store/useSwingStore';
 import { alpaca } from '../services/alpaca';
+import { github } from '../services/github';
 import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
 import { resetOrbScanner } from '../services/orbScanner';
 import { resetSwingScanner } from '../services/swingScanner';
@@ -57,6 +58,12 @@ export function Settings() {
   const [success, setSuccess] = useState<string | null>(null);
   const [testingAutoTrade, setTestingAutoTrade] = useState(false);
   const [autoTradeTestResult, setAutoTradeTestResult] = useState<string | null>(null);
+
+  // GitHub PAT state
+  const [githubPat, setGithubPat] = useState('');
+  const [githubConnected, setGithubConnected] = useState(github.isConfigured());
+  const [githubConnecting, setGithubConnecting] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
 
   // Get rules that have auto-trade enabled
   const autoTradeRules = tradingRules.filter((r) => r.autoTrade && r.enabled && r.ruleType === 'pattern');
@@ -238,6 +245,26 @@ export function Settings() {
       setError(err instanceof Error ? err.message : 'Failed to sync live portfolio');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleConnectGithub = async () => {
+    if (!githubPat) return;
+    setGithubError(null);
+    setGithubConnecting(true);
+    try {
+      github.configurePat(githubPat);
+      await github.validatePat();
+      setGithubConnected(true);
+      setGithubPat('');
+    } catch (err) {
+      github.clearPat();
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setGithubError(msg.includes('401') || msg.includes('403')
+        ? 'Invalid token. Make sure it has Actions (Read and write) permission on this repo.'
+        : `Connection failed: ${msg}`);
+    } finally {
+      setGithubConnecting(false);
     }
   };
 
@@ -592,6 +619,68 @@ export function Settings() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* GitHub — ORB Scanner Control */}
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
+        <h2 className="text-lg md:text-xl font-semibold mb-1">ORB Scanner Control</h2>
+        <p className="text-slate-400 text-sm mb-4">
+          Connect a GitHub token to enable/disable and monitor the automated ORB scanner from this app.
+        </p>
+
+        {githubError && (
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
+            {githubError}
+          </div>
+        )}
+
+        <div className={`p-4 rounded-lg border transition-all ${
+          githubConnected ? 'bg-blue-900/20 border-blue-700' : 'bg-slate-700/50 border-slate-600'
+        }`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-medium">GitHub Access</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Fine-grained PAT → AutoTradeApp → Actions (Read and write)
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${githubConnected ? 'bg-blue-400 animate-pulse' : 'bg-slate-500'}`} />
+              <span className={`text-xs font-medium ${githubConnected ? 'text-blue-400' : 'text-slate-400'}`}>
+                {githubConnected ? 'Connected' : 'Not connected'}
+              </span>
+            </div>
+          </div>
+
+          {githubConnected ? (
+            <button
+              onClick={() => { github.clearPat(); setGithubConnected(false); }}
+              className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
+            >
+              Disconnect
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <input
+                type="password"
+                value={githubPat}
+                onChange={(e) => setGithubPat(e.target.value.trim())}
+                placeholder="github_pat_..."
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={handleConnectGithub}
+                disabled={githubConnecting || !githubPat}
+                className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+              >
+                {githubConnecting ? 'Connecting...' : 'Connect GitHub'}
+              </button>
+              <p className="text-xs text-slate-500">
+                Create at: GitHub → Settings → Developer settings → Fine-grained personal access tokens
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
