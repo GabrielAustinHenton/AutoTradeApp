@@ -1,0 +1,40 @@
+name: ORB Scanner
+
+on:
+  # Weekdays at 13:30 UTC = 8:30 AM EST / 9:30 AM EDT
+  # Scanner waits internally until 10:00 AM ET before looking for breakouts.
+  # Exits automatically once all symbols are traded or noon ET is reached.
+  schedule:
+    - cron: '30 13 * * 1-5'
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      is_paper:
+        description: 'Use paper account? (true/false)'
+        required: false
+        default: 'true'
+
+jobs:
+  scan:
+    name: Run ORB Scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 3-hour ceiling; script self-exits at noon ET
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ORB scanner
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          # workflow_dispatch overrides schedule; schedule always uses paper
+          ALPACA_IS_PAPER: ${{ github.event.inputs.is_paper || 'true' }}
+        run: npx tsx scripts/orb-cron.ts

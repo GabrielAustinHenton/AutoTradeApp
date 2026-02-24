@@ -1,0 +1,39 @@
+name: ORB EOD Close
+
+on:
+  # Weekdays at 20:55 UTC = 3:55 PM EST / 4:55 PM EDT
+  # Cancels all open orders and closes all positions to go flat overnight.
+  # Bracket orders handle most intraday TP/SL, but this is a safety net.
+  schedule:
+    - cron: '55 20 * * 1-5'
+  # Manual trigger for testing or emergency close
+  workflow_dispatch:
+    inputs:
+      is_paper:
+        description: 'Use paper account? (true/false)'
+        required: false
+        default: 'true'
+
+jobs:
+  eod-close:
+    name: Close All Positions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Close all positions
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_IS_PAPER: ${{ github.event.inputs.is_paper || 'true' }}
+        run: npx tsx scripts/orb-eod-close.ts
