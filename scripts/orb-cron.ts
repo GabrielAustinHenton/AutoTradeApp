@@ -14,9 +14,9 @@
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
-const KEY_ID     = process.env.ALPACA_KEY_ID ?? '';
-const SECRET_KEY = process.env.ALPACA_SECRET_KEY ?? '';
 const IS_PAPER   = process.env.ALPACA_IS_PAPER !== 'false';
+const KEY_ID     = IS_PAPER ? (process.env.ALPACA_PAPER_KEY_ID ?? '') : (process.env.ALPACA_LIVE_KEY_ID ?? '');
+const SECRET_KEY = IS_PAPER ? (process.env.ALPACA_PAPER_SECRET_KEY ?? '') : (process.env.ALPACA_LIVE_SECRET_KEY ?? '');
 
 const WATCHLIST: string[] = [
   'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'SPY', 'KO', 'POR', 'EPD', 'HOOD',

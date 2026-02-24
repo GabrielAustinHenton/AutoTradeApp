@@ -33,8 +33,10 @@ jobs:
 
       - name: Run ORB scanner
         env:
-          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-          # workflow_dispatch overrides schedule; schedule always uses paper
+          ALPACA_PAPER_KEY_ID: ${{ secrets.ALPACA_PAPER_KEY_ID }}
+          ALPACA_PAPER_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET_KEY }}
+          ALPACA_LIVE_KEY_ID: ${{ secrets.ALPACA_LIVE_KEY_ID }}
+          ALPACA_LIVE_SECRET_KEY: ${{ secrets.ALPACA_LIVE_SECRET_KEY }}
+          # Change to 'false' here (not in GitHub) when ready to go live
           ALPACA_IS_PAPER: ${{ github.event.inputs.is_paper || 'true' }}
         run: npx tsx scripts/orb-cron.ts
