@@ -5,15 +5,21 @@
  */
 
 export const PERMANENT_STOCKS = [
+  'NVDA',
+  'TSLA',
+  'AAPL',
+  'META',
   'MSFT',
   'GOOGL',
   'AMZN',
-  'TSLA',
+  'AMD',
+  'ARM',
   'SPY',
-  'KO',
-  'POR',
-  'EPD',
-  'HOOD',
+  'QQQ',
+  'COIN',
+  'PLTR',
+  'MSTR',
+  'UBER',
 ];
 
 export const PERMANENT_WATCHLIST = [...PERMANENT_STOCKS];

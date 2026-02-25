@@ -7,20 +7,30 @@
 // Bracket orders (TP/SL) execute server-side on Alpaca — no monitoring needed.
 //
 // Required env vars:
-//   ALPACA_KEY_ID      — Alpaca API key ID
-//   ALPACA_SECRET_KEY  — Alpaca API secret key
-//   ALPACA_IS_PAPER    — "false" for live, anything else (or absent) = paper
+//   ALPACA_PAPER_KEY_ID     — Alpaca paper API key ID
+//   ALPACA_PAPER_SECRET_KEY — Alpaca paper secret key
+//   ALPACA_LIVE_KEY_ID      — Alpaca live API key ID
+//   ALPACA_LIVE_SECRET_KEY  — Alpaca live secret key
+//   ALPACA_IS_PAPER         — "false" for live, anything else (or absent) = paper
 // ============================================================================
 
 // ── Config ───────────────────────────────────────────────────────────────────
+
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const IS_PAPER   = process.env.ALPACA_IS_PAPER !== 'false';
 const KEY_ID     = IS_PAPER ? (process.env.ALPACA_PAPER_KEY_ID ?? '') : (process.env.ALPACA_LIVE_KEY_ID ?? '');
 const SECRET_KEY = IS_PAPER ? (process.env.ALPACA_PAPER_SECRET_KEY ?? '') : (process.env.ALPACA_LIVE_SECRET_KEY ?? '');
 
-const WATCHLIST: string[] = [
-  'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'SPY', 'KO', 'POR', 'EPD', 'HOOD',
-];
+const __cronDir = dirname(fileURLToPath(import.meta.url));
+let WATCHLIST: string[];
+try {
+  WATCHLIST = JSON.parse(readFileSync(resolve(__cronDir, '../config/orb-watchlist.json'), 'utf-8'));
+} catch {
+  WATCHLIST = ['NVDA','TSLA','AAPL','META','MSFT','GOOGL','AMZN','AMD','ARM','SPY','QQQ','COIN','PLTR','MSTR','UBER'];
+}
 
 const CAPITAL_PER_TRADE = 3_750;
 const MAX_TRADES_PER_DAY = 20;

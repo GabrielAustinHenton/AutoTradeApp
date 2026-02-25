@@ -100,12 +100,26 @@ export function Dashboard() {
     setOrbStatusBusy(true);
     try {
       await github.cancelOrbRun(orbStatus.runId);
-      // Give GitHub a moment to process the cancel
       await new Promise(r => setTimeout(r, 2000));
       const updated = await github.getOrbScannerStatus();
       setOrbStatus(updated);
     } catch { /* silent */ } finally {
       setOrbStatusBusy(false);
+    }
+  };
+
+  const [orbSyncMsg, setOrbSyncMsg] = useState<string | null>(null);
+  const handleOrbSyncWatchlist = async () => {
+    setOrbSyncMsg(null);
+    try {
+      await github.updateWatchlist(watchlist);
+      setOrbSyncMsg(`Synced ${watchlist.length} symbols to scanner`);
+      setTimeout(() => setOrbSyncMsg(null), 4000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Sync failed';
+      setOrbSyncMsg(msg.includes('403') || msg.includes('404')
+        ? 'PAT needs Contents permission — regenerate token'
+        : `Sync failed: ${msg}`);
     }
   };
 
@@ -722,6 +736,21 @@ export function Dashboard() {
                   </button>
                 </div>
               </div>
+
+              <div className="mt-3 pt-3 border-t border-slate-700 flex items-center justify-between">
+                <span className="text-xs text-slate-500">{watchlist.length} symbols in watchlist</span>
+                <button
+                  onClick={handleOrbSyncWatchlist}
+                  className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-medium transition-colors"
+                >
+                  Sync Watchlist
+                </button>
+              </div>
+              {orbSyncMsg && (
+                <p className={`text-xs mt-2 ${orbSyncMsg.includes('failed') || orbSyncMsg.includes('needs') ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {orbSyncMsg}
+                </p>
+              )}
             </div>
           )}
 

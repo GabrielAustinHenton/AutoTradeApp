@@ -109,6 +109,46 @@ class GitHubService {
     // 202 = accepted (cancel is async on GitHub's side)
     if (!res.ok && res.status !== 202) throw new Error(`Cancel failed: ${res.status}`);
   }
+
+  // ── Watchlist sync (requires Contents: Read and write on PAT) ───────────────
+
+  async getWatchlist(): Promise<string[]> {
+    const res = await fetch(
+      `${BASE}/repos/${REPO_OWNER}/${REPO_NAME}/contents/config/orb-watchlist.json`,
+      { headers: this.headers() },
+    );
+    if (!res.ok) throw new Error(`Get watchlist: ${res.status}`);
+    const data = await res.json();
+    return JSON.parse(atob(data.content.replace(/\n/g, '')));
+  }
+
+  async updateWatchlist(symbols: string[]): Promise<void> {
+    // Get current file SHA (required for updates)
+    const getRes = await fetch(
+      `${BASE}/repos/${REPO_OWNER}/${REPO_NAME}/contents/config/orb-watchlist.json`,
+      { headers: this.headers() },
+    );
+    if (!getRes.ok) throw new Error(`Get watchlist SHA: ${getRes.status}`);
+    const current = await getRes.json();
+
+    const content = btoa(JSON.stringify(symbols) + '\n');
+    const putRes = await fetch(
+      `${BASE}/repos/${REPO_OWNER}/${REPO_NAME}/contents/config/orb-watchlist.json`,
+      {
+        method: 'PUT',
+        headers: { ...this.headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `Update ORB watchlist (${symbols.length} symbols)`,
+          content,
+          sha: current.sha,
+        }),
+      },
+    );
+    if (!putRes.ok) {
+      const text = await putRes.text();
+      throw new Error(`Update watchlist: ${putRes.status} ${text}`);
+    }
+  }
 }
 
 export const github = new GitHubService();
