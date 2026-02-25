@@ -2,7 +2,7 @@ import { useStore } from '../../store/useStore';
 import { useState } from 'react';
 
 export function WatchlistCard() {
-  const { watchlist, addToWatchlist, removeFromWatchlist } = useStore();
+  const { watchlist, addToWatchlist, removeFromWatchlist, resetWatchlist } = useStore();
   const [newSymbol, setNewSymbol] = useState('');
   const [expanded, setExpanded] = useState(false);
 
@@ -39,6 +39,15 @@ export function WatchlistCard() {
 
       {expanded && (
         <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-slate-700 pt-4">
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={() => resetWatchlist()}
+              className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              Reset to defaults
+            </button>
+          </div>
+
           <form onSubmit={handleAddSymbol} className="mb-4">
             <div className="flex gap-2">
               <input

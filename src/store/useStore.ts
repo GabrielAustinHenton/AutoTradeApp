@@ -269,6 +269,7 @@ interface AppState {
   // Actions - Watchlist
   addToWatchlist: (symbol: string) => void;
   removeFromWatchlist: (symbol: string) => void;
+  resetWatchlist: () => void;
   syncRulesWithWatchlist: () => void; // Generate rules for all watchlist symbols that don't have them
 
   // Actions - Trades
@@ -421,6 +422,10 @@ export const useStore = create<AppState>()(
       removeFromWatchlist: (symbol) => {
         const state = get();
         set({ watchlist: state.watchlist.filter((s) => s !== symbol) });
+      },
+
+      resetWatchlist: () => {
+        set({ watchlist: [...PERMANENT_WATCHLIST] });
 
       },
 
