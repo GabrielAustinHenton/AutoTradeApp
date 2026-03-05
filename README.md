@@ -119,6 +119,12 @@ Downloads fresh Yahoo Finance data to `src/data/yahooHistorical.json`.
 
 ---
 
+## TODO
+
+- [ ] **Switch to live Alpaca account** — When ready, update GitHub Actions secrets (`ALPACA_SWING_KEY_ID` and `ALPACA_SWING_SECRET_KEY`) to use live API keys, and set `ALPACA_LIVE: 'true'` in the swing-scanner workflow env. Currently running in paper mode.
+
+---
+
 ## Reality Check
 
 This app was built to trade with discipline, not emotion. Before going live:
