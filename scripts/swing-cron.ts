@@ -17,8 +17,8 @@
 // needed after placement.
 //
 // Required env vars:
-//   ALPACA_PAPER_KEY_ID     — Alpaca paper API key ID
-//   ALPACA_PAPER_SECRET_KEY — Alpaca paper secret key
+//   ALPACA_SWING_KEY_ID     — Alpaca paper API key ID
+//   ALPACA_SWING_SECRET_KEY — Alpaca paper secret key
 //   SWING_CAPITAL_PER_TRADE — Capital per trade in dollars (default: 100)
 //   SWING_MAX_POSITIONS     — Max concurrent positions (default: 5)
 // ============================================================================
@@ -29,8 +29,8 @@ import { fileURLToPath } from 'node:url';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-const KEY_ID     = process.env.ALPACA_PAPER_KEY_ID ?? '';
-const SECRET_KEY = process.env.ALPACA_PAPER_SECRET_KEY ?? '';
+const KEY_ID     = process.env.ALPACA_SWING_KEY_ID ?? '';
+const SECRET_KEY = process.env.ALPACA_SWING_SECRET_KEY ?? '';
 const CAPITAL_PER_TRADE = parseInt(process.env.SWING_CAPITAL_PER_TRADE || '100', 10);
 const MAX_POSITIONS     = parseInt(process.env.SWING_MAX_POSITIONS || '5', 10);
 
@@ -49,7 +49,7 @@ const BASE_URL = process.env.ALPACA_LIVE === 'true'
 const DATA_BASE = 'https://data.alpaca.markets/v2';
 
 if (!KEY_ID || !SECRET_KEY) {
-  console.error('[SWING] ALPACA_PAPER_KEY_ID and ALPACA_PAPER_SECRET_KEY must be set.');
+  console.error('[SWING] ALPACA_SWING_KEY_ID and ALPACA_SWING_SECRET_KEY must be set.');
   process.exit(1);
 }
 

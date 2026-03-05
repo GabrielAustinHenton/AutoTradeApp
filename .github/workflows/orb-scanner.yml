@@ -33,8 +33,8 @@ jobs:
 
       - name: Run ORB scanner
         env:
-          ALPACA_PAPER_KEY_ID: ${{ secrets.ALPACA_PAPER_KEY_ID }}
-          ALPACA_PAPER_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET_KEY }}
+          ALPACA_PAPER_KEY_ID: ${{ secrets.ALPACA_SWING_KEY_ID }}
+          ALPACA_PAPER_SECRET_KEY: ${{ secrets.ALPACA_SWING_SECRET_KEY }}
           ALPACA_LIVE_KEY_ID: ${{ secrets.ALPACA_LIVE_KEY_ID }}
           ALPACA_LIVE_SECRET_KEY: ${{ secrets.ALPACA_LIVE_SECRET_KEY }}
           # Change to 'false' here (not in GitHub) when ready to go live
