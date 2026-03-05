@@ -30,7 +30,6 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useSwingStore } from '../store/useSwingStore';
 import { usePatternScanner } from '../hooks/usePatternScanner';
-import { useSwingScanner } from '../hooks/useSwingScanner';
 import { AlertToast } from '../components/alerts/AlertToast';
 import type { MarketRegime, SwingStrategyConfig, SwingEntryRule, SwingExitRule } from '../types';
 import {
@@ -284,9 +283,6 @@ export function SwingTrader() {
   // Pattern scanner + alerts only run while SwingTrader is open
   usePatternScanner();
 
-  // Swing auto-scanner (starts when isRunning && swing account connected)
-  const { scanStates, isRunning: isScannerRunning, pdtDayTrades, pdtWarning, pdtBlocked } = useSwingScanner();
-
   // Computed values
   const equity = store.getCurrentEquity();
   const winRate = store.getWinRate();
@@ -377,16 +373,6 @@ export function SwingTrader() {
             className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300"
           >
             Reset
-          </button>
-          <button
-            onClick={() => store.isRunning ? store.stopSwingTrader() : store.startSwingTrader()}
-            className={`px-6 py-2 rounded-lg text-sm font-medium ${
-              store.isRunning
-                ? 'bg-red-600 hover:bg-red-700 text-white'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-            }`}
-          >
-            {store.isRunning ? 'Stop Trading' : 'Start Trading'}
           </button>
         </div>
       </div>
@@ -485,10 +471,10 @@ export function SwingTrader() {
               color="red"
             />
             <StatCard
-              label="Status"
-              value={store.isRunning ? 'Active' : 'Stopped'}
-              subValue={store.startedAt ? `Since ${formatDate(store.startedAt)}` : 'Not started'}
-              color={store.isRunning ? 'green' : 'default'}
+              label="Scanner"
+              value="Automated"
+              subValue="Runs via GitHub Actions"
+              color="blue"
             />
           </div>
 
@@ -497,7 +483,7 @@ export function SwingTrader() {
             <h2 className="text-lg md:text-xl font-semibold mb-4">Market Regime Detection</h2>
             {Object.keys(store.currentRegimes).length === 0 ? (
               <p className="text-slate-400 text-sm">
-                No regime data yet. Start the swing trader to begin analyzing market conditions for your watchlist.
+                No regime data yet. The scanner runs automatically at 9:35 AM and 3:45 PM ET on trading days via GitHub Actions. Regime data will appear here after trades are placed.
               </p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -510,76 +496,6 @@ export function SwingTrader() {
               </div>
             )}
           </div>
-
-          {/* Swing Scanner Status */}
-          {store.isRunning && (
-            <div className="bg-slate-800 rounded-xl p-4 md:p-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  Auto-Scanner
-                  {isScannerRunning && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                  )}
-                </h2>
-                {!store.alpacaSwingConnected && (
-                  <Link to="/settings" className="text-xs text-amber-400 hover:text-amber-300">
-                    Connect swing account in Settings
-                  </Link>
-                )}
-              </div>
-
-              {/* PDT Warning */}
-              {pdtBlocked && (
-                <div className="mb-3 p-3 bg-red-900/30 border border-red-700 rounded-lg text-sm text-red-300">
-                  PDT limit reached ({pdtDayTrades}/3 day trades in 5 days). No new trades until the oldest day trade falls outside the 5-day window.
-                </div>
-              )}
-              {pdtWarning && !pdtBlocked && (
-                <div className="mb-3 p-3 bg-amber-900/30 border border-amber-700 rounded-lg text-sm text-amber-300">
-                  Approaching PDT limit: {pdtDayTrades}/3 day trades in the last 5 business days.
-                </div>
-              )}
-
-              {!store.alpacaSwingConnected ? (
-                <p className="text-slate-400 text-sm">
-                  Connect your swing trader Alpaca account in Settings to enable auto-scanning.
-                </p>
-              ) : scanStates.length === 0 ? (
-                <p className="text-slate-400 text-sm">
-                  Scans run at 9:35 AM ET (morning) and 3:45 PM ET (EOD) on weekdays.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {scanStates.map((s) => (
-                    <div key={s.symbol} className="flex items-center justify-between text-sm py-2 border-b border-slate-700/50 last:border-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{s.symbol}</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          s.regime === 'uptrend' ? 'bg-emerald-500/20 text-emerald-400' :
-                          s.regime === 'sideways' ? 'bg-amber-500/20 text-amber-400' :
-                          'bg-red-500/20 text-red-400'
-                        }`}>
-                          {s.regime}
-                        </span>
-                        {s.rsi !== undefined && (
-                          <span className="text-xs text-slate-500">RSI {s.rsi.toFixed(0)}</span>
-                        )}
-                      </div>
-                      <span className={s.tradedToday ? 'text-emerald-400' : 'text-slate-400'}>
-                        {s.tradedToday
-                          ? `Bought @ $${s.entryPrice?.toFixed(2)}`
-                          : s.skipReason ?? (s.price ? `$${s.price.toFixed(2)}` : 'Pending scan')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <p className="text-xs text-slate-500 mt-3">
-                PDT: {pdtDayTrades}/3 day trades this week. Swing positions held overnight avoid PDT classification.
-              </p>
-            </div>
-          )}
 
           {/* How It Works */}
           <div className="bg-slate-800 rounded-xl p-6">
@@ -617,9 +533,10 @@ export function SwingTrader() {
               </div>
             </div>
             <div className="mt-4 p-3 bg-slate-700/50 rounded-lg text-xs text-slate-400 space-y-1">
-              <p><span className="text-white">Scan times:</span> 9:35 AM ET (morning open) and 3:45 PM ET (EOD) on trading days.</p>
-              <p><span className="text-white">Exit strategy:</span> Bracket orders are placed server-side on Alpaca — TP and SL execute even when this tab is closed.</p>
-              <p><span className="text-white">PDT awareness:</span> With a sub-$25k account, you have 3 day trades per 5 business days. Positions held overnight do NOT count as day trades.</p>
+              <p><span className="text-white">Runs automatically:</span> GitHub Actions scans at 9:35 AM ET (morning) and 3:45 PM ET (EOD) on trading days. No browser needed.</p>
+              <p><span className="text-white">Exit strategy:</span> GTC bracket orders are placed on Alpaca — take-profit and stop-loss execute automatically, even overnight and on weekends.</p>
+              <p><span className="text-white">Position limits:</span> Max 5 concurrent positions, $100 per trade. Skips symbols already held.</p>
+              <p><span className="text-white">PDT safe:</span> Swing positions are held for days/weeks — they do NOT count as day trades.</p>
             </div>
           </div>
 
@@ -799,7 +716,7 @@ export function SwingTrader() {
             <h2 className="text-lg font-semibold mb-4">Open Positions ({store.positions.length})</h2>
             {store.positions.length === 0 ? (
               <p className="text-slate-400 text-sm">
-                No open positions. {store.isRunning ? 'The swing trader is scanning for opportunities...' : 'Start the swing trader to begin trading.'}
+                No open positions. The scanner runs automatically via GitHub Actions and will place trades when qualifying setups are found.
               </p>
             ) : (
               <div className="space-y-3">
