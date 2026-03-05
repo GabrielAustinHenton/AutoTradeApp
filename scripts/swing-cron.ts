@@ -19,8 +19,8 @@
 // Required env vars:
 //   ALPACA_SWING_KEY_ID     — Alpaca swing account API key ID
 //   ALPACA_SWING_SECRET_KEY — Alpaca swing account secret key
-//   SWING_CAPITAL_PER_TRADE — Capital per trade in dollars (default: 500)
-//   SWING_MAX_POSITIONS     — Max concurrent positions (default: 3)
+//   SWING_CAPITAL_PER_TRADE — Capital per trade in dollars (default: 100)
+//   SWING_MAX_POSITIONS     — Max concurrent positions (default: 5)
 // ============================================================================
 
 import { readFileSync } from 'node:fs';
@@ -31,8 +31,8 @@ import { fileURLToPath } from 'node:url';
 
 const KEY_ID     = process.env.ALPACA_SWING_KEY_ID ?? '';
 const SECRET_KEY = process.env.ALPACA_SWING_SECRET_KEY ?? '';
-const CAPITAL_PER_TRADE = parseInt(process.env.SWING_CAPITAL_PER_TRADE || '500', 10);
-const MAX_POSITIONS     = parseInt(process.env.SWING_MAX_POSITIONS || '3', 10);
+const CAPITAL_PER_TRADE = parseInt(process.env.SWING_CAPITAL_PER_TRADE || '100', 10);
+const MAX_POSITIONS     = parseInt(process.env.SWING_MAX_POSITIONS || '5', 10);
 
 const __cronDir = dirname(fileURLToPath(import.meta.url));
 let WATCHLIST: string[];

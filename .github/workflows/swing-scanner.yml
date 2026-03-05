@@ -30,6 +30,6 @@ jobs:
         env:
           ALPACA_SWING_KEY_ID: ${{ secrets.ALPACA_SWING_KEY_ID }}
           ALPACA_SWING_SECRET_KEY: ${{ secrets.ALPACA_SWING_SECRET_KEY }}
-          SWING_CAPITAL_PER_TRADE: '500'
-          SWING_MAX_POSITIONS: '3'
+          SWING_CAPITAL_PER_TRADE: '100'
+          SWING_MAX_POSITIONS: '5'
         run: npx tsx scripts/swing-cron.ts
