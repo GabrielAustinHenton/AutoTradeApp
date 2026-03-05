@@ -48,6 +48,8 @@ export function Trade() {
   const [showSearch, setShowSearch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [orderStatus, setOrderStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [liquidating, setLiquidating] = useState<string | null>(null); // symbol being liquidated, or 'ALL'
+  const [liquidateStatus, setLiquidateStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const { quote, loading: quoteLoading } = useQuote(symbol || null);
   const { results: searchResults, loading: searchLoading, search } = useSymbolSearch();
@@ -73,6 +75,48 @@ export function Trade() {
   const selectSymbol = (sym: string) => {
     setSymbol(sym);
     setShowSearch(false);
+  };
+
+  const handleLiquidate = async (positionSymbol: string) => {
+    setLiquidateStatus(null);
+    setLiquidating(positionSymbol);
+    const isPaper = !isLiveMode;
+    try {
+      await alpaca.closePosition(isPaper, positionSymbol);
+      setLiquidateStatus({
+        type: 'success',
+        message: `Liquidated ${positionSymbol} — position closed at market price.`,
+      });
+      setTimeout(() => syncFromAlpaca(), 2000);
+    } catch (error) {
+      setLiquidateStatus({
+        type: 'error',
+        message: `Failed to liquidate ${positionSymbol}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    } finally {
+      setLiquidating(null);
+    }
+  };
+
+  const handleLiquidateAll = async () => {
+    setLiquidateStatus(null);
+    setLiquidating('ALL');
+    const isPaper = !isLiveMode;
+    try {
+      await alpaca.closeAllPositions(isPaper);
+      setLiquidateStatus({
+        type: 'success',
+        message: 'All positions liquidated at market price.',
+      });
+      setTimeout(() => syncFromAlpaca(), 2000);
+    } catch (error) {
+      setLiquidateStatus({
+        type: 'error',
+        message: `Failed to liquidate all: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    } finally {
+      setLiquidating(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -511,43 +555,64 @@ export function Trade() {
               )}
             </div>
 
-            <h3 className="text-lg font-semibold mt-6 mb-4">Quick Sell (Long Positions)</h3>
+            <h3 className="text-lg font-semibold mt-6 mb-4">Liquidate Positions</h3>
+            {liquidateStatus && (
+              <div className={`mb-3 p-3 rounded-lg text-sm ${
+                liquidateStatus.type === 'success'
+                  ? 'bg-emerald-900/30 border border-emerald-700 text-emerald-300'
+                  : 'bg-red-900/30 border border-red-700 text-red-300'
+              }`}>
+                {liquidateStatus.message}
+              </div>
+            )}
             <div className="space-y-2">
-              {activePositions.filter(p => p.shares > 0).length === 0 ? (
-                <p className="text-slate-400 text-sm">No long positions</p>
+              {activePositions.filter(p => p.shares > 0).length === 0 && shortPositions.length === 0 ? (
+                <p className="text-slate-400 text-sm">No open positions to liquidate</p>
               ) : (
-                activePositions.filter(p => p.shares > 0).map((position) => (
-                  <div
-                    key={position.id}
-                    className="flex justify-between items-center p-3 bg-slate-700 rounded-lg"
-                  >
-                    <div>
-                      <span className="font-semibold">{position.symbol}</span>
-                      <span className="text-sm text-slate-400 ml-2">
-                        {position.shares} shares
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSymbol(position.symbol);
-                        setShares(position.shares.toString());
-                        setOrderType('market');
-                        setTradeType('sell');
-                      }}
-                      className="text-sm text-red-400 hover:text-red-300"
-                    >
-                      Sell All
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
+                <>
+                  {activePositions.filter(p => p.shares > 0).map((position) => {
+                    const gain = position.totalGainPercent ?? ((position.currentPrice - position.avgCost) / position.avgCost * 100);
+                    return (
+                      <div
+                        key={position.id}
+                        className="flex justify-between items-center p-3 bg-slate-700 rounded-lg"
+                      >
+                        <div>
+                          <span className="font-semibold">{position.symbol}</span>
+                          <span className="text-sm text-slate-400 ml-2">
+                            {position.shares} shares @ ${position.avgCost.toFixed(2)}
+                          </span>
+                          {position.currentPrice > 0 && (
+                            <div className={`text-xs mt-1 ${gain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              P/L: {gain >= 0 ? '+' : ''}{gain.toFixed(1)}% &middot; ${((position.currentPrice - position.avgCost) * position.shares).toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setSymbol(position.symbol);
+                              setShares(position.shares.toString());
+                              setOrderType('market');
+                              setTradeType('sell');
+                            }}
+                            className="text-xs text-slate-400 hover:text-slate-300"
+                          >
+                            Fill Form
+                          </button>
+                          <button
+                            onClick={() => handleLiquidate(position.symbol)}
+                            disabled={liquidating !== null}
+                            className="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {liquidating === position.symbol ? 'Closing...' : 'Liquidate'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
 
-            {/* Quick Cover for Short Positions */}
-            {!isLiveMode && shortPositions.length > 0 && (
-              <>
-                <h3 className="text-lg font-semibold mt-6 mb-4 text-purple-400">Quick Cover (Short Positions)</h3>
-                <div className="space-y-2">
+                  {/* Short Positions */}
                   {shortPositions.map((short) => {
                     const profitLoss = (short.entryPrice - short.currentPrice) * short.shares;
                     const profitLossPercent = ((short.entryPrice - short.currentPrice) / short.entryPrice) * 100;
@@ -566,23 +631,43 @@ export function Trade() {
                             P/L: {profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)} ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(1)}%)
                           </div>
                         </div>
-                        <button
-                          onClick={() => {
-                            setSymbol(short.symbol);
-                            setShares(short.shares.toString());
-                            setOrderType('market');
-                            setTradeType('cover');
-                          }}
-                          className="text-sm text-amber-400 hover:text-amber-300"
-                        >
-                          Cover All
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setSymbol(short.symbol);
+                              setShares(short.shares.toString());
+                              setOrderType('market');
+                              setTradeType('cover');
+                            }}
+                            className="text-xs text-slate-400 hover:text-slate-300"
+                          >
+                            Fill Form
+                          </button>
+                          <button
+                            onClick={() => handleLiquidate(short.symbol)}
+                            disabled={liquidating !== null}
+                            className="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {liquidating === short.symbol ? 'Closing...' : 'Liquidate'}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
-                </div>
-              </>
-            )}
+
+                  {/* Liquidate All button */}
+                  {(activePositions.filter(p => p.shares > 0).length + shortPositions.length) > 1 && (
+                    <button
+                      onClick={handleLiquidateAll}
+                      disabled={liquidating !== null}
+                      className="w-full mt-3 py-2.5 rounded-lg font-semibold text-sm bg-red-700 hover:bg-red-800 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-red-600"
+                    >
+                      {liquidating === 'ALL' ? 'Closing All Positions...' : 'Liquidate All Positions'}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -266,6 +266,17 @@ class AlpacaService {
     }
   }
 
+  // Close a single position by symbol (market sell).
+  async closePosition(isPaper: boolean, symbol: string): Promise<void> {
+    const res = await this.request(isPaper, `/positions/${encodeURIComponent(symbol.toUpperCase())}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok && res.status !== 204) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+  }
+
   async getOrders(isPaper: boolean, status = 'open'): Promise<AlpacaOrder[]> {
     const res = await this.request(isPaper, `/orders?status=${status}`);
     if (!res.ok) {
