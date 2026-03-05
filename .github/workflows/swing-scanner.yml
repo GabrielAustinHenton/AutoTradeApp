@@ -28,8 +28,8 @@ jobs:
 
       - name: Run swing scanner
         env:
-          ALPACA_SWING_KEY_ID: ${{ secrets.ALPACA_PAPER_KEY_ID }}
-          ALPACA_SWING_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET_KEY }}
+          ALPACA_PAPER_KEY_ID: ${{ secrets.ALPACA_PAPER_KEY_ID }}
+          ALPACA_PAPER_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET_KEY }}
           SWING_CAPITAL_PER_TRADE: '100'
           SWING_MAX_POSITIONS: '5'
         run: npx tsx scripts/swing-cron.ts
