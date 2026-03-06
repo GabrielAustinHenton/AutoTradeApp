@@ -983,7 +983,7 @@ interface DayTradeSetup {
 
 // Realistic trading constraints
 export const TRADING_CONSTRAINTS = {
-  PDT_MINIMUM: 25000,           // Pattern Day Trader minimum
+  PDT_MINIMUM: 25000,           // Pattern Day Trader minimum (regulatory requirement)
   FULL_POSITION_LIMIT: 100000,  // Full 25% position size up to this
   GOAL_AMOUNT: 500000,          // Stop day trading at this amount
   MIN_POSITION_PERCENT: 5,      // Minimum position size at goal

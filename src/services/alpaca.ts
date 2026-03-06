@@ -393,7 +393,7 @@ class AlpacaService {
     return result;
   }
 
-  // ── Swing Trader Account Methods (separate $5k account credentials) ──────────
+  // ── Swing Trader Account Methods (separate account credentials) ──────────
 
   async getSwingAccount(): Promise<AlpacaAccount> {
     const res = await this.swingRequest('/account');

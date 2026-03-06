@@ -123,7 +123,7 @@ export function Portfolio() {
   ].filter((d) => d.value > 0);
 
   const handleResetPaper = () => {
-    resetPaperPortfolio(25000);  // PDT minimum
+    resetPaperPortfolio(100000);
     setShowResetConfirm(false);
   };
 
@@ -332,7 +332,7 @@ export function Portfolio() {
           <div className="bg-slate-800 rounded-xl p-6 max-w-md">
             <h3 className="text-lg font-semibold mb-2">Reset Paper Portfolio?</h3>
             <p className="text-slate-400 mb-4">
-              This will clear all paper positions and trades, and reset your balance to $25,000 (PDT minimum).
+              This will clear all paper positions and trades, and reset your balance to $100,000.
             </p>
             <div className="flex gap-3">
               <button

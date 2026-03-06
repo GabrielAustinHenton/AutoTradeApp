@@ -51,9 +51,9 @@ export function Dashboard() {
   const isLiveNotConnected = tradingMode === 'live' && (!alpacaConnected || !alpacaSynced);
   const displayPositions = isPaperMode ? (paperPortfolio?.positions || []) : (isLiveNotConnected ? [] : positions);
   // cashBalance = account.cash (uninvested); buyingPower = account.buying_power (tradable incl. margin)
-  const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 10000) : (isLiveNotConnected ? null : cashBalance);
+  const displayCash = isPaperMode ? (paperPortfolio?.cashBalance ?? 100000) : (isLiveNotConnected ? null : cashBalance);
   const displayBuyingPower = isPaperMode
-    ? (paperPortfolio?.buyingPower ?? paperPortfolio?.cashBalance ?? 10000)
+    ? (paperPortfolio?.buyingPower ?? paperPortfolio?.cashBalance ?? 100000)
     : displayCash;
   const displayTrades = isPaperMode ? (paperPortfolio?.trades || []) : (isLiveNotConnected ? [] : trades);
 
@@ -181,7 +181,7 @@ export function Dashboard() {
 
         const result = await runDayTradingBacktest(
           watchlist,
-          25000,  // $25k starting capital (PDT minimum)
+          100000,  // $100k starting capital (Alpaca paper account)
           25,     // 25% position size (scales down as portfolio grows)
           2,      // 2% profit target
           1,      // 1% stop loss
@@ -414,7 +414,7 @@ export function Dashboard() {
               </div>
               <p className="text-xs text-slate-500">
                 {backtestStrategy === 'daytrade'
-                  ? `ORB Strategy: ${watchlist.length} stocks, ${backtestYears.length === 4 ? backtestYears : backtestYears + ' yr'}. 25% position, 2% target, 1% stop.${realisticCosts ? ' 0.2% slippage.' : ''} $25k start, scales down at $100k+, goal: $500k.`
+                  ? `ORB Strategy: ${watchlist.length} stocks, ${backtestYears.length === 4 ? backtestYears : backtestYears + ' yr'}. 25% position, 2% target, 1% stop.${realisticCosts ? ' 0.2% slippage.' : ''} $100k start.`
                   : backtestStrategy === 'hybrid'
                   ? 'Long-only trend following with 200 MA filter'
                   : backtestStrategy === 'rsi'

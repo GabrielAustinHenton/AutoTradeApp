@@ -622,7 +622,7 @@ export function Settings() {
             <div>
               <h3 className="font-medium text-sm md:text-base">Max $ Per Trade</h3>
               <p className="text-xs md:text-sm text-slate-400 mt-1">
-                Hard cap per auto-trade. $3,750 = 15% of $25k mental budget.
+                Hard cap per auto-trade. $15,000 = 15% of $100k budget.
                 As your portfolio grows, this % naturally shrinks.
               </p>
             </div>
@@ -630,8 +630,8 @@ export function Settings() {
               <span className="text-slate-400 text-sm">$</span>
               <input
                 type="number"
-                value={autoTradeConfig.maxTradeDollarAmount ?? 3750}
-                onChange={(e) => updateAutoTradeConfig({ maxTradeDollarAmount: parseInt(e.target.value) || 3750 })}
+                value={autoTradeConfig.maxTradeDollarAmount ?? 15000}
+                onChange={(e) => updateAutoTradeConfig({ maxTradeDollarAmount: parseInt(e.target.value) || 15000 })}
                 min="100"
                 step="250"
                 className="w-24 px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-center focus:outline-none focus:border-emerald-500"
