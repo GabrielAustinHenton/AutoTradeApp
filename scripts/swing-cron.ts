@@ -17,8 +17,8 @@
 // needed after placement.
 //
 // Required env vars:
-//   ALPACA_SWING_KEY_ID     — Alpaca swing account API key ID
-//   ALPACA_SWING_SECRET_KEY — Alpaca swing account secret key
+//   ALPACA_SWING_KEY_ID     — Alpaca paper API key ID
+//   ALPACA_SWING_SECRET_KEY — Alpaca paper secret key
 //   SWING_CAPITAL_PER_TRADE — Capital per trade in dollars (default: 100)
 //   SWING_MAX_POSITIONS     — Max concurrent positions (default: 5)
 // ============================================================================
@@ -42,8 +42,10 @@ try {
   WATCHLIST = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'JPM', 'V', 'HD', 'KO'];
 }
 
-// Alpaca uses the same live API for all funded accounts
-const BASE_URL = 'https://api.alpaca.markets/v2';
+// Paper trading by default — switch to live only when explicitly opted in
+const BASE_URL = process.env.ALPACA_LIVE === 'true'
+  ? 'https://api.alpaca.markets/v2'
+  : 'https://paper-api.alpaca.markets/v2';
 const DATA_BASE = 'https://data.alpaca.markets/v2';
 
 if (!KEY_ID || !SECRET_KEY) {
@@ -51,7 +53,8 @@ if (!KEY_ID || !SECRET_KEY) {
   process.exit(1);
 }
 
-console.log(`[SWING] Starting — watchlist: ${WATCHLIST.join(', ')} | capital/trade: $${CAPITAL_PER_TRADE} | max positions: ${MAX_POSITIONS}`);
+const MODE = process.env.ALPACA_LIVE === 'true' ? 'LIVE' : 'PAPER';
+console.log(`[SWING] Starting (${MODE}) — watchlist: ${WATCHLIST.join(', ')} | capital/trade: $${CAPITAL_PER_TRADE} | max positions: ${MAX_POSITIONS}`);
 
 // ── Alpaca client ──────────────────────────────────────────────────────────
 
