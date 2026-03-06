@@ -524,11 +524,12 @@ export function SwingTrader() {
               <div className="bg-slate-700/50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <RegimeBadge regime="downtrend" />
-                  <span className="text-white font-medium">Downtrend — Skipped</span>
+                  <span className="text-white font-medium">Downtrend — Conservative Short</span>
                 </div>
                 <p>
-                  Price is below its 50-day SMA. The scanner skips long entries in downtrend — buying into a
-                  falling stock is high-risk. Sit on cash and wait for an uptrend to re-establish.
+                  Price is below its 50-day SMA. Scanner looks for RSI(14) between 50–70 (bounce into resistance)
+                  with MACD histogram fading. Short bracket order: 8% TP / 4% SL. Only shorts confirmed downtrends
+                  after a relief bounce — never chases.
                 </p>
               </div>
             </div>

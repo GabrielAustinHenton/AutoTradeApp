@@ -1,6 +1,6 @@
 # AutoTradeApp
 
-An automated day trading platform built with React + TypeScript, connected to Alpaca Markets for real paper and live trading. The core strategy is Opening Range Breakout (ORB) — validated by backtesting and executed automatically during market hours.
+An automated trading platform built with React + TypeScript, connected to Alpaca Markets for real paper and live trading. Includes an Opening Range Breakout (ORB) day trading strategy and a swing scanner that trades both long and short based on trend, RSI, and MACD signals.
 
 **Goal: Grow $25,000 → $500,000 through disciplined, rules-based day trading.**
 
@@ -14,6 +14,20 @@ An automated day trading platform built with React + TypeScript, connected to Al
 2. **Breakout Signal** — After 10:00 AM ET, if price closes above the opening range high, a trade is triggered
 3. **Bracket Order** — A buy order is placed with automatic take profit (+2%) and stop loss (-1%) legs managed server-side by Alpaca
 4. **One trade per symbol per day** — No re-entry; scanner stops at 3:30 PM ET
+
+### Strategy: Swing Scanner (Long + Short)
+
+Runs via GitHub Actions on weekdays at 9:35 AM and 3:45 PM ET. Analyzes the swing watchlist using daily bars and places GTC bracket orders.
+
+| Regime | Direction | Entry Signal | Take Profit | Stop Loss |
+|--------|-----------|-------------|-------------|-----------|
+| **Uptrend** (price > SMA50) | Long | RSI 30–50 pullback + MACD improving | 15% | 5% |
+| **Sideways** (near SMA50) | Long | RSI < 35 + MACD histogram up | 8% | 4% |
+| **Downtrend** (price < SMA50) | Short | RSI 50–70 bounce + MACD fading | 8% | 4% |
+
+- $100 per trade, max 5 concurrent positions
+- Bracket orders are GTC — TP and SL execute automatically on Alpaca
+- Uses separate Alpaca credentials (`ALPACA_SWING_KEY_ID` / `ALPACA_SWING_SECRET_KEY`)
 
 ### Risk Management
 - **$3,750 per trade** (15% of $25k mental budget — as portfolio grows, % risk naturally shrinks)
