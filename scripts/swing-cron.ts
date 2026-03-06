@@ -11,7 +11,8 @@
 //             → bracket: 15% TP, 5% SL (GTC)
 //   Sideways (price within ±3% of SMA50): RSI(14) < 35 + MACD histogram up
 //             → bracket: 8% TP, 4% SL (GTC)
-//   Downtrend (price < SMA50×0.97): Skip — no long entries
+//   Downtrend (price < SMA50×0.97): RSI(14) 50–70 + MACD histogram worsening
+//             → short bracket: 8% TP, 4% SL (GTC)
 //
 // Bracket orders are GTC so they persist until TP or SL fills — no monitoring
 // needed after placement.
@@ -213,26 +214,31 @@ function analyzeSymbol(bars: DailyBar[], latestPrice: number): Analysis | null {
 }
 
 function evaluateEntry(a: Analysis): {
-  shouldEnter: boolean; tpPercent: number; slPercent: number; reason: string;
+  shouldEnter: boolean; side: 'buy' | 'sell'; tpPercent: number; slPercent: number; reason: string;
 } {
   const histImproving = a.macdHistogram > a.prevMacdHistogram;
+  const histWorsening = a.macdHistogram < a.prevMacdHistogram;
 
   if (a.regime === 'downtrend') {
-    return { shouldEnter: false, tpPercent: 0, slPercent: 0, reason: 'Downtrend — skipping' };
+    // Conservative short: bounce into resistance (RSI 50–70) with momentum confirming back down
+    if (a.rsi >= 50 && a.rsi <= 70 && histWorsening) {
+      return { shouldEnter: true, side: 'sell', tpPercent: 8, slPercent: 4, reason: `Downtrend short: RSI ${a.rsi.toFixed(1)}, MACD fading` };
+    }
+    return { shouldEnter: false, side: 'sell', tpPercent: 0, slPercent: 0, reason: `Downtrend but no short signal: RSI ${a.rsi.toFixed(1)}` };
   }
 
   if (a.regime === 'uptrend') {
     if (a.rsi >= 30 && a.rsi <= 50 && histImproving) {
-      return { shouldEnter: true, tpPercent: 15, slPercent: 5, reason: `Uptrend pullback: RSI ${a.rsi.toFixed(1)}, MACD recovering` };
+      return { shouldEnter: true, side: 'buy', tpPercent: 15, slPercent: 5, reason: `Uptrend pullback: RSI ${a.rsi.toFixed(1)}, MACD recovering` };
     }
-    return { shouldEnter: false, tpPercent: 0, slPercent: 0, reason: `Uptrend but no signal: RSI ${a.rsi.toFixed(1)}` };
+    return { shouldEnter: false, side: 'buy', tpPercent: 0, slPercent: 0, reason: `Uptrend but no signal: RSI ${a.rsi.toFixed(1)}` };
   }
 
   // sideways
   if (a.rsi < 35 && histImproving) {
-    return { shouldEnter: true, tpPercent: 8, slPercent: 4, reason: `Sideways mean reversion: RSI ${a.rsi.toFixed(1)}, MACD turning up` };
+    return { shouldEnter: true, side: 'buy', tpPercent: 8, slPercent: 4, reason: `Sideways mean reversion: RSI ${a.rsi.toFixed(1)}, MACD turning up` };
   }
-  return { shouldEnter: false, tpPercent: 0, slPercent: 0, reason: `Sideways but no signal: RSI ${a.rsi.toFixed(1)}` };
+  return { shouldEnter: false, side: 'buy', tpPercent: 0, slPercent: 0, reason: `Sideways but no signal: RSI ${a.rsi.toFixed(1)}` };
 }
 
 // ── Main Scan ───────────────────────────────────────────────────────────────
@@ -309,15 +315,20 @@ async function main(): Promise<void> {
 
     // Position sizing
     const qty = Math.max(1, Math.floor(CAPITAL_PER_TRADE / analysis.price));
-    const tpPrice = parseFloat((analysis.price * (1 + entry.tpPercent / 100)).toFixed(2));
-    const slPrice = parseFloat((analysis.price * (1 - entry.slPercent / 100)).toFixed(2));
+    const isShort = entry.side === 'sell';
+    const tpPrice = isShort
+      ? parseFloat((analysis.price * (1 - entry.tpPercent / 100)).toFixed(2))
+      : parseFloat((analysis.price * (1 + entry.tpPercent / 100)).toFixed(2));
+    const slPrice = isShort
+      ? parseFloat((analysis.price * (1 + entry.slPercent / 100)).toFixed(2))
+      : parseFloat((analysis.price * (1 - entry.slPercent / 100)).toFixed(2));
 
     // Place GTC bracket order
     try {
       const body = {
         symbol,
         qty: qty.toString(),
-        side: 'buy',
+        side: entry.side,
         type: 'market',
         time_in_force: 'gtc',
         order_class: 'bracket',
@@ -333,7 +344,8 @@ async function main(): Promise<void> {
       const order: Order = await res.json();
 
       tradesPlaced++;
-      console.log(`[SWING] ENTRY: ${symbol} x${qty} @ $${analysis.price.toFixed(2)} | TP $${tpPrice} | SL $${slPrice} | order ${order.id}`);
+      const tag = isShort ? 'SHORT' : 'LONG';
+      console.log(`[SWING] ${tag}: ${symbol} x${qty} @ $${analysis.price.toFixed(2)} | TP $${tpPrice} | SL $${slPrice} | order ${order.id}`);
     } catch (err) {
       console.error(`[SWING] ${symbol}: order failed — ${err}`);
     }
