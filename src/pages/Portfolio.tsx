@@ -266,16 +266,16 @@ export function Portfolio() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
           <div className="bg-slate-800 rounded-xl p-3 md:p-4">
             <div className="text-xs md:text-sm text-slate-400">Starting Balance</div>
-            <div className="text-lg md:text-xl font-semibold">${paperPortfolio.startingBalance.toLocaleString()}</div>
+            <div className="text-lg md:text-xl font-semibold">${paperPortfolio.startingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
           <div className="bg-slate-800 rounded-xl p-3 md:p-4">
             <div className="text-xs md:text-sm text-slate-400">Current Value</div>
-            <div className="text-lg md:text-xl font-semibold">${paperTotalValue.toLocaleString()}</div>
+            <div className="text-lg md:text-xl font-semibold">${paperTotalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
           <div className="bg-slate-800 rounded-xl p-3 md:p-4">
             <div className="text-xs md:text-sm text-slate-400">Total P&L</div>
             <div className={`text-lg md:text-xl font-semibold ${paperPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {paperPnL >= 0 ? '+' : ''}${paperPnL.toLocaleString()} ({paperPnLPercent.toFixed(2)}%)
+              {paperPnL >= 0 ? '+' : ''}${paperPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paperPnLPercent.toFixed(2)}%)
             </div>
           </div>
           <div className="bg-slate-800 rounded-xl p-3 md:p-4">
@@ -520,7 +520,7 @@ export function Portfolio() {
                       <div className="text-xs text-slate-400">{position.name}</div>
                     </div>
                     <span className={`font-medium text-sm ${position.totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {position.totalGain >= 0 ? '+' : ''}${position.totalGain.toLocaleString()} ({position.totalGainPercent.toFixed(2)}%)
+                      {position.totalGain >= 0 ? '+' : ''}${position.totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({position.totalGainPercent.toFixed(2)}%)
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs text-slate-400">
@@ -529,7 +529,7 @@ export function Portfolio() {
                     <div><p className="text-slate-500">Current</p>${position.currentPrice.toFixed(2)}</div>
                   </div>
                   <div className="mt-1.5 text-xs text-slate-400">
-                    <span className="text-slate-500">Value </span>${position.totalValue.toLocaleString()}
+                    <span className="text-slate-500">Value </span>${position.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </div>
               ))}
@@ -557,10 +557,10 @@ export function Portfolio() {
                       <td className="py-4">{position.shares}</td>
                       <td className="py-4">${position.avgCost.toFixed(2)}</td>
                       <td className="py-4">${position.currentPrice.toFixed(2)}</td>
-                      <td className="py-4">${position.totalValue.toLocaleString()}</td>
+                      <td className="py-4">${position.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="py-4">
                         <span className={position.totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                          ${position.totalGain.toLocaleString()} ({position.totalGainPercent.toFixed(2)}%)
+                          ${position.totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({position.totalGainPercent.toFixed(2)}%)
                         </span>
                       </td>
                     </tr>
@@ -651,7 +651,7 @@ export function Portfolio() {
                     }`}>{trade.type.toUpperCase()}</span>
                     <span className="font-semibold">{trade.symbol}</span>
                   </div>
-                  <span className="text-slate-300 font-medium text-sm">${trade.total.toLocaleString()}</span>
+                  <span className="text-slate-300 font-medium text-sm">${trade.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs text-slate-400">
                   <div><p className="text-slate-500">Shares</p>{trade.shares}</div>
@@ -699,7 +699,7 @@ export function Portfolio() {
                     </td>
                     <td className="py-3">{trade.shares}</td>
                     <td className="py-3">${trade.price.toFixed(2)}</td>
-                    <td className="py-3">${trade.total.toLocaleString()}</td>
+                    <td className="py-3">${trade.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="py-3 text-slate-400">{trade.notes || '-'}</td>
                   </tr>
                 ))}
