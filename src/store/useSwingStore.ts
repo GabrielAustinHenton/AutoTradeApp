@@ -472,7 +472,17 @@ export const useSwingStore = create<SwingStoreState>()(
           const positionsValue = positions.reduce((sum, p) => sum + p.currentPrice * p.shares, 0);
           const equity = cashBalance + positionsValue;
           const peakEquity = Math.max(get().peakEquity, equity);
-          const initialCapital = get().config.initialCapital;
+
+          // Auto-set initialCapital from Alpaca account on first sync if still at default $5k
+          let { initialCapital } = get().config;
+          const isFirstSync = !get().alpacaSwingSynced;
+          if (isFirstSync && initialCapital === 5000 && totalValue > 10000) {
+            // First sync and account is much larger than default — adopt Alpaca value as starting capital
+            initialCapital = totalValue;
+            set((s) => ({
+              config: { ...s.config, initialCapital: totalValue, goalCapital: Math.round(totalValue * 2) },
+            }));
+          }
 
           // Record one equity snapshot per day
           const existingHistory = get().equityHistory || [];
