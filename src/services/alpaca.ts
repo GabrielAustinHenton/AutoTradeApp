@@ -413,6 +413,15 @@ class AlpacaService {
     return res.json();
   }
 
+  async getSwingOrders(status: string = 'closed', limit: number = 100): Promise<AlpacaOrder[]> {
+    const res = await this.swingRequest(`/orders?status=${status}&limit=${limit}&direction=desc`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
   async createSwingOrder(params: CreateOrderParams): Promise<AlpacaOrder> {
     const body: Record<string, unknown> = {
       symbol: params.symbol,

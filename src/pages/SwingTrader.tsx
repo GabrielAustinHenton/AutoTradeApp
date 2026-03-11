@@ -26,11 +26,12 @@
 //   would need separate backtesting and its own entry/exit logic
 // - To enable on Alpaca: add extended_hours: true + time_in_force: 'day' to order params
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useSwingStore } from '../store/useSwingStore';
 import { usePatternScanner } from '../hooks/usePatternScanner';
 import { AlertToast } from '../components/alerts/AlertToast';
+import { alpaca } from '../services/alpaca';
 import type { MarketRegime, SwingStrategyConfig, SwingEntryRule, SwingExitRule } from '../types';
 import {
   DEFAULT_SWING_SYMBOLS,
@@ -282,6 +283,20 @@ export function SwingTrader() {
 
   // Pattern scanner + alerts only run while SwingTrader is open
   usePatternScanner();
+
+  // Sync from Alpaca swing account on mount and every 60s
+  useEffect(() => {
+    if (!alpaca.isSwingTraderConfigured()) return;
+    // Initial sync — account data + regime detection in parallel
+    store.syncFromAlpacaSwing().catch(() => {});
+    store.detectRegimes().catch(() => {});
+    // Periodic account sync (regimes don't change fast enough to re-fetch every minute)
+    const interval = setInterval(() => {
+      store.syncFromAlpacaSwing().catch(() => {});
+    }, 60_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Computed values
   const equity = store.getCurrentEquity();
