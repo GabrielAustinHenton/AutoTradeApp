@@ -286,6 +286,20 @@ class AlpacaService {
     return res.json();
   }
 
+  async getPortfolioHistory(isPaper: boolean, period = '3M', timeframe = '1D'): Promise<{
+    timestamp: number[];
+    equity: number[];
+    profit_loss: number[];
+    profit_loss_pct: number[];
+  }> {
+    const res = await this.request(isPaper, `/account/portfolio/history?period=${period}&timeframe=${timeframe}`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
   async cancelOrder(isPaper: boolean, orderId: string): Promise<void> {
     const res = await this.request(isPaper, `/orders/${orderId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) {
