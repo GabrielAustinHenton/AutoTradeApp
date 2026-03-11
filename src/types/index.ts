@@ -139,6 +139,7 @@ export interface PortfolioSummary {
   dayChange: number;
   dayChangePercent: number;
   cashBalance: number;
+  portfolioHistory?: Array<{ date: Date; totalValue: number; cashBalance: number; positionsValue: number }>;
 }
 
 export interface PriceHistory {
