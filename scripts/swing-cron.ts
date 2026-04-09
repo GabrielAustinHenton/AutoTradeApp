@@ -34,6 +34,7 @@ const KEY_ID     = process.env.ALPACA_SWING_KEY_ID ?? '';
 const SECRET_KEY = process.env.ALPACA_SWING_SECRET_KEY ?? '';
 const CAPITAL_PER_TRADE = parseInt(process.env.SWING_CAPITAL_PER_TRADE || '100', 10);
 const MAX_POSITIONS     = parseInt(process.env.SWING_MAX_POSITIONS || '5', 10);
+const LONG_ONLY         = process.env.SWING_LONG_ONLY === 'true';
 
 const __cronDir = dirname(fileURLToPath(import.meta.url));
 let WATCHLIST: string[];
@@ -220,6 +221,9 @@ function evaluateEntry(a: Analysis): {
   const histWorsening = a.macdHistogram < a.prevMacdHistogram;
 
   if (a.regime === 'downtrend') {
+    if (LONG_ONLY) {
+      return { shouldEnter: false, side: 'sell', tpPercent: 0, slPercent: 0, reason: `Downtrend skipped (long-only mode)` };
+    }
     // Conservative short: bounce into resistance (RSI 50–70) with momentum confirming back down
     if (a.rsi >= 50 && a.rsi <= 70 && histWorsening) {
       return { shouldEnter: true, side: 'sell', tpPercent: 8, slPercent: 4, reason: `Downtrend short: RSI ${a.rsi.toFixed(1)}, MACD fading` };
