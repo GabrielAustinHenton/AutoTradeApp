@@ -37,6 +37,6 @@ jobs:
           ALPACA_SWING_SECRET_KEY: ${{ secrets.ALPACA_SWING_SECRET_KEY }}
           ALPACA_LIVE: ${{ github.event.inputs.is_live || 'false' }}
           SWING_CAPITAL_PER_TRADE: '100'
-          SWING_MAX_POSITIONS: '5'
+          SWING_MAX_POSITIONS: '1'
           SWING_LONG_ONLY: 'true'
         run: npx tsx scripts/swing-cron.ts

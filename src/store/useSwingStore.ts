@@ -20,6 +20,7 @@ import {
   createDefaultSwingConfig,
   calculateSwingEquity,
 } from '../services/swingTrader';
+import { alpaca } from '../services/alpaca';
 
 // ============================================================================
 // Store Interface
@@ -58,6 +59,11 @@ interface SwingStoreState extends SwingTraderState {
 
   // Actions - Trades
   clearTradeHistory: () => void;
+
+  // Actions - Alpaca Sync
+  syncFromAlpacaSwing: () => Promise<void>;
+  detectRegimes: () => Promise<void>;
+  alpacaSwingSynced: boolean;
 
   // Computed
   getCurrentEquity: () => number;
@@ -108,6 +114,7 @@ export const useSwingStore = create<SwingStoreState>()(
     (set, get) => ({
       ...defaultState,
       ...defaultConnectionState,
+      alpacaSwingSynced: false,
 
       // ============================
       // Alpaca Swing Connection
@@ -355,6 +362,204 @@ export const useSwingStore = create<SwingStoreState>()(
           winCount: 0,
           lossCount: 0,
         }),
+
+      // ============================
+      // Alpaca Swing Sync
+      // ============================
+
+      syncFromAlpacaSwing: async () => {
+        if (!alpaca.isSwingTraderConfigured()) return;
+
+        try {
+          const [account, alpacaPositions, closedOrders] = await Promise.all([
+            alpaca.getSwingAccount(),
+            alpaca.getSwingPositions(),
+            alpaca.getSwingOrders('closed', 200),
+          ]);
+
+          const cashBalance = parseFloat(account.cash);
+          const totalValue = parseFloat(account.portfolio_value);
+
+          // Map Alpaca positions to SwingTradePosition format
+          const positions: SwingTradePosition[] = alpacaPositions.map((p) => {
+            const shares = Math.abs(parseFloat(p.qty));
+            const entryPrice = parseFloat(p.avg_entry_price);
+            const currentPrice = parseFloat(p.current_price);
+            const unrealizedPnL = parseFloat(p.unrealized_pl);
+            const unrealizedPnLPercent = parseFloat(p.unrealized_plpc) * 100;
+            const direction = p.side === 'long' ? 'long' as const : 'short' as const;
+
+            return {
+              id: p.asset_id,
+              symbol: p.symbol,
+              direction,
+              shares,
+              entryPrice,
+              currentPrice,
+              entryDate: new Date(),
+              highestPrice: currentPrice,
+              lowestPrice: currentPrice,
+              regime: 'sideways' as MarketRegime,
+              entrySignals: ['Alpaca sync'],
+              unrealizedPnL,
+              unrealizedPnLPercent,
+            };
+          });
+
+          // Build completed trades from closed filled orders
+          // Pair buy→sell for longs, sell→buy for shorts by symbol
+          const filledOrders = closedOrders
+            .filter((o) => o.status === 'filled' && o.filled_avg_price)
+            .sort((a, b) => new Date(a.filled_at!).getTime() - new Date(b.filled_at!).getTime());
+
+          // Group orders by symbol to pair entry/exit
+          const ordersBySymbol = new Map<string, typeof filledOrders>();
+          for (const order of filledOrders) {
+            const arr = ordersBySymbol.get(order.symbol) || [];
+            arr.push(order);
+            ordersBySymbol.set(order.symbol, arr);
+          }
+
+          const completedTrades: SwingTrade[] = [];
+          let winCount = 0;
+          let lossCount = 0;
+
+          for (const [symbol, orders] of ordersBySymbol) {
+            // Walk through orders and pair buys with sells
+            const pending: typeof filledOrders = [];
+            for (const order of orders) {
+              if (pending.length > 0 && pending[0].side !== order.side) {
+                // This is the exit order for the pending entry
+                const entry = pending.shift()!;
+                const entryPrice = parseFloat(entry.filled_avg_price!);
+                const exitPrice = parseFloat(order.filled_avg_price!);
+                const shares = Math.min(parseFloat(entry.filled_qty), parseFloat(order.filled_qty));
+                const isLong = entry.side === 'buy';
+                const profitLoss = isLong
+                  ? (exitPrice - entryPrice) * shares
+                  : (entryPrice - exitPrice) * shares;
+                const profitLossPercent = (profitLoss / (entryPrice * shares)) * 100;
+
+                if (profitLoss > 0) winCount++;
+                else lossCount++;
+
+                completedTrades.push({
+                  id: `${entry.id}-${order.id}`,
+                  symbol,
+                  direction: isLong ? 'long' : 'short',
+                  regime: 'sideways' as MarketRegime,
+                  shares,
+                  entryPrice,
+                  entryDate: new Date(entry.filled_at!),
+                  exitPrice,
+                  exitDate: new Date(order.filled_at!),
+                  exitReason: 'bracket',
+                  profitLoss,
+                  profitLossPercent,
+                  entrySignals: ['Auto-scanner'],
+                });
+              } else {
+                pending.push(order);
+              }
+            }
+          }
+
+          // Sort completed trades newest first
+          completedTrades.sort((a, b) =>
+            new Date(b.exitDate!).getTime() - new Date(a.exitDate!).getTime()
+          );
+
+          const positionsValue = positions.reduce((sum, p) => sum + p.currentPrice * p.shares, 0);
+          const equity = cashBalance + positionsValue;
+          const peakEquity = Math.max(get().peakEquity, equity);
+
+          // Auto-set initialCapital from Alpaca account on first sync if still at default $5k
+          let { initialCapital } = get().config;
+          const isFirstSync = !get().alpacaSwingSynced;
+          if (isFirstSync && initialCapital === 5000 && totalValue > 10000) {
+            // First sync and account is much larger than default — adopt Alpaca value as starting capital
+            initialCapital = totalValue;
+            set((s) => ({
+              config: { ...s.config, initialCapital: totalValue, goalCapital: Math.round(totalValue * 2) },
+            }));
+          }
+
+          // Record one equity snapshot per day
+          const existingHistory = get().equityHistory || [];
+          const todayStr = new Date().toDateString();
+          const lastSnap = existingHistory[existingHistory.length - 1];
+          const alreadyRecordedToday = lastSnap && new Date(lastSnap.date).toDateString() === todayStr;
+          const newHistory = alreadyRecordedToday
+            ? existingHistory
+            : [...existingHistory, {
+                date: new Date(),
+                equity: totalValue,
+                cashBalance,
+                positionsValue,
+                regime: 'sideways' as MarketRegime,
+                drawdownPercent: peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0,
+              }].slice(-365);
+
+          set({
+            cashBalance,
+            positions,
+            completedTrades: completedTrades.slice(0, 500),
+            winCount,
+            lossCount,
+            peakEquity,
+            totalReturn: equity - initialCapital,
+            totalReturnPercent: ((equity - initialCapital) / initialCapital) * 100,
+            equityHistory: newHistory,
+            alpacaSwingSynced: true,
+          });
+        } catch (error) {
+          console.error('[SwingStore] Failed to sync from Alpaca swing:', error);
+        }
+      },
+
+      // ============================
+      // Regime Detection (client-side, same logic as swing-cron.ts)
+      // ============================
+
+      detectRegimes: async () => {
+        if (!alpaca.isSwingTraderConfigured()) return;
+
+        const symbols = get().config.symbols;
+        if (symbols.length === 0) return;
+
+        const regimes: Record<string, MarketRegime> = {};
+
+        // Fetch bars for each symbol and compute regime
+        const endDate = new Date().toISOString().slice(0, 10);
+        const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+        await Promise.allSettled(symbols.map(async (symbol) => {
+          try {
+            const bars = await alpaca.getSwingHistoricalBars(symbol, startDate, endDate);
+            if (bars.length < 52) return;
+
+            const closes = bars.map((b) => b.close);
+
+            // SMA50
+            const sma50 = closes.slice(-50).reduce((a, b) => a + b, 0) / 50;
+            const price = closes[closes.length - 1];
+            const pctFromSMA = (price - sma50) / sma50;
+
+            let regime: MarketRegime;
+            if (pctFromSMA > 0.02) regime = 'uptrend';
+            else if (pctFromSMA < -0.03) regime = 'downtrend';
+            else regime = 'sideways';
+
+            regimes[symbol] = regime;
+          } catch (err) {
+            console.warn(`[SwingStore] Failed to detect regime for ${symbol}:`, err);
+          }
+        }));
+
+        if (Object.keys(regimes).length > 0) {
+          set({ currentRegimes: regimes });
+        }
+      },
 
       // ============================
       // Computed Values

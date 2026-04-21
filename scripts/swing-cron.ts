@@ -221,6 +221,9 @@ function evaluateEntry(a: Analysis): {
   const histWorsening = a.macdHistogram < a.prevMacdHistogram;
 
   if (a.regime === 'downtrend') {
+    if (LONG_ONLY) {
+      return { shouldEnter: false, side: 'sell', tpPercent: 0, slPercent: 0, reason: `Downtrend skipped (long-only mode)` };
+    }
     // Conservative short: bounce into resistance (RSI 50–70) with momentum confirming back down
     if (a.rsi >= 50 && a.rsi <= 70 && histWorsening) {
       return { shouldEnter: true, side: 'sell', tpPercent: 8, slPercent: 4, reason: `Downtrend short: RSI ${a.rsi.toFixed(1)}, MACD fading` };

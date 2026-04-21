@@ -187,6 +187,13 @@ class AlpacaService {
   }
 
   isSwingTraderConfigured(): boolean {
+    // Swing trader is configured if it has its own credentials OR can fall back to paper
+    return (this.swingTraderCreds !== null && this.swingTraderCreds.keyId.length > 0)
+      || this.isPaperConfigured();
+  }
+
+  /** Returns true when swing trader is using its own dedicated credentials (not falling back to paper) */
+  hasOwnSwingCredentials(): boolean {
     return this.swingTraderCreds !== null && this.swingTraderCreds.keyId.length > 0;
   }
 
@@ -195,17 +202,24 @@ class AlpacaService {
   }
 
   // ── Private swing trader request helper ──────────────────────────────────────
+  // Falls back to paper trading credentials when swing-specific ones aren't configured
 
   private swingRequest(path: string, options: RequestInit = {}): Promise<Response> {
-    if (!this.swingTraderCreds?.keyId || !this.swingTraderCreds.secretKey) {
-      throw new Error('Alpaca swing trader credentials not configured');
+    // Prefer swing-specific credentials, fall back to paper credentials
+    const creds = (this.swingTraderCreds?.keyId && this.swingTraderCreds.secretKey)
+      ? this.swingTraderCreds
+      : this.paperCreds;
+    if (!creds?.keyId || !creds.secretKey) {
+      throw new Error('No Alpaca credentials available for swing trader (neither swing nor paper configured)');
     }
-    const url = `${LIVE_BASE_URL}${path}`;
+    // Use paper URL when falling back to paper credentials
+    const isPaper = creds === this.paperCreds;
+    const url = `${isPaper ? PAPER_BASE_URL : LIVE_BASE_URL}${path}`;
     return fetch(url, {
       ...options,
       headers: {
-        'APCA-API-KEY-ID': this.swingTraderCreds.keyId,
-        'APCA-API-SECRET-KEY': this.swingTraderCreds.secretKey,
+        'APCA-API-KEY-ID': creds.keyId,
+        'APCA-API-SECRET-KEY': creds.secretKey,
         'Content-Type': 'application/json',
         ...(options.headers as Record<string, string> | undefined),
       },
@@ -279,6 +293,20 @@ class AlpacaService {
 
   async getOrders(isPaper: boolean, status = 'open'): Promise<AlpacaOrder[]> {
     const res = await this.request(isPaper, `/orders?status=${status}`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
+  async getPortfolioHistory(isPaper: boolean, period = '3M', timeframe = '1D'): Promise<{
+    timestamp: number[];
+    equity: number[];
+    profit_loss: number[];
+    profit_loss_pct: number[];
+  }> {
+    const res = await this.request(isPaper, `/account/portfolio/history?period=${period}&timeframe=${timeframe}`);
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`${res.status} ${text}`);
@@ -413,6 +441,15 @@ class AlpacaService {
     return res.json();
   }
 
+  async getSwingOrders(status: string = 'closed', limit: number = 100): Promise<AlpacaOrder[]> {
+    const res = await this.swingRequest(`/orders?status=${status}&limit=${limit}&direction=desc`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
   async createSwingOrder(params: CreateOrderParams): Promise<AlpacaOrder> {
     const body: Record<string, unknown> = {
       symbol: params.symbol,
@@ -436,15 +473,24 @@ class AlpacaService {
     return res.json();
   }
 
+  /** Resolve effective swing credentials (own → paper fallback) for data API calls */
+  private getSwingDataCreds(): AlpacaCredentials {
+    const creds = (this.swingTraderCreds?.keyId && this.swingTraderCreds.secretKey)
+      ? this.swingTraderCreds
+      : this.paperCreds;
+    if (!creds?.keyId || !creds.secretKey) {
+      throw new Error('No Alpaca credentials available for swing data (neither swing nor paper configured)');
+    }
+    return creds;
+  }
+
   // Historical daily bars using swing trader credentials (data API)
   async getSwingHistoricalBars(
     symbol: string,
     start: string,  // YYYY-MM-DD
     end: string,    // YYYY-MM-DD
   ): Promise<{ timestamp: string; open: number; high: number; low: number; close: number; volume: number }[]> {
-    if (!this.swingTraderCreds?.keyId || !this.swingTraderCreds.secretKey) {
-      throw new Error('Alpaca swing trader credentials not configured');
-    }
+    const creds = this.getSwingDataCreds();
     const params = new URLSearchParams({
       timeframe: '1Day',
       start,
@@ -455,8 +501,8 @@ class AlpacaService {
     const url = `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`;
     const res = await fetch(url, {
       headers: {
-        'APCA-API-KEY-ID': this.swingTraderCreds.keyId,
-        'APCA-API-SECRET-KEY': this.swingTraderCreds.secretKey,
+        'APCA-API-KEY-ID': creds.keyId,
+        'APCA-API-SECRET-KEY': creds.secretKey,
       },
     });
     if (!res.ok) {
@@ -474,15 +520,13 @@ class AlpacaService {
 
   // Latest trade prices using swing trader credentials
   async getSwingLatestPrices(symbols: string[]): Promise<Map<string, number>> {
-    if (!this.swingTraderCreds?.keyId || !this.swingTraderCreds.secretKey) {
-      throw new Error('Alpaca swing trader credentials not configured');
-    }
+    const creds = this.getSwingDataCreds();
     const params = new URLSearchParams({ symbols: symbols.join(','), feed: 'iex' });
     const url = `https://data.alpaca.markets/v2/stocks/trades/latest?${params}`;
     const res = await fetch(url, {
       headers: {
-        'APCA-API-KEY-ID': this.swingTraderCreds.keyId,
-        'APCA-API-SECRET-KEY': this.swingTraderCreds.secretKey,
+        'APCA-API-KEY-ID': creds.keyId,
+        'APCA-API-SECRET-KEY': creds.secretKey,
       },
     });
     if (!res.ok) {

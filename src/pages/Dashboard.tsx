@@ -125,18 +125,20 @@ export function Dashboard() {
 
   const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.totalValue, 0);
   const totalPortfolioValue = isLiveNotConnected ? null : totalPositionValue + (displayCash ?? 0);
-  const totalGain = isLiveNotConnected ? null : displayPositions.reduce((sum, p) => sum + p.totalGain, 0);
   // Day change comes from Alpaca account (equity - last_equity), stored on each sync
   const dayChange = isLiveNotConnected ? null
     : isPaperMode ? (paperPortfolio?.dayChange ?? null)
     : (portfolioSummary?.dayChange ?? null);
 
-  // Calculate portfolio performance from history
+  // Calculate portfolio performance from history (works for both paper and live modes)
   const chartData = useMemo(() => {
-    const history = paperPortfolio?.history;
-    if (!isPaperMode || !history || history.length === 0) {
-      return [];
-    }
+    // Paper mode: use paperPortfolio.history
+    // Live mode: use portfolioSummary.portfolioHistory
+    const history = isPaperMode
+      ? paperPortfolio?.history
+      : portfolioSummary?.portfolioHistory;
+
+    if (!history || history.length === 0) return [];
 
     // Group snapshots by date and take the last value of each day
     const dailyData = new Map<string, number>();
@@ -150,19 +152,33 @@ export function Dashboard() {
       date,
       value,
     }));
-  }, [isPaperMode, paperPortfolio?.history]);
+  }, [isPaperMode, paperPortfolio?.history, portfolioSummary?.portfolioHistory]);
 
-  // Calculate P&L stats
-  // In live mode, we don't have a meaningful "starting balance" stored in the app —
-  // only paper portfolio tracks its own starting balance.
-  // For live mode, show unrealized P&L (positions gain/loss) instead of inception gain.
+  // Calculate P&L stats — total account gain from starting balance
   const startingBalance = isPaperMode ? (paperPortfolio?.startingBalance ?? 100000) : null;
-  const totalPnL = isPaperMode && startingBalance !== null && totalPortfolioValue !== null
-    ? totalPortfolioValue - startingBalance
-    : null;
-  const totalPnLPercent = totalPnL !== null && startingBalance
-    ? (totalPnL / startingBalance) * 100
-    : null;
+  // For paper: total P&L from starting balance. For live: use Alpaca portfolio history first equity.
+  const totalPnL = (() => {
+    if (isLiveNotConnected || totalPortfolioValue === null) return null;
+    if (isPaperMode && startingBalance !== null) {
+      return totalPortfolioValue - startingBalance;
+    }
+    // Live mode: compute from portfolio history if available
+    const liveHistory = portfolioSummary?.portfolioHistory;
+    if (liveHistory && liveHistory.length > 0) {
+      return totalPortfolioValue - liveHistory[0].totalValue;
+    }
+    // Fallback: unrealized P/L from positions
+    return displayPositions.reduce((sum, p) => sum + p.totalGain, 0);
+  })();
+  const totalPnLPercent = (() => {
+    if (totalPnL === null) return null;
+    if (isPaperMode && startingBalance) return (totalPnL / startingBalance) * 100;
+    const liveHistory = portfolioSummary?.portfolioHistory;
+    if (liveHistory && liveHistory.length > 0 && liveHistory[0].totalValue > 0) {
+      return (totalPnL / liveHistory[0].totalValue) * 100;
+    }
+    return null;
+  })();
 
   // Quick Backtest function
   const runQuickBacktest = async () => {
@@ -271,9 +287,9 @@ export function Dashboard() {
         />
         <StatCard
           title="Total Gain/Loss"
-          value={totalGain !== null ? `$${totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
-          subtitle={isLiveNotConnected ? 'Not connected' : (totalGain !== null && totalGain >= 0 ? 'All-time profit' : 'All-time loss')}
-          valueColor={totalGain !== null ? (totalGain >= 0 ? 'text-emerald-400' : 'text-red-400') : undefined}
+          value={totalPnL !== null ? `$${totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+          subtitle={isLiveNotConnected ? 'Not connected' : (totalPnL !== null && totalPnL >= 0 ? 'All-time profit' : 'All-time loss')}
+          valueColor={totalPnL !== null ? (totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400') : undefined}
         />
         <StatCard
           title="Day Change"
@@ -289,7 +305,7 @@ export function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg md:text-xl font-semibold">Portfolio Performance</h2>
               <div className="text-right">
-                {isPaperMode && totalPnL !== null ? (
+                {totalPnL !== null && !isLiveNotConnected ? (
                   <>
                     <div className={`text-lg font-semibold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {totalPnL >= 0 ? '+' : ''}${totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -297,13 +313,6 @@ export function Dashboard() {
                     <div className={`text-sm ${(totalPnLPercent ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {(totalPnLPercent ?? 0) >= 0 ? '+' : ''}{(totalPnLPercent ?? 0).toFixed(2)}% since start
                     </div>
-                  </>
-                ) : !isPaperMode && totalGain !== null && !isLiveNotConnected ? (
-                  <>
-                    <div className={`text-lg font-semibold ${totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {totalGain >= 0 ? '+' : ''}${totalGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                    <div className="text-sm text-slate-400">Unrealized P&L</div>
                   </>
                 ) : (
                   <div className="text-slate-400">--</div>
@@ -334,7 +343,7 @@ export function Dashboard() {
                     <Line
                       type="monotone"
                       dataKey="value"
-                      stroke={(isPaperMode ? (totalPnL ?? 0) : (totalGain ?? 0)) >= 0 ? '#10b981' : '#ef4444'}
+                      stroke={(totalPnL ?? 0) >= 0 ? '#10b981' : '#ef4444'}
                       strokeWidth={2}
                       dot={chartData.length < 20}
                     />

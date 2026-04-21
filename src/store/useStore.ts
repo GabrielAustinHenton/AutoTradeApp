@@ -566,9 +566,14 @@ export const useStore = create<AppState>()(
         if (!isPaper && !alpaca.isLiveConfigured()) return;
 
         try {
-          const [account, alpacaPositions] = await Promise.all([
+          const [account, alpacaPositions, recentFilledOrders, portfolioHistory] = await Promise.all([
             alpaca.getAccount(isPaper),
             alpaca.getPositions(isPaper),
+            alpaca.getOrders(isPaper, 'closed').then(
+              (orders) => orders.filter((o) => o.status === 'filled' && o.filled_avg_price).slice(0, 20),
+              () => [] as Awaited<ReturnType<typeof alpaca.getOrders>>,
+            ),
+            alpaca.getPortfolioHistory(isPaper, '3M', '1D').catch(() => null),
           ]);
 
           const cashBalance = parseFloat(account.cash);          // uninvested cash
@@ -613,29 +618,56 @@ export const useStore = create<AppState>()(
             ? (dayChange / parseFloat(account.last_equity)) * 100
             : 0;
 
+          // Convert filled orders to Trade objects for Recent Trades display
+          const recentTrades: Trade[] = recentFilledOrders.map((o) => ({
+            id: o.id,
+            symbol: o.symbol,
+            type: o.side === 'buy' ? 'buy' as const : 'sell' as const,
+            shares: parseFloat(o.filled_qty),
+            price: parseFloat(o.filled_avg_price!),
+            total: parseFloat(o.filled_qty) * parseFloat(o.filled_avg_price!),
+            date: new Date(o.filled_at!),
+          }));
+
+          // Build chart history from Alpaca portfolio history API (much richer than 1-per-day snapshots)
+          const alpacaHistory: Array<{ date: Date; totalValue: number; cashBalance: number; positionsValue: number }> = [];
+          if (portfolioHistory && portfolioHistory.timestamp.length > 0) {
+            for (let i = 0; i < portfolioHistory.timestamp.length; i++) {
+              if (portfolioHistory.equity[i] != null) {
+                alpacaHistory.push({
+                  date: new Date(portfolioHistory.timestamp[i] * 1000),
+                  totalValue: portfolioHistory.equity[i],
+                  cashBalance: 0,
+                  positionsValue: 0,
+                });
+              }
+            }
+          }
+
           if (isPaper) {
             // Paper sync → update paperPortfolio so it doesn't bleed into live view
             set((s) => {
-              // Clear stale history that belongs to a previous account.
-              // Heuristic: if every snapshot is <50% of current portfolio value, it's old data.
-              const existingHistory = s.paperPortfolio.history || [];
-              const isStaleHistory =
-                existingHistory.length > 0 &&
-                existingHistory.every((h) => h.totalValue < totalValue * 0.5);
-              if (isStaleHistory) {
-                console.log(`[Store] Clearing stale history (last snapshot ~$${existingHistory[existingHistory.length - 1].totalValue.toFixed(0)}, current value ~$${totalValue.toFixed(0)})`);
+              // Use Alpaca portfolio history if available, otherwise accumulate daily snapshots
+              let newHistory;
+              if (alpacaHistory.length > 1) {
+                newHistory = alpacaHistory;
+              } else {
+                const existingHistory = s.paperPortfolio.history || [];
+                const isStaleHistory =
+                  existingHistory.length > 0 &&
+                  existingHistory.every((h) => h.totalValue < totalValue * 0.5);
+                if (isStaleHistory) {
+                  console.log(`[Store] Clearing stale history (last snapshot ~$${existingHistory[existingHistory.length - 1].totalValue.toFixed(0)}, current value ~$${totalValue.toFixed(0)})`);
+                }
+                const baseHistory = isStaleHistory ? [] : existingHistory;
+                const todayStr = new Date().toDateString();
+                const lastSnap = baseHistory[baseHistory.length - 1];
+                const alreadyRecordedToday = lastSnap && new Date(lastSnap.date).toDateString() === todayStr;
+                const positionsValue = positions.reduce((sum, p) => sum + p.totalValue, 0);
+                newHistory = alreadyRecordedToday
+                  ? baseHistory
+                  : [...baseHistory, { date: new Date(), totalValue, cashBalance, positionsValue }].slice(-365);
               }
-
-              // Record one portfolio snapshot per calendar day using Alpaca's portfolio_value.
-              // This powers the Dashboard performance chart without needing manual trades.
-              const baseHistory = isStaleHistory ? [] : existingHistory;
-              const todayStr = new Date().toDateString();
-              const lastSnap = baseHistory[baseHistory.length - 1];
-              const alreadyRecordedToday = lastSnap && new Date(lastSnap.date).toDateString() === todayStr;
-              const positionsValue = positions.reduce((sum, p) => sum + p.totalValue, 0);
-              const newHistory = alreadyRecordedToday
-                ? baseHistory
-                : [...baseHistory, { date: new Date(), totalValue, cashBalance, positionsValue }].slice(-365);
 
               return {
                 alpacaSynced: true,
@@ -646,6 +678,7 @@ export const useStore = create<AppState>()(
                   dayChange,
                   positions,
                   shortPositions,
+                  trades: recentTrades.length > 0 ? recentTrades : s.paperPortfolio.trades,
                   history: newHistory,
                 },
               };
@@ -656,6 +689,7 @@ export const useStore = create<AppState>()(
             set({
               cashBalance: buyingPower,
               positions,
+              trades: recentTrades.length > 0 ? recentTrades : get().trades,
               alpacaSynced: true,
               portfolioSummary: {
                 totalValue,
@@ -665,6 +699,7 @@ export const useStore = create<AppState>()(
                 dayChange,
                 dayChangePercent,
                 cashBalance: buyingPower,
+                portfolioHistory: alpacaHistory.length > 1 ? alpacaHistory : get().portfolioSummary?.portfolioHistory,
               },
             });
           }
