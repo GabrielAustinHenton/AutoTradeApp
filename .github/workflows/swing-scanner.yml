@@ -8,6 +8,11 @@ on:
     - cron: '45 19 * * 1-5'
   # Manual trigger for testing
   workflow_dispatch:
+    inputs:
+      is_live:
+        description: 'Use live account? (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
   scan:
@@ -30,6 +35,8 @@ jobs:
         env:
           ALPACA_SWING_KEY_ID: ${{ secrets.ALPACA_SWING_KEY_ID }}
           ALPACA_SWING_SECRET_KEY: ${{ secrets.ALPACA_SWING_SECRET_KEY }}
+          ALPACA_LIVE: ${{ github.event.inputs.is_live || 'false' }}
           SWING_CAPITAL_PER_TRADE: '100'
           SWING_MAX_POSITIONS: '5'
+          SWING_LONG_ONLY: 'true'
         run: npx tsx scripts/swing-cron.ts

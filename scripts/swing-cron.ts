@@ -34,6 +34,7 @@ const KEY_ID     = process.env.ALPACA_SWING_KEY_ID ?? '';
 const SECRET_KEY = process.env.ALPACA_SWING_SECRET_KEY ?? '';
 const CAPITAL_PER_TRADE = parseInt(process.env.SWING_CAPITAL_PER_TRADE || '100', 10);
 const MAX_POSITIONS     = parseInt(process.env.SWING_MAX_POSITIONS || '5', 10);
+const LONG_ONLY         = process.env.SWING_LONG_ONLY === 'true';
 
 const __cronDir = dirname(fileURLToPath(import.meta.url));
 let WATCHLIST: string[];
@@ -312,6 +313,11 @@ async function main(): Promise<void> {
     console.log(`[SWING] ${symbol}: ${analysis.regime} | RSI ${analysis.rsi.toFixed(1)} | price $${analysis.price.toFixed(2)} | SMA50 $${analysis.sma50.toFixed(2)} | ${entry.reason}`);
 
     if (!entry.shouldEnter) continue;
+
+    if (LONG_ONLY && entry.side === 'sell') {
+      console.log(`[SWING] ${symbol}: skipping short (SWING_LONG_ONLY=true)`);
+      continue;
+    }
 
     // Position sizing
     const qty = Math.max(1, Math.floor(CAPITAL_PER_TRADE / analysis.price));
