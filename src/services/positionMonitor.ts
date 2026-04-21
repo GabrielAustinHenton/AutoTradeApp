@@ -1,6 +1,5 @@
 import { useStore } from '../store/useStore';
 import { getQuote } from './alphaVantage';
-import { getBinancePrice, isCryptoSymbol } from './binanceApi';
 import { logger } from '../utils/logger';
 import type { Position, ShortPosition, TradingRule, AutoTradeExecution } from '../types';
 
@@ -382,14 +381,9 @@ async function scanPositions(): Promise<void> {
 
   for (const target of [...monitoredPositions]) {
     try {
-      // Use Binance for crypto, Alpha Vantage for stocks
       let currentPrice: number | null = null;
-      if (isCryptoSymbol(target.symbol)) {
-        currentPrice = await getBinancePrice(target.symbol);
-      } else {
-        const quote = await getQuote(target.symbol);
-        currentPrice = quote?.price ?? null;
-      }
+      const quote = await getQuote(target.symbol);
+      currentPrice = quote?.price ?? null;
 
       if (currentPrice === null) {
         logger.warn('PositionMonitor', `Could not get quote for ${target.symbol}`);
