@@ -317,6 +317,11 @@ async function main(): Promise<void> {
 
     if (!entry.shouldEnter) continue;
 
+    if (LONG_ONLY && entry.side === 'sell') {
+      console.log(`[SWING] ${symbol}: skipping short (SWING_LONG_ONLY=true)`);
+      continue;
+    }
+
     // Position sizing
     const qty = Math.max(1, Math.floor(CAPITAL_PER_TRADE / analysis.price));
     const isShort = entry.side === 'sell';

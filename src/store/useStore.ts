@@ -24,7 +24,7 @@ const defaultAutoTradeConfig: AutoTradeConfig = {
   enabled: false,
   maxTradesPerDay: 20,
   maxPositionSize: 10,
-  maxTradeDollarAmount: 3750,  // 15% of $25k mental budget — risk shrinks as % as portfolio grows
+  maxTradeDollarAmount: 15000,  // 15% of $100k budget — risk shrinks as % as portfolio grows
   tradingHoursOnly: true,
   // Yearly drawdown protection - stop trading if down 15% from year start
   yearlyDrawdownLimit: 15,
@@ -33,15 +33,15 @@ const defaultAutoTradeConfig: AutoTradeConfig = {
   drawdownStopTriggeredDate: null,
 };
 
-// Default paper portfolio - $25k to meet PDT requirements
+// Default paper portfolio - $100k Alpaca paper account
 const defaultPaperPortfolio: PaperPortfolio = {
-  cashBalance: 25000,
+  cashBalance: 100000,
   positions: [],
   shortPositions: [],  // Short positions for bearish trades
   trades: [],
   startingBalance: 100000,
   createdAt: new Date(),
-  history: [{ date: new Date(), totalValue: 25000, cashBalance: 25000, positionsValue: 0 }],
+  history: [{ date: new Date(), totalValue: 100000, cashBalance: 100000, positionsValue: 0 }],
 };
 
 
@@ -340,7 +340,7 @@ const initialPortfolioSummary: PortfolioSummary = {
   totalGainPercent: 0,
   dayChange: 0,
   dayChangePercent: 0,
-  cashBalance: 10000,
+  cashBalance: 100000,
 };
 
 export const useStore = create<AppState>()(
@@ -349,7 +349,7 @@ export const useStore = create<AppState>()(
       // Initial state
       positions: [],
       portfolioSummary: initialPortfolioSummary,
-      cashBalance: 10000,
+      cashBalance: 100000,
       watchlist: [...PERMANENT_WATCHLIST],
       trades: [],
       tradingRules: defaultPatternRules,
@@ -721,7 +721,7 @@ export const useStore = create<AppState>()(
           : s.autoTradeConfig,
       })),
 
-      resetPaperPortfolio: (initialBalance = 25000) => {
+      resetPaperPortfolio: (initialBalance = 100000) => {
         clearAllMonitoredPositions();  // Clear position monitor when portfolio is reset
         set({
           paperPortfolio: {
@@ -1270,7 +1270,7 @@ export const useStore = create<AppState>()(
             console.log(`[Store] Restored paper portfolio: $${merged.paperPortfolio.cashBalance.toFixed(2)} cash, ${merged.paperPortfolio.positions.length} positions`);
           } else {
             merged.paperPortfolio = defaultPaperPortfolio;
-            console.log('[Store] No existing paper portfolio, using default $10,000');
+            console.log('[Store] No existing paper portfolio, using default $100,000');
           }
           merged.trades = Array.isArray(persisted.trades) ? persisted.trades : [];
           merged.alerts = Array.isArray(persisted.alerts) ? persisted.alerts : [];
