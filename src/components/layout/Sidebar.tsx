@@ -1,24 +1,16 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../contexts/AuthContext';
 
-// Sub-pages that belong to SwingTrader — keep it lit while inside any of them
-const SWING_TRADER_PATHS = ['/swing-trader', '/backtest', '/journal', '/rules'];
-
 const navItems = [
   { path: '/', label: 'Dashboard', icon: '📊' },
-  { path: '/portfolio', label: 'Portfolio', icon: '💼' },
-  { path: '/trade', label: 'Trade', icon: '💹' },
   { path: '/history', label: 'Trade History', icon: '📜' },
-  { path: '/charts', label: 'Charts', icon: '📈' },
-  { path: '/swing-trader', label: 'SwingTrader App', icon: '🔄' },
   { path: '/settings', label: 'Settings', icon: '🔧' },
 ];
 
 export function Sidebar() {
   const { alpacaConnected } = useStore();
   const { user, userProfile, logOut, isConfigured } = useAuth();
-  const location = useLocation();
 
   const handleSignOut = async () => {
     try {
@@ -31,18 +23,18 @@ export function Sidebar() {
   return (
     <aside className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-emerald-400">TradeApp</h1>
+        <h1 className="text-2xl font-bold text-emerald-400">AutoTrader</h1>
+        <p className="text-xs text-slate-500 mt-1">ORB Day Trading</p>
       </div>
       <nav className="space-y-2 flex-1">
-        {navItems.map((item) => {
-          const isSwingSection = item.path === '/swing-trader' && SWING_TRADER_PATHS.includes(location.pathname);
-          return (
+        {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
+            end={item.path === '/'}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive || isSwingSection
+                isActive
                   ? 'bg-emerald-600 text-white'
                   : 'text-slate-300 hover:bg-slate-800'
               }`
@@ -51,8 +43,7 @@ export function Sidebar() {
             <span>{item.icon}</span>
             <span>{item.label}</span>
           </NavLink>
-          );
-        })}
+        ))}
       </nav>
 
       {/* Alpaca Connection Status */}

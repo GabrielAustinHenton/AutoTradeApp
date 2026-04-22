@@ -14,6 +14,8 @@ import type {
   AutoTradeConfig,
   AutoTradeExecution,
   BacktestResult,
+  PDTStatus,
+  MarketRegimeStatus,
 } from '../types';
 import { alpaca } from '../services/alpaca';
 import { PERMANENT_WATCHLIST } from '../config/watchlist';
@@ -253,6 +255,12 @@ interface AppState {
   autoTradeConfig: AutoTradeConfig;
   autoTradeExecutions: AutoTradeExecution[];
 
+  // PDT Protection
+  pdtStatus: PDTStatus;
+
+  // Market Regime
+  marketRegime: MarketRegimeStatus;
+
   // Backtesting
   backtestResults: BacktestResult[];
 
@@ -323,6 +331,10 @@ interface AppState {
   addAutoTradeExecution: (execution: AutoTradeExecution) => void;
   getTodayAutoTradeCount: () => number;
 
+  // Actions - PDT & Market Regime
+  updatePDTStatus: (status: Partial<PDTStatus>) => void;
+  updateMarketRegime: (regime: Partial<MarketRegimeStatus>) => void;
+
   // Actions - Backtesting
   addBacktestResult: (result: BacktestResult) => void;
   removeBacktestResult: (id: string) => void;
@@ -369,6 +381,24 @@ export const useStore = create<AppState>()(
       // Auto-Trading
       autoTradeConfig: defaultAutoTradeConfig,
       autoTradeExecutions: [],
+
+      // PDT Protection
+      pdtStatus: {
+        equity: 0,
+        isAbovePDT: false,
+        dayTradeCount: 0,
+        dayTradesRemaining: 3,
+        tradingPaused: false,
+      },
+
+      // Market Regime
+      marketRegime: {
+        regime: 'bullish' as const,
+        spyPrice: 0,
+        sma200: 0,
+        lastChecked: null,
+        overrideEnabled: false,
+      },
 
       // Backtesting
       backtestResults: [],
@@ -579,6 +609,21 @@ export const useStore = create<AppState>()(
           const cashBalance = parseFloat(account.cash);          // uninvested cash
           const buyingPower = parseFloat(account.buying_power);  // includes margin
           const totalValue = parseFloat(account.portfolio_value);
+
+          const equity = parseFloat(account.equity);
+          const dayTradeCount = account.daytrade_count ?? 0;
+          const isAbovePDT = equity >= 25000;
+          const dayTradesRemaining = isAbovePDT ? 999 : Math.max(0, 3 - dayTradeCount);
+
+          set({
+            pdtStatus: {
+              equity,
+              isAbovePDT,
+              dayTradeCount,
+              dayTradesRemaining,
+              tradingPaused: !isAbovePDT && dayTradesRemaining === 0,
+            },
+          });
 
           const positions: Position[] = alpacaPositions
             .filter((p) => p.side === 'long')
@@ -1142,8 +1187,7 @@ export const useStore = create<AppState>()(
           if ('enabled' in config) {
             const updatedRules = state.tradingRules.map(rule => ({
               ...rule,
-              enabled: config.enabled,
-              autoTrade: config.enabled,
+              autoTrade: config.enabled!,
             }));
             return {
               autoTradeConfig: newConfig,
@@ -1167,6 +1211,17 @@ export const useStore = create<AppState>()(
           (e) => new Date(e.timestamp) >= today && e.status === 'executed'
         ).length;
       },
+
+      // PDT & Market Regime actions
+      updatePDTStatus: (status) =>
+        set((state) => ({
+          pdtStatus: { ...state.pdtStatus, ...status },
+        })),
+
+      updateMarketRegime: (regime) =>
+        set((state) => ({
+          marketRegime: { ...state.marketRegime, ...regime },
+        })),
 
       // Backtesting actions
       addBacktestResult: (result) =>

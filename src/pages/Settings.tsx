@@ -1,15 +1,12 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { alpaca } from '../services/alpaca';
-import { github } from '../services/github';
-import { canExecuteAutoTrade, executeAutoTrade } from '../services/autoTrader';
 import { resetOrbScanner } from '../services/orbScanner';
 import { saveAlpacaCredsToFirestore } from '../services/firestoreSync';
 import { useAuth } from '../contexts/AuthContext';
-import type { Alert } from '../types';
 
 export function Settings() {
-  const { user, userProfile, logOut, updateUserProfile, isConfigured } = useAuth();
+  const { user, userProfile, logOut, isConfigured } = useAuth();
   const {
     alpacaPaperConnected,
     alpacaLiveConnected,
@@ -18,503 +15,219 @@ export function Settings() {
     disconnectAlpacaPaper,
     disconnectAlpacaLive,
     syncFromAlpaca,
-    alertsEnabled,
-    soundEnabled,
-    toggleAlerts,
-    toggleSound,
     tradingMode,
     setTradingMode,
     paperPortfolio,
     setPaperStartingBalance,
-    resetTradingRules,
     autoTradeConfig,
     updateAutoTradeConfig,
-    tradingRules,
-    addAlert,
-    autoTradeExecutions,
+    marketRegime,
+    updateMarketRegime,
   } = useStore();
 
   const [startingBalanceInput, setStartingBalanceInput] = useState(
     String(paperPortfolio.startingBalance ?? 100000)
   );
 
-  // Alpaca form state — separate fields for paper and live
   const [paperKeyId, setPaperKeyId] = useState(alpaca.getPaperKeyId());
-  const [paperSecret, setPaperSecret] = useState('');  // never pre-fill secrets
+  const [paperSecret, setPaperSecret] = useState('');
   const [liveKeyId, setLiveKeyId] = useState(alpaca.getLiveKeyId());
   const [liveSecret, setLiveSecret] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [testingAutoTrade, setTestingAutoTrade] = useState(false);
-  const [autoTradeTestResult, setAutoTradeTestResult] = useState<string | null>(null);
-
-  // GitHub PAT state
-  const [githubPat, setGithubPat] = useState('');
-  const [githubConnected, setGithubConnected] = useState(github.isConfigured());
-  const [githubConnecting, setGithubConnecting] = useState(false);
-  const [githubError, setGithubError] = useState<string | null>(null);
-
-  // Get rules that have auto-trade enabled
-  const autoTradeRules = tradingRules.filter((r) => r.autoTrade && r.enabled && r.ruleType === 'pattern');
-
-  // Test auto-trade function
-  const handleTestAutoTrade = async () => {
-    if (autoTradeRules.length === 0) {
-      setAutoTradeTestResult('No rules have auto-trade enabled. Enable auto-trade on a rule in the Rules page first.');
-      return;
-    }
-
-    setTestingAutoTrade(true);
-    setAutoTradeTestResult(null);
-
-    // Pick the first auto-trade enabled rule
-    const testRule = autoTradeRules[0];
-
-    // Check if we can execute
-    const canExecute = canExecuteAutoTrade(testRule, autoTradeConfig);
-    if (!canExecute.allowed) {
-      setAutoTradeTestResult(`Cannot execute: ${canExecute.reason}`);
-      setTestingAutoTrade(false);
-      return;
-    }
-
-    // Create a test alert
-    const testAlert: Alert = {
-      id: crypto.randomUUID(),
-      type: 'pattern',
-      symbol: testRule.symbol,
-      message: `TEST: ${testRule.pattern} pattern on ${testRule.symbol}`,
-      signal: testRule.type,
-      pattern: testRule.pattern,
-      ruleId: testRule.id,
-      confidence: 0.85,
-      timestamp: new Date(),
-      read: false,
-      dismissed: false,
-    };
-
-    // Add the alert
-    addAlert(testAlert);
-
-    try {
-      // Execute the auto-trade
-      const execution = await executeAutoTrade(testAlert, testRule, tradingMode, autoTradeConfig);
-
-      if (execution.status === 'executed') {
-        setAutoTradeTestResult(
-          `Success! ${execution.type.toUpperCase()} ${execution.shares} shares of ${execution.symbol} at $${execution.price.toFixed(2)} (Total: $${execution.total.toFixed(2)})`
-        );
-      } else {
-        setAutoTradeTestResult(`Trade failed: ${execution.error}`);
-      }
-    } catch (err) {
-      setAutoTradeTestResult(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
-
-    setTestingAutoTrade(false);
-  };
 
   const handleConnectPaper = async () => {
-    if (!paperKeyId || !paperSecret) {
-      setError('Enter both Paper Key ID and Secret Key.');
-      return;
-    }
-    setError(null);
-    setSuccess(null);
-    setConnecting(true);
+    if (!paperKeyId || !paperSecret) { setError('Enter both Paper Key ID and Secret Key.'); return; }
+    setError(null); setSuccess(null); setConnecting(true);
     try {
       alpaca.configurePaper(paperKeyId, paperSecret);
-      await alpaca.getAccount(true); // verify against paper endpoint
+      await alpaca.getAccount(true);
       connectAlpacaPaper(paperKeyId, paperSecret);
       if (user) saveAlpacaCredsToFirestore(user.uid, 'paper', { keyId: paperKeyId, secretKey: paperSecret });
       resetOrbScanner();
-      setPaperSecret(''); // clear secret from UI after saving
-      // Auto-sync if currently in paper mode so Dashboard shows live data immediately
-      if (tradingMode === 'paper') {
-        await syncFromAlpaca().catch(() => {});
-      }
-      setSuccess('Paper account connected! Trades in paper mode will show in your Alpaca paper account.');
+      setPaperSecret('');
+      if (tradingMode === 'paper') await syncFromAlpaca().catch(() => {});
+      setSuccess('Paper account connected!');
     } catch (err) {
       alpaca.clearPaper();
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      setError(msg.includes('401')
-        ? 'Invalid paper API keys. Get them from app.alpaca.markets → Paper Trading → API Keys.'
-        : `Connection failed: ${msg}`);
-    } finally {
-      setConnecting(false);
-    }
+      setError(msg.includes('401') ? 'Invalid paper API keys.' : `Connection failed: ${msg}`);
+    } finally { setConnecting(false); }
   };
 
   const handleConnectLive = async () => {
-    if (!liveKeyId || !liveSecret) {
-      setError('Enter both Live Key ID and Secret Key.');
-      return;
-    }
-    setError(null);
-    setSuccess(null);
-    setConnecting(true);
+    if (!liveKeyId || !liveSecret) { setError('Enter both Live Key ID and Secret Key.'); return; }
+    setError(null); setSuccess(null); setConnecting(true);
     try {
       alpaca.configureLive(liveKeyId, liveSecret);
-      await alpaca.getAccount(false); // verify against live endpoint
+      await alpaca.getAccount(false);
       connectAlpacaLive(liveKeyId, liveSecret);
       if (user) saveAlpacaCredsToFirestore(user.uid, 'live', { keyId: liveKeyId, secretKey: liveSecret });
-      setLiveSecret(''); // clear secret from UI after saving
-      // Auto-sync if currently in live mode so Dashboard shows live data immediately
-      if (tradingMode === 'live') {
-        await syncFromAlpaca().catch(() => {});
-      }
-      setSuccess('Live account connected! Auto-trading is disabled by default when you switch to live mode.');
+      setLiveSecret('');
+      if (tradingMode === 'live') await syncFromAlpaca().catch(() => {});
+      setSuccess('Live account connected! Auto-trading disabled by default.');
     } catch (err) {
       alpaca.clearLive();
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      setError(msg.includes('401')
-        ? 'Invalid live API keys. Get them from app.alpaca.markets → Live Trading → API Keys.'
-        : `Connection failed: ${msg}`);
-    } finally {
-      setConnecting(false);
-    }
+      setError(msg.includes('401') ? 'Invalid live API keys.' : `Connection failed: ${msg}`);
+    } finally { setConnecting(false); }
   };
 
-
-  const handleSyncPaper = async () => {
-    if (tradingMode !== 'paper') {
-      setError('You\'re in Live Trading mode. Switch to Paper Trading at the top of this page to sync your paper portfolio.');
-      return;
-    }
-    setError(null);
-    setSuccess(null);
-    setSyncing(true);
+  const handleSync = async () => {
+    setError(null); setSuccess(null); setSyncing(true);
     try {
       await syncFromAlpaca();
-      setSuccess('Paper portfolio synced!');
+      setSuccess('Portfolio synced!');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sync paper portfolio');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleSyncLive = async () => {
-    if (tradingMode !== 'live') {
-      setError('You\'re in Paper Trading mode. Switch to Live Trading at the top of this page to sync your live portfolio.');
-      return;
-    }
-    setError(null);
-    setSuccess(null);
-    setSyncing(true);
-    try {
-      await syncFromAlpaca();
-      setSuccess('Live portfolio synced!');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sync live portfolio');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleConnectGithub = async () => {
-    if (!githubPat) return;
-    setGithubError(null);
-    setGithubConnecting(true);
-    try {
-      github.configurePat(githubPat);
-      await github.validatePat();
-      setGithubConnected(true);
-      setGithubPat('');
-    } catch (err) {
-      github.clearPat();
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      setGithubError(msg.includes('401') || msg.includes('403')
-        ? 'Invalid token. Make sure it has Actions (Read and write) permission on this repo.'
-        : `Connection failed: ${msg}`);
-    } finally {
-      setGithubConnecting(false);
-    }
+      setError(err instanceof Error ? err.message : 'Sync failed');
+    } finally { setSyncing(false); }
   };
 
   return (
-    <div className="text-white max-w-4xl">
-      <h1 className="text-2xl md:text-3xl font-bold mb-6 md:mb-8">Settings</h1>
+    <div className="text-white max-w-3xl">
+      <h1 className="text-2xl md:text-3xl font-bold mb-6">Settings</h1>
 
       {/* Trading Mode */}
-      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-semibold mb-4 md:mb-6">Trading Mode</h2>
-
-        <div className="flex flex-col md:flex-row gap-3 md:gap-4 mb-4 md:mb-6">
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4">
+        <h2 className="text-lg font-semibold mb-4">Trading Mode</h2>
+        <div className="flex gap-3">
           <button
             onClick={() => setTradingMode('paper')}
             className={`flex-1 p-4 rounded-lg border-2 transition-colors ${
-              tradingMode === 'paper'
-                ? 'border-emerald-500 bg-emerald-900/30'
-                : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
+              tradingMode === 'paper' ? 'border-emerald-500 bg-emerald-900/30' : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
             }`}
           >
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-xl md:text-2xl">📝</span>
-              <span className="font-semibold text-base md:text-lg">Paper Trading</span>
-            </div>
-            <p className="text-sm text-slate-400">
-              Practice trading with simulated money. No real money at risk.
-            </p>
+            <p className="font-semibold">Paper Trading</p>
+            <p className="text-sm text-slate-400 mt-1">Simulated — no real money</p>
           </button>
-
           <button
             onClick={() => setTradingMode('live')}
             disabled={!alpacaLiveConnected}
             className={`flex-1 p-4 rounded-lg border-2 transition-colors ${
-              tradingMode === 'live'
-                ? 'border-red-500 bg-red-900/30'
-                : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
+              tradingMode === 'live' ? 'border-red-500 bg-red-900/30' : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
             } ${!alpacaLiveConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-xl md:text-2xl">💰</span>
-              <span className="font-semibold text-base md:text-lg">Live Trading</span>
-            </div>
-            <p className="text-sm text-slate-400">
-              {alpacaLiveConnected
-                ? 'Trade with real money via Alpaca. Auto-trading disabled on switch.'
-                : 'Connect Live account below to enable live trading.'}
+            <p className="font-semibold">Live Trading</p>
+            <p className="text-sm text-slate-400 mt-1">
+              {alpacaLiveConnected ? 'Real money via Alpaca' : 'Connect live account first'}
             </p>
           </button>
         </div>
 
         {tradingMode === 'paper' && (
-          <div className="p-3 md:p-4 bg-slate-700/50 rounded-lg">
-            <h3 className="font-medium mb-4">Paper Portfolio</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 text-sm mb-4">
-              <div>
-                <span className="text-slate-400">Cash Balance</span>
-                <p className="font-semibold text-emerald-400">
-                  ${paperPortfolio.cashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-              <div>
-                <span className="text-slate-400">Positions</span>
-                <p className="font-semibold">{paperPortfolio.positions.length}</p>
-              </div>
-              <div>
-                <span className="text-slate-400">Total Trades</span>
-                <p className="font-semibold">{paperPortfolio.trades.length}</p>
-              </div>
-            </div>
-
-            {/* P&L Baseline */}
-            <div className="border-t border-slate-600 pt-4">
-              <p className="text-sm font-medium mb-1">P&amp;L Starting Balance</p>
-              <p className="text-xs text-slate-400 mb-3">
-                The baseline the Dashboard uses to calculate your profit/loss over time.
-                Set it to match what your Alpaca paper account started with.
-              </p>
+          <div className="mt-4 p-4 bg-slate-700/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-slate-400">P&L Baseline:</p>
               <div className="flex items-center gap-2">
                 <span className="text-slate-400 text-sm">$</span>
                 <input
                   type="number"
                   value={startingBalanceInput}
                   onChange={(e) => setStartingBalanceInput(e.target.value)}
-                  className="w-32 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500"
+                  className="w-28 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500"
                   min="1"
                 />
                 <button
-                  onClick={() => {
-                    const val = parseFloat(startingBalanceInput);
-                    if (!isNaN(val) && val > 0) setPaperStartingBalance(val);
-                  }}
+                  onClick={() => { const val = parseFloat(startingBalanceInput); if (!isNaN(val) && val > 0) setPaperStartingBalance(val); }}
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors"
                 >
                   Set
                 </button>
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Current baseline: ${(paperPortfolio.startingBalance ?? 100000).toLocaleString()}
-              </p>
-              <p className="text-xs text-slate-500 mt-3">
-                Portfolio data syncs from your Alpaca paper account. To reset your account balance,
-                visit <span className="text-blue-400">app.alpaca.markets → Paper Trading → Reset Account</span>.
-              </p>
             </div>
           </div>
         )}
 
         {tradingMode === 'live' && (
-          <div className="p-4 bg-red-900/20 border border-red-700 rounded-lg">
-            <div className="flex items-center gap-2 text-red-400">
-              <span>⚠️</span>
-              <span className="font-medium">Live Trading Active</span>
-            </div>
-            <p className="text-sm text-slate-400 mt-1">
-              All trades will be executed with real money through your Alpaca account.
-            </p>
+          <div className="mt-4 p-3 bg-red-900/20 border border-red-700 rounded-lg text-sm text-red-300">
+            All trades use real money through your Alpaca account.
           </div>
         )}
       </div>
 
       {/* Alpaca Connection */}
-      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-semibold mb-1">Alpaca Markets</h2>
-        <p className="text-slate-400 text-sm mb-4">
-          Paper and Live accounts are completely separate — it's impossible to accidentally use real money in paper mode.
-        </p>
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4">
+        <h2 className="text-lg font-semibold mb-1">Alpaca Markets</h2>
+        <p className="text-slate-400 text-sm mb-4">Paper and live accounts are completely separate.</p>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded-lg text-emerald-300 text-sm">
-            {success}
-          </div>
-        )}
+        {error && <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">{error}</div>}
+        {success && <div className="mb-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded-lg text-emerald-300 text-sm">{success}</div>}
 
         <div className="space-y-4">
-          {/* ── Paper Trading ── */}
-          <div className={`p-4 rounded-lg border transition-all ${
-            tradingMode === 'paper'
-              ? alpacaPaperConnected
-                ? 'bg-emerald-900/30 border-emerald-500 ring-2 ring-emerald-500/30'
-                : 'bg-slate-700/50 border-emerald-500/60 ring-2 ring-emerald-500/20'
-              : alpacaPaperConnected
-                ? 'bg-emerald-900/20 border-emerald-700'
-                : 'bg-slate-700/50 border-slate-600'
-          }`}>
+          {/* Paper */}
+          <div className={`p-4 rounded-lg border ${alpacaPaperConnected ? 'bg-emerald-900/20 border-emerald-700' : 'bg-slate-700/50 border-slate-600'}`}>
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium">Paper Trading</h3>
-                  {tradingMode === 'paper' && (
-                    <span className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/50 rounded text-xs text-emerald-400 font-medium">
-                      Active Mode
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Paper Trading → API Keys</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-medium">Paper Trading</h3>
+                {tradingMode === 'paper' && <span className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/50 rounded text-xs text-emerald-400">Active</span>}
               </div>
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${alpacaPaperConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-                <span className={`text-xs font-medium ${alpacaPaperConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
+                <span className={`w-2 h-2 rounded-full ${alpacaPaperConnected ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                <span className={`text-xs ${alpacaPaperConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
                   {alpacaPaperConnected ? 'Connected' : 'Not connected'}
                 </span>
               </div>
             </div>
-
             {alpacaPaperConnected ? (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={handleSyncPaper}
-                  disabled={syncing}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                >
-                  {syncing ? 'Syncing...' : 'Sync Paper Portfolio'}
+              <div className="flex gap-2">
+                <button onClick={handleSync} disabled={syncing || tradingMode !== 'paper'}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors">
+                  {syncing ? 'Syncing...' : 'Sync'}
                 </button>
-                <button
-                  onClick={() => { disconnectAlpacaPaper(); setPaperKeyId(''); setPaperSecret(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'paper', null); }}
-                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
-                >
+                <button onClick={() => { disconnectAlpacaPaper(); setPaperKeyId(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'paper', null); }}
+                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors">
                   Disconnect
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
-                <input
-                  type="text"
-                  value={paperKeyId}
-                  onChange={(e) => setPaperKeyId(e.target.value.trim())}
-                  placeholder="Paper Key ID (PK...)"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-                <input
-                  type="password"
-                  value={paperSecret}
-                  onChange={(e) => setPaperSecret(e.target.value.trim())}
-                  placeholder="Paper Secret Key"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-                />
-                <button
-                  onClick={handleConnectPaper}
-                  disabled={connecting || !paperKeyId || !paperSecret}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                >
+                <input type="text" value={paperKeyId} onChange={(e) => setPaperKeyId(e.target.value.trim())} placeholder="Paper Key ID (PK...)"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+                <input type="password" value={paperSecret} onChange={(e) => setPaperSecret(e.target.value.trim())} placeholder="Paper Secret Key"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+                <button onClick={handleConnectPaper} disabled={connecting || !paperKeyId || !paperSecret}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors">
                   {connecting ? 'Connecting...' : 'Connect Paper Account'}
                 </button>
               </div>
             )}
           </div>
 
-          {/* ── Live Trading ── */}
-          <div className={`p-4 rounded-lg border transition-all ${
-            tradingMode === 'live'
-              ? alpacaLiveConnected
-                ? 'bg-red-900/30 border-red-500 ring-2 ring-red-500/30'
-                : 'bg-slate-700/50 border-red-500/60 ring-2 ring-red-500/20'
-              : alpacaLiveConnected
-                ? 'bg-red-900/20 border-red-800'
-                : 'bg-slate-700/50 border-slate-600'
-          }`}>
+          {/* Live */}
+          <div className={`p-4 rounded-lg border ${alpacaLiveConnected ? 'bg-red-900/20 border-red-800' : 'bg-slate-700/50 border-slate-600'}`}>
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium">Live Trading</h3>
-                  {tradingMode === 'live' && (
-                    <span className="px-1.5 py-0.5 bg-red-500/20 border border-red-500/50 rounded text-xs text-red-400 font-medium">
-                      Active Mode
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">app.alpaca.markets → Live Trading → API Keys</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-medium">Live Trading</h3>
+                {tradingMode === 'live' && <span className="px-1.5 py-0.5 bg-red-500/20 border border-red-500/50 rounded text-xs text-red-400">Active</span>}
               </div>
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${alpacaLiveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-                <span className={`text-xs font-medium ${alpacaLiveConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
+                <span className={`w-2 h-2 rounded-full ${alpacaLiveConnected ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                <span className={`text-xs ${alpacaLiveConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
                   {alpacaLiveConnected ? 'Connected' : 'Not connected'}
                 </span>
               </div>
             </div>
-
             {alpacaLiveConnected ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={handleSyncLive}
-                    disabled={syncing}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                  >
-                    {syncing ? 'Syncing...' : 'Sync Live Portfolio'}
-                  </button>
-                  <button
-                    onClick={() => { disconnectAlpacaLive(); setLiveKeyId(''); setLiveSecret(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'live', null); }}
-                    className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Disconnect
-                  </button>
-                </div>
-                <p className="text-xs text-amber-400">
-                  Auto-trading is disabled whenever you switch to Live mode. You must manually enable it in Auto-Trading above.
-                </p>
+              <div className="flex gap-2">
+                <button onClick={handleSync} disabled={syncing || tradingMode !== 'live'}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors">
+                  {syncing ? 'Syncing...' : 'Sync'}
+                </button>
+                <button onClick={() => { disconnectAlpacaLive(); setLiveKeyId(''); if (user) saveAlpacaCredsToFirestore(user.uid, 'live', null); }}
+                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors">
+                  Disconnect
+                </button>
               </div>
             ) : (
               <div className="space-y-2">
-                <input
-                  type="text"
-                  value={liveKeyId}
-                  onChange={(e) => setLiveKeyId(e.target.value.trim())}
-                  placeholder="Live Key ID (AK...)"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-                <input
-                  type="password"
-                  value={liveSecret}
-                  onChange={(e) => setLiveSecret(e.target.value.trim())}
-                  placeholder="Live Secret Key"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-                <button
-                  onClick={handleConnectLive}
-                  disabled={connecting || !liveKeyId || !liveSecret}
-                  className="w-full py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-                >
+                <input type="text" value={liveKeyId} onChange={(e) => setLiveKeyId(e.target.value.trim())} placeholder="Live Key ID (AK...)"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500" />
+                <input type="password" value={liveSecret} onChange={(e) => setLiveSecret(e.target.value.trim())} placeholder="Live Secret Key"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500" />
+                <button onClick={handleConnectLive} disabled={connecting || !liveKeyId || !liveSecret}
+                  className="w-full py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors">
                   {connecting ? 'Connecting...' : 'Connect Live Account'}
                 </button>
               </div>
@@ -523,162 +236,91 @@ export function Settings() {
         </div>
       </div>
 
-      {/* GitHub — ORB Scanner Control */}
-      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-semibold mb-1">ORB Scanner Control</h2>
-        <p className="text-slate-400 text-sm mb-4">
-          Connect a GitHub token to enable/disable and monitor the automated ORB scanner from this app.
-        </p>
-
-        {githubError && (
-          <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
-            {githubError}
-          </div>
-        )}
-
-        <div className={`p-4 rounded-lg border transition-all ${
-          githubConnected ? 'bg-blue-900/20 border-blue-700' : 'bg-slate-700/50 border-slate-600'
-        }`}>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-medium">GitHub Access</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Fine-grained PAT → AutoTradeApp → Actions (Read and write)
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${githubConnected ? 'bg-blue-400 animate-pulse' : 'bg-slate-500'}`} />
-              <span className={`text-xs font-medium ${githubConnected ? 'text-blue-400' : 'text-slate-400'}`}>
-                {githubConnected ? 'Connected' : 'Not connected'}
-              </span>
-            </div>
-          </div>
-
-          {githubConnected ? (
-            <button
-              onClick={() => { github.clearPat(); setGithubConnected(false); }}
-              className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <input
-                type="password"
-                value={githubPat}
-                onChange={(e) => setGithubPat(e.target.value.trim())}
-                placeholder="github_pat_..."
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-              <button
-                onClick={handleConnectGithub}
-                disabled={githubConnecting || !githubPat}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-              >
-                {githubConnecting ? 'Connecting...' : 'Connect GitHub'}
-              </button>
-              <p className="text-xs text-slate-500">
-                Create at: GitHub → Settings → Developer settings → Fine-grained personal access tokens
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Auto-Trading */}
-      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
-        <div className="flex items-center justify-between mb-4 md:mb-6">
-          <div className="w-3/4">
-            <h2 className="text-lg md:text-xl font-semibold">Auto-Trading</h2>
-            <p className="text-slate-400 text-sm mt-1">
-              Automatically execute trades when pattern rules trigger
-            </p>
+      {/* Auto-Trading & Risk */}
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold">Auto-Trading</h2>
+            <p className="text-slate-400 text-sm mt-1">ORB strategy executes automatically when signals fire</p>
           </div>
           <button
-            onClick={() => updateAutoTradeConfig({
-            enabled: !autoTradeConfig.enabled,
-            ...(!autoTradeConfig.enabled && { tradingHoursOnly: true }),
-          })}
+            onClick={() => updateAutoTradeConfig({ enabled: !autoTradeConfig.enabled })}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
               autoTradeConfig.enabled ? 'bg-emerald-600' : 'bg-slate-600'
             }`}
           >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                autoTradeConfig.enabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              autoTradeConfig.enabled ? 'translate-x-6' : 'translate-x-1'
+            }`} />
           </button>
         </div>
 
         {autoTradeConfig.enabled && tradingMode === 'live' && (
           <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
-            ⚠️ Auto-trading is enabled in LIVE mode. Real trades will be executed automatically!
+            Auto-trading is ON in LIVE mode. Real trades will execute automatically.
           </div>
         )}
 
-        <div className="space-y-3 md:space-y-4">
-          <div className="flex items-center justify-between p-3 md:p-4 bg-slate-700/50 rounded-lg">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
             <div>
-              <h3 className="font-medium text-sm md:text-base">Max $ Per Trade</h3>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">
-                Hard cap per auto-trade. $15,000 = 15% of $100k budget.
-                As your portfolio grows, this % naturally shrinks.
-              </p>
+              <p className="text-sm font-medium">Max $ Per Trade</p>
+              <p className="text-xs text-slate-400">15% of $100k = $15,000</p>
             </div>
             <div className="flex items-center gap-1">
               <span className="text-slate-400 text-sm">$</span>
-              <input
-                type="number"
-                value={autoTradeConfig.maxTradeDollarAmount ?? 15000}
+              <input type="number" value={autoTradeConfig.maxTradeDollarAmount ?? 15000}
                 onChange={(e) => updateAutoTradeConfig({ maxTradeDollarAmount: parseInt(e.target.value) || 15000 })}
-                min="100"
-                step="250"
-                className="w-24 px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-center focus:outline-none focus:border-emerald-500"
-              />
+                min="100" step="250"
+                className="w-24 px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-center text-sm focus:outline-none focus:border-emerald-500" />
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-3 md:p-4 bg-slate-700/50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
             <div>
-              <h3 className="font-medium text-sm md:text-base">Max Trades Per Day</h3>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">
-                Maximum number of auto-trades allowed per day
-              </p>
+              <p className="text-sm font-medium">Max Trades Per Day</p>
             </div>
-            <input
-              type="number"
-              value={autoTradeConfig.maxTradesPerDay}
+            <input type="number" value={autoTradeConfig.maxTradesPerDay}
               onChange={(e) => updateAutoTradeConfig({ maxTradesPerDay: parseInt(e.target.value) || 1 })}
-              min="1"
-              max="100"
-              className="w-20 px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-center focus:outline-none focus:border-emerald-500"
-            />
+              min="1" max="100"
+              className="w-20 px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-center text-sm focus:outline-none focus:border-emerald-500" />
           </div>
 
-          <div className="flex items-center justify-between p-3 md:p-4 bg-slate-700/50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
             <div>
-              <h3 className="font-medium text-sm md:text-base">Max Position Size</h3>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">
-                Maximum shares per auto-trade
-              </p>
+              <p className="text-sm font-medium">Yearly Drawdown Limit</p>
+              <p className="text-xs text-slate-400">Stop trading if down this % from Jan 1</p>
             </div>
-            <input
-              type="number"
-              value={autoTradeConfig.maxPositionSize}
-              onChange={(e) => updateAutoTradeConfig({ maxPositionSize: parseInt(e.target.value) || 1 })}
-              min="1"
-              max="10000"
-              className="w-20 px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-center focus:outline-none focus:border-emerald-500"
-            />
+            <div className="flex items-center gap-1">
+              <input type="number" value={autoTradeConfig.yearlyDrawdownLimit ?? 20}
+                onChange={(e) => updateAutoTradeConfig({ yearlyDrawdownLimit: parseInt(e.target.value) || 20 })}
+                min="5" max="50"
+                className="w-20 px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-center text-sm focus:outline-none focus:border-emerald-500" />
+              <span className="text-slate-400 text-sm">%</span>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between p-3 md:p-4 bg-slate-700/50 rounded-lg">
-            <div className="w-3/4">
-              <h3 className="font-medium text-sm md:text-base">Trading Hours Only</h3>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">
-                Only execute during market hours (9:30 AM - 4:00 PM ET)
-              </p>
+          <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+            <div>
+              <p className="text-sm font-medium">Bear Market Override</p>
+              <p className="text-xs text-slate-400">Trade even when SPY is below 200 SMA</p>
+            </div>
+            <button
+              onClick={() => updateMarketRegime({ overrideEnabled: !marketRegime.overrideEnabled })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                marketRegime.overrideEnabled ? 'bg-amber-600' : 'bg-slate-600'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                marketRegime.overrideEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+            <div>
+              <p className="text-sm font-medium">Trading Hours Only</p>
+              <p className="text-xs text-slate-400">9:30 AM - 4:00 PM ET</p>
             </div>
             <button
               onClick={() => updateAutoTradeConfig({ tradingHoursOnly: !autoTradeConfig.tradingHoursOnly })}
@@ -686,253 +328,41 @@ export function Settings() {
                 autoTradeConfig.tradingHoursOnly ? 'bg-emerald-600' : 'bg-slate-600'
               }`}
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  autoTradeConfig.tradingHoursOnly ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          {/* Test Auto-Trade */}
-          <div className="p-3 md:p-4 bg-slate-700/50 rounded-lg">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="font-medium text-sm md:text-base">Test Auto-Trade</h3>
-                <p className="text-xs md:text-sm text-slate-400 mt-1">
-                  Simulate a pattern detection to test auto-trading
-                </p>
-              </div>
-              <button
-                onClick={handleTestAutoTrade}
-                disabled={testingAutoTrade || !autoTradeConfig.enabled}
-                className="px-3 md:px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg font-medium text-sm md:text-base transition-colors"
-              >
-                {testingAutoTrade ? 'Testing...' : 'Run Test'}
-              </button>
-            </div>
-
-            {autoTradeRules.length > 0 && (
-              <p className="text-xs text-slate-500 mb-2">
-                Will test with: {autoTradeRules[0].name} ({autoTradeRules[0].symbol})
-              </p>
-            )}
-
-            {autoTradeTestResult && (
-              <div className={`p-3 rounded-lg text-sm ${
-                autoTradeTestResult.startsWith('Success')
-                  ? 'bg-emerald-900/30 border border-emerald-700 text-emerald-300'
-                  : 'bg-red-900/30 border border-red-700 text-red-300'
-              }`}>
-                {autoTradeTestResult}
-              </div>
-            )}
-
-            {!autoTradeConfig.enabled && (
-              <p className="text-sm text-amber-400">
-                Enable auto-trading above to run a test.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Execution History */}
-        {autoTradeExecutions.length > 0 && (
-          <div className="mt-6">
-            <h3 className="font-medium mb-3">Execution History</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-400 border-b border-slate-700">
-                    <th className="pb-2">Time</th>
-                    <th className="pb-2">Rule</th>
-                    <th className="pb-2">Symbol</th>
-                    <th className="pb-2">Type</th>
-                    <th className="pb-2">Shares</th>
-                    <th className="pb-2">Price</th>
-                    <th className="pb-2">Total</th>
-                    <th className="pb-2">Mode</th>
-                    <th className="pb-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {autoTradeExecutions.slice(0, 20).map((exec) => (
-                    <tr key={exec.id} className="border-b border-slate-700/50">
-                      <td className="py-2 text-slate-400">
-                        {new Date(exec.timestamp).toLocaleString()}
-                      </td>
-                      <td className="py-2">{exec.ruleName.substring(0, 20)}</td>
-                      <td className="py-2 font-medium">{exec.symbol}</td>
-                      <td className="py-2">
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          exec.type === 'buy'
-                            ? 'bg-emerald-900 text-emerald-300'
-                            : 'bg-red-900 text-red-300'
-                        }`}>
-                          {exec.type.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="py-2">{exec.shares}</td>
-                      <td className="py-2">${exec.price.toFixed(2)}</td>
-                      <td className="py-2">${exec.total.toFixed(2)}</td>
-                      <td className="py-2">
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          exec.mode === 'paper'
-                            ? 'bg-amber-900 text-amber-300'
-                            : 'bg-blue-900 text-blue-300'
-                        }`}>
-                          {exec.mode.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="py-2">
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          exec.status === 'executed'
-                            ? 'bg-emerald-900 text-emerald-300'
-                            : exec.status === 'failed'
-                            ? 'bg-red-900 text-red-300'
-                            : 'bg-slate-700 text-slate-300'
-                        }`}>
-                          {exec.status.toUpperCase()}
-                        </span>
-                        {exec.error && (
-                          <span className="ml-2 text-red-400 text-xs">{exec.error}</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {autoTradeExecutions.length > 20 && (
-                <p className="text-center text-slate-500 mt-3 text-xs">
-                  Showing 20 of {autoTradeExecutions.length} executions
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Alert Settings */}
-      <div className="bg-slate-800 rounded-xl p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-2">Alerts & Notifications</h2>
-        <p className="text-sm text-slate-400 mb-6">
-          These are <span className="text-white font-medium">manual trading signals only</span> — pop-up toasts that appear when the scanner detects a candlestick pattern on your watchlist. They do <span className="text-white font-medium">not</span> place trades automatically. Auto-trading is controlled separately under <span className="text-white font-medium">Auto-Trade Settings</span> above.
-        </p>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
-            <div className="w-3/4">
-              <h3 className="font-medium">Pattern Notifications</h3>
-              <p className="text-sm text-slate-400 mt-1">
-                Show on-screen toast notifications when buy/sell signals are detected.
-              </p>
-            </div>
-            <button
-              onClick={toggleAlerts}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                alertsEnabled ? 'bg-emerald-600' : 'bg-slate-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  alertsEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
-            <div className="w-3/4">
-              <h3 className="font-medium">Sound Notifications</h3>
-              <p className="text-sm text-slate-400 mt-1">
-                Play a sound when a signal alert fires. Off by default.
-              </p>
-            </div>
-            <button
-              onClick={toggleSound}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                soundEnabled ? 'bg-emerald-600' : 'bg-slate-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  soundEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                autoTradeConfig.tradingHoursOnly ? 'translate-x-6' : 'translate-x-1'
+              }`} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* User Account */}
+      {/* Account */}
       {isConfigured && user && (
-        <div className="bg-slate-800 rounded-xl p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-6">Your Account</h2>
-
-          <div className="flex items-center gap-4 mb-6 p-4 bg-slate-700/50 rounded-lg">
-            <div className="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center text-2xl font-bold">
+        <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4">
+          <h2 className="text-lg font-semibold mb-4">Account</h2>
+          <div className="flex items-center gap-4 mb-4 p-3 bg-slate-700/50 rounded-lg">
+            <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-lg font-bold">
               {(userProfile?.displayName || user.email || '?')[0].toUpperCase()}
             </div>
             <div>
-              <p className="text-lg font-medium">{userProfile?.displayName || 'User'}</p>
+              <p className="font-medium">{userProfile?.displayName || 'User'}</p>
               <p className="text-sm text-slate-400">{user.email}</p>
-              <p className="text-xs text-slate-500 mt-1">
-                Member since {userProfile?.createdAt ? new Date(userProfile.createdAt).toLocaleDateString() : 'N/A'}
-              </p>
             </div>
           </div>
-
-          <div className="space-y-3">
-            {/* Sign Out */}
-            <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
-              <div>
-                <h3 className="font-medium">Sign Out</h3>
-                <p className="text-sm text-slate-400 mt-1">
-                  Sign out of your account. Your data is saved locally and in the cloud.
-                </p>
-              </div>
-              <button
-                onClick={logOut}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
+          <button onClick={logOut}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors">
+            Sign Out
+          </button>
         </div>
       )}
 
-      {/* Trading Rules */}
-      <div className="bg-slate-800 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-semibold mb-1">Trading Rules</h2>
-        <p className="text-slate-400 text-sm mb-4">
-          {tradingRules.length} rules configured. Rules control when auto-trades trigger in both paper and live mode.
-        </p>
-        <button
-          onClick={() => {
-            if (confirm('Reset all trading rules to defaults? This will delete your custom rules.')) {
-              resetTradingRules();
-            }
-          }}
-          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-sm font-medium transition-colors"
-        >
-          Reset Rules to Defaults
-        </button>
-      </div>
-
-      {/* About Section */}
-      <div className="bg-slate-800 rounded-xl p-6">
-        <h2 className="text-xl font-semibold mb-4">About</h2>
-        <div className="text-slate-400 text-sm space-y-2">
-          <p>AutoTrader - Stock Trading & Portfolio Management</p>
-          <p>Built with React, TypeScript, and Alpaca Markets API</p>
-          <p className="pt-2">
-            <a
-              href="https://alpaca.markets"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-emerald-400 hover:underline"
-            >
+      {/* About */}
+      <div className="bg-slate-800 rounded-xl p-4 md:p-6">
+        <h2 className="text-lg font-semibold mb-3">About</h2>
+        <div className="text-slate-400 text-sm space-y-1">
+          <p>AutoTrader — ORB Day Trading</p>
+          <p>
+            <a href="https://alpaca.markets" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">
               Powered by Alpaca Markets
             </a>
           </p>
